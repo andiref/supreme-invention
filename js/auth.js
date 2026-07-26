@@ -26,7 +26,7 @@
                         localStorage.removeItem('smt_user');
                         return null;
                     }
-                    if (user && user.name && user.badge) {
+                    if (user && user.email) {
                         return user;
                     }
                 }
@@ -121,25 +121,15 @@
             toastTimer = setTimeout(function() { el.classList.remove('show'); }, 2000);
         }
 
-        // ─── ROLE HELPERS ────────────────────────────────────────────────────
-        // Kept for /api/* auth (server-side role is still recorded on the
-        // user account) even though nothing in this trimmed-down app gates
-        // UI on role anymore — it's just you.
-        function getRole() { return currentUser ? currentUser.role : 'technician'; }
-        function isAdmin() { return getRole() === 'admin'; }
+        // (No role helpers — this app has exactly one user, so there's
+        // nothing left to gate by role.)
 
         // ─── DOM REFS ──────────────────────────────────────────────────────
         var loginOverlay = document.getElementById('login-overlay');
         var loginForm = document.getElementById('login-form');
-        var loginName = document.getElementById('login-name');
-        var loginBadge = document.getElementById('login-badge');
+        var loginEmail = document.getElementById('login-email');
         var loginBtn = document.getElementById('login-btn');
         var loginError = document.getElementById('login-error');
-        var createAdminSection = document.getElementById('create-admin-section');
-        var createAdminName = document.getElementById('create-admin-name');
-        var createAdminBadge = document.getElementById('create-admin-badge');
-        var createAdminBtn = document.getElementById('create-admin-btn');
-        var createAdminError = document.getElementById('create-admin-error');
 
         var app = document.getElementById('app');
         var userAvatar = document.getElementById('user-avatar');
@@ -157,36 +147,14 @@
         var prodVolRef = db.ref('smt_prodvol');
         var modelTiersRef = db.ref('smt_modeltiers');
 
-        // ─── CHECK USERS ──────────────────────────────────────────────────
-        function checkUsersExist() {
-            fetch('/api/users', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'exists' })
-            }).then(function(res) { return res.json(); })
-            .then(function(data) {
-                if (data.ok && data.exists) {
-                    createAdminSection.classList.remove('show');
-                    loginForm.style.display = '';
-                } else {
-                    createAdminSection.classList.add('show');
-                    loginForm.style.display = 'none';
-                }
-            }).catch(function(err) {
-                console.error('checkUsersExist error:', err);
-                // Fail safe: show the normal login form rather than an
-                // open "create admin" prompt if the check itself fails.
-                createAdminSection.classList.remove('show');
-                loginForm.style.display = '';
-            });
-        }
+        // (No "does a user exist yet" check needed — there's exactly one
+        // owner, verified server-side against OWNER_EMAIL on every login.)
 
-        // ─── LOGIN / CREATE ADMIN ──────────────────────────────────────────
+        // ─── LOGIN ─────────────────────────────────────────────────────────
         loginForm.addEventListener('submit', function(e) {
             e.preventDefault();
-            var name = loginName.value.trim();
-            var badge = loginBadge.value.trim();
-            if (!name || !badge) { loginError.textContent = 'Please enter name and badge.'; return; }
+            var email = loginEmail.value.trim();
+            if (!email) { loginError.textContent = 'Please enter your email.'; return; }
             loginError.textContent = '';
             loginBtn.disabled = true;
             loginBtn.textContent = '…';
@@ -194,14 +162,14 @@
             fetch('/api/users', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'login', name: name, badge: badge })
+                body: JSON.stringify({ action: 'login', email: email })
             }).then(function(res) { return res.json(); })
             .then(function(data) {
                 if (data.ok) {
-                    currentUser = { badge: data.user.badge, name: data.user.name, role: data.user.role || 'technician' };
+                    currentUser = { email: data.user.email };
                     loginSuccess();
                 } else {
-                    loginError.textContent = data.error || 'Invalid name or badge.';
+                    loginError.textContent = data.error || 'Invalid email.';
                     loginBtn.disabled = false;
                     loginBtn.textContent = 'Sign In →';
                 }
@@ -212,51 +180,17 @@
             });
         });
 
-        createAdminBtn.addEventListener('click', function() {
-            var name = createAdminName.value.trim();
-            var badge = createAdminBadge.value.trim();
-            if (!name || !badge) { createAdminError.textContent = 'Both fields required.'; return; }
-            createAdminError.textContent = '';
-            createAdminBtn.disabled = true;
-            createAdminBtn.textContent = 'Creating…';
-
-            fetch('/api/users', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'bootstrap-admin', name: name, badge: badge })
-            }).then(function(res) { return res.json(); })
-            .then(function(data) {
-                if (data.ok) {
-                    currentUser = { badge: data.user.badge, name: data.user.name, role: data.user.role || 'admin' };
-                    loginSuccess();
-                } else {
-                    createAdminError.textContent = data.error || 'Could not create admin.';
-                    createAdminBtn.disabled = false;
-                    createAdminBtn.textContent = 'Create Admin →';
-                    // Someone else may have completed setup in the meantime —
-                    // flip back to the normal login form if so.
-                    if (data.error && data.error.indexOf('already') !== -1) checkUsersExist();
-                }
-            }).catch(function(err) {
-                createAdminError.textContent = 'Network error — try again.';
-                createAdminBtn.disabled = false;
-                createAdminBtn.textContent = 'Create Admin →';
-            });
-        });
-
         function loginSuccess() {
             try {
                 saveUser(currentUser);
                 loginOverlay.classList.add('hidden');
                 app.classList.add('show');
-                userAvatar.textContent = currentUser.name.charAt(0).toUpperCase();
-                userNameTag.textContent = currentUser.name;
+                userAvatar.textContent = currentUser.email.charAt(0).toUpperCase();
+                userNameTag.textContent = currentUser.email;
                 var sAvatar = document.getElementById('sidebar-avatar');
-                if (sAvatar) sAvatar.textContent = currentUser.name.charAt(0).toUpperCase();
+                if (sAvatar) sAvatar.textContent = currentUser.email.charAt(0).toUpperCase();
                 var sName = document.getElementById('sidebar-name');
-                if (sName) sName.textContent = currentUser.name;
-                var sRole = document.getElementById('sidebar-role');
-                if (sRole) sRole.textContent = (currentUser.role || 'technician').charAt(0).toUpperCase() + (currentUser.role || 'technician').slice(1);
+                if (sName) sName.textContent = currentUser.email;
                 if (!appInitialized) {
                     initApp();
                     appInitialized = true;
@@ -273,16 +207,14 @@
             currentUser = null;
             clearStoredUser();
             // Do NOT sign out of Firebase Auth — the anonymous session must stay active
-            // so Firebase Rules (auth != null) keep working when user logs back in.
-            // Only clear the app-level user (badge/name/role).
+            // so Firebase Rules (auth != null) keep working when you log back in.
+            // Only clear the app-level user (email).
             loginOverlay.classList.remove('hidden');
             app.classList.remove('show');
             loginBtn.disabled = false;
             loginBtn.textContent = 'Sign In →';
-            loginName.value = '';
-            loginBadge.value = '';
+            loginEmail.value = '';
             loginError.textContent = '';
-            checkUsersExist();
             showToast('Signed out');
         }
 
@@ -303,31 +235,26 @@
                 var readTimeout = setTimeout(function() {
                     console.error('Login check timed out after 5s — showing login');
                     clearStoredUser();
-                    checkUsersExist();
                 }, 5000);
                 fetch('/api/users', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'login', name: stored.name, badge: stored.badge })
+                    body: JSON.stringify({ action: 'login', email: stored.email })
                 }).then(function(res) { return res.json(); })
                 .then(function(data) {
                     clearTimeout(readTimeout);
                     if (data.ok) {
-                        currentUser = { badge: data.user.badge, name: data.user.name, role: data.user.role || 'technician' };
+                        currentUser = { email: data.user.email };
                         loginSuccess();
                     } else {
-                        // Badge/name no longer match (e.g. account removed or renamed) — sign out.
+                        // OWNER_EMAIL no longer matches (e.g. it was changed) — sign out.
                         clearStoredUser();
-                        checkUsersExist();
                     }
                 }).catch(function(err) {
                     clearTimeout(readTimeout);
                     console.error('Stored user lookup failed:', err);
                     clearStoredUser();
-                    checkUsersExist();
                 });
-            } else {
-                checkUsersExist();
             }
         }
 
