@@ -15,23 +15,20 @@
             <div class="sub">Shift &amp; Quality · <span>Login</span></div>
             <form id="login-form" autocomplete="off">
                 <div class="login-field">
-                    <label>Your Name</label>
-                    <input id="login-name" type="text" placeholder="e.g. John Doe" required />
+                    <label>Email</label>
+                    <input id="login-email" type="email" placeholder="you@company.com" required />
                 </div>
                 <div class="login-field">
-                    <label>Badge ID</label>
-                    <input id="login-badge" type="text" placeholder="e.g. 1234" required />
+                    <label>Password</label>
+                    <input id="login-password" type="password" placeholder="••••••" required />
                 </div>
                 <div id="login-error" class="login-error"></div>
                 <button class="login-btn" id="login-btn" type="submit">Sign In →</button>
             </form>
-            <div class="login-role-hint">Contact admin for badge and role</div>
-            <div class="login-create-admin" id="create-admin-section">
-                <div style="font-size:12px;color:var(--muted);margin-bottom:8px;text-align:center">🔑 No users found — create the first admin account</div>
-                <div class="login-field"><label>Admin Name</label><input id="create-admin-name" type="text" placeholder="e.g. Admin" /></div>
-                <div class="login-field"><label>Admin Badge</label><input id="create-admin-badge" type="text" placeholder="e.g. 0000" /></div>
-                <button class="login-btn" id="create-admin-btn" style="background:#16a34a">Create Admin →</button>
-                <div id="create-admin-error" class="login-error" style="margin-top:6px"></div>
+            <div style="margin-top:14px;text-align:center">
+                <button id="register-btn" style="background:transparent;border:none;color:var(--muted);font-size:11px;cursor:pointer;text-decoration:underline">
+                    Create account (first time only)
+                </button>
             </div>
         </div>
     </div>
