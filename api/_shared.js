@@ -176,4 +176,3 @@ export function requireOwner(env, res, headerEmail) {
     }
     return email;
 }
-
