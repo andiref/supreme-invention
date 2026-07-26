@@ -71,7 +71,7 @@ function initCustomerForms() {
         cuAddBtn.disabled = true;
         fetch('/api/customers', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Badge': currentUser.badge },
+            headers: { 'Content-Type': 'application/json', 'X-User-Email': currentUser.email },
             body: JSON.stringify({ action: 'addCustomer', name: name })
         }).then(function(r) { return r.json(); })
         .then(function(d) {
@@ -93,7 +93,7 @@ function initCustomerForms() {
         cuModelAddBtn.disabled = true;
         fetch('/api/customers', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Badge': currentUser.badge },
+            headers: { 'Content-Type': 'application/json', 'X-User-Email': currentUser.email },
             body: JSON.stringify({ action: 'addModel', customerId: customerId, code: code })
         }).then(function(r) { return r.json(); })
         .then(function(d) {
@@ -116,7 +116,7 @@ function initCustomerForms() {
         cpSubmitBtn.textContent = 'Logging…';
         fetch('/api/complaints', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Badge': currentUser.badge },
+            headers: { 'Content-Type': 'application/json', 'X-User-Email': currentUser.email },
             body: JSON.stringify({ action: 'add', customerId: customerId, modelId: modelId, description: description })
         }).then(function(r) { return r.json(); })
         .then(function(d) {
@@ -205,7 +205,7 @@ function renderCustomers() {
             if (!currentUser) { showToast('Not logged in'); return; }
             fetch('/api/customers', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Badge': currentUser.badge },
+                headers: { 'Content-Type': 'application/json', 'X-User-Email': currentUser.email },
                 body: JSON.stringify({ action: 'setModelStatus', modelId: id, status: next })
             }).then(function(r) { return r.json(); })
             .then(function(d) { showToast(d.ok ? d.msg : 'Error: ' + d.error); })
@@ -259,7 +259,7 @@ function renderComplaints() {
             if (!currentUser) { showToast('Not logged in'); return; }
             fetch('/api/complaints', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Badge': currentUser.badge },
+                headers: { 'Content-Type': 'application/json', 'X-User-Email': currentUser.email },
                 body: JSON.stringify({ action: 'update', complaintId: id, status: status })
             }).then(function(r) { return r.json(); })
             .then(function(d) { showToast(d.ok ? d.msg : 'Error: ' + d.error); })
