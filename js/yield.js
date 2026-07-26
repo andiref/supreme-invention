@@ -541,7 +541,7 @@ function addModel(){
   const cr=document.getElementById('nm-cr').value;
   if(!m||!c){showToast('Model and Customer required.');return;}
   if(!currentUser){showToast('Not logged in');return;}
-  fetch('/api/yield',{method:'POST',headers:{'Content-Type':'application/json','X-Badge':currentUser.badge},
+  fetch('/api/yield',{method:'POST',headers:{'Content-Type':'application/json','X-User-Email':currentUser.email},
     body:JSON.stringify({action:'addModelTier',model:m,customer:c,weeklyVol:v,defectRate:r,criticality:cr})})
     .then(r=>r.json()).then(d=>{
       if(d.ok){['nm-m','nm-c','nm-v','nm-r'].forEach(id=>document.getElementById(id).value='');showToast('Model added \u2713');}
@@ -554,7 +554,7 @@ function removeModel(i){
   if(!target||!target._id)return;
   showConfirm('Remove this model?','This cannot be undone.',()=>{
     if(!currentUser){showToast('Not logged in');return;}
-    fetch('/api/yield',{method:'POST',headers:{'Content-Type':'application/json','X-Badge':currentUser.badge},
+    fetch('/api/yield',{method:'POST',headers:{'Content-Type':'application/json','X-User-Email':currentUser.email},
       body:JSON.stringify({action:'removeModelTier',id:target._id})})
       .then(r=>r.json()).then(d=>{
         if(d.ok)showToast('Removed');else showToast('Error: '+d.error);
@@ -883,7 +883,7 @@ function importDef(){
     if(!rows.length){document.getElementById('def-err').textContent='No valid rows. Format: Customer|SerialNo|Model|DefectType|Component|MM/DD/YYYY HH:MM:SS|Side';return;}
     if(!currentUser){document.getElementById('def-err').textContent='Not logged in.';return;}
     document.getElementById('def-err').textContent='Importing '+rows.length+' rows\u2026';
-    fetch('/api/yield',{method:'POST',headers:{'Content-Type':'application/json','X-Badge':currentUser.badge},
+    fetch('/api/yield',{method:'POST',headers:{'Content-Type':'application/json','X-User-Email':currentUser.email},
       body:JSON.stringify({action:'importDefects',rows})})
       .then(r=>r.json()).then(d=>{
         if(d.ok){
@@ -913,7 +913,7 @@ function importProd(){
     if(!rows.length){document.getElementById('prod-err').textContent='No valid rows. Format: Week|Customer|Model|Side|TotalInspected';return;}
     if(!currentUser){document.getElementById('prod-err').textContent='Not logged in.';return;}
     document.getElementById('prod-err').textContent='Importing\u2026';
-    fetch('/api/yield',{method:'POST',headers:{'Content-Type':'application/json','X-Badge':currentUser.badge},
+    fetch('/api/yield',{method:'POST',headers:{'Content-Type':'application/json','X-User-Email':currentUser.email},
       body:JSON.stringify({action:'importProdVol',rows})})
       .then(r=>r.json()).then(d=>{
         if(d.ok){
