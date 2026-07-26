@@ -2,7 +2,6 @@
 firebase.initializeApp({
     apiKey: "AIzaSyDb5NmUfwEDTHwTmvnR7NF-rk8ATHoClW0",
     authDomain: "smt-engineer-report.firebaseapp.com",
-    // ⚠️ Get this exact URL from Firebase Console → Realtime Database
     databaseURL: "https://smt-engineer-report-default-rtdb.asia-southeast1.firebasedatabase.app",
     projectId: "smt-engineer-report",
     storageBucket: "smt-engineer-report.firebasestorage.app",
