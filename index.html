@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
     <meta name="theme-color" content="#0a0a0f" />
     <title>SMT Report Center</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
@@ -133,7 +136,13 @@
                         <div class="form-group" style="margin-bottom:0"><label>Customer</label><select id="cp-customer"><option value="">Select…</option></select></div>
                         <div class="form-group" style="margin-bottom:0"><label>Model</label><select id="cp-model"><option value="">Select customer first</option></select></div>
                     </div>
-                    <div class="form-group"><label>Description *</label><textarea id="cp-description" placeholder="What did the customer report?"></textarea></div>
+                    <div class="form-group"><label>Finding *</label><textarea id="cp-finding" placeholder="What was found? e.g. R50 Non Wetting"></textarea></div>
+                    <div class="form-group"><label>Location</label><input type="text" id="cp-location" placeholder="e.g. Top side, near J1 connector" /></div>
+                    <div class="form-row">
+                        <div class="form-group" style="margin-bottom:0"><label>Root Cause — Occurrence</label><textarea id="cp-rc-occurrence" placeholder="Why did this happen?"></textarea></div>
+                        <div class="form-group" style="margin-bottom:0"><label>Root Cause — Escapee</label><textarea id="cp-rc-escapee" placeholder="Why wasn't it caught before shipping?"></textarea></div>
+                    </div>
+                    <div class="form-group"><label>Action</label><textarea id="cp-action" placeholder="What corrective action was taken?"></textarea></div>
                     <button class="submit-btn" id="cp-submit-btn" disabled>Log Complaint →</button>
                 </div>
                 <div style="margin-top:16px">
@@ -145,19 +154,19 @@
             <div id="yc-root">
 <div id="tab-yield" style="display:none">
   <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
-    <span style="font-size:11px;color:#64748b;">IMPORT:</span>
+    <span style="font-size:11px;color:var(--muted);">IMPORT:</span>
     <button class="btn bg" onclick="tog('pd')">📋 DEFECT DATA</button>
     <button class="btn bb" onclick="tog('pp')">📊 PRODUCTION VOLUME</button>
   </div>
 
   <div id="pd" class="card" style="display:none;">
     <div class="ct">📋 DEFECT RAW DATA — Customer|SerialNo|Model|DefectType|Component|DateTime|Side</div>
-    <div style="font-size:10px;color:#64748b;margin-bottom:8px;line-height:1.9;">
+    <div style="font-size:10px;color:var(--muted);margin-bottom:8px;line-height:1.9;">
       Format: <span style="color:#3b82f6;">Customer | SerialNumber | Model | DefectType | Component | MM/DD/YYYY HH:MM:SS | Side(TOP/BOT)</span><br>
       <span style="color:#f59e0b;">⚠ Each row = 1 defect. Same SN+Side = 1 failed pass. Different Side = separate failure.</span>
     </div>
     <div class="pc">
-      <span style="color:#64748b;">Customer &nbsp; SerialNo &nbsp; Model &nbsp;&nbsp;&nbsp;&nbsp; DefectType &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Comp &nbsp; DateTime &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Side</span><br>
+      <span style="color:var(--muted);">Customer &nbsp; SerialNo &nbsp; Model &nbsp;&nbsp;&nbsp;&nbsp; DefectType &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Comp &nbsp; DateTime &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Side</span><br>
       CUST-A &nbsp;&nbsp;&nbsp; SN-001 &nbsp;&nbsp;&nbsp; MODEL-AA1 &nbsp; Solder Bridge &nbsp;&nbsp;&nbsp;&nbsp; <span style="color:#34d399;">R1</span> &nbsp;&nbsp;&nbsp; <span style="color:#22c55e;">04/07/2025 08:23:15</span> &nbsp; <span style="color:#22c55e;">TOP</span><br>
       CUST-A &nbsp;&nbsp;&nbsp; SN-001 &nbsp;&nbsp;&nbsp; MODEL-AA1 &nbsp; Missing Component &nbsp; <span style="color:#34d399;">C5</span> &nbsp;&nbsp;&nbsp; <span style="color:#22c55e;">04/07/2025 08:45:02</span> &nbsp; <span style="color:#22c55e;">TOP</span> <span style="color:#f59e0b;">← same SN+Side=1 fail</span><br>
       CUST-A &nbsp;&nbsp;&nbsp; SN-001 &nbsp;&nbsp;&nbsp; MODEL-AA1 &nbsp; Insuff Solder &nbsp;&nbsp;&nbsp;&nbsp; <span style="color:#34d399;">U3</span> &nbsp;&nbsp;&nbsp; <span style="color:#22c55e;">04/07/2025 09:10:05</span> &nbsp; <span style="color:#a78bfa;">BOT</span> <span style="color:#ef4444;">← diff Side=2nd fail</span>
@@ -172,7 +181,7 @@
 
   <div id="pp" class="card" style="display:none;">
     <div class="ct">📊 PRODUCTION VOLUME — Week|Customer|Model|Side|TotalInspected</div>
-    <div style="font-size:10px;color:#64748b;margin-bottom:8px;line-height:1.9;">
+    <div style="font-size:10px;color:var(--muted);margin-bottom:8px;line-height:1.9;">
       Format: <span style="color:#3b82f6;">Week | Customer | Model | Side | TotalInspected</span> — one row per side.<br>
       <span style="color:#f59e0b;">⚠ Week format: 2026-W17 &nbsp;|&nbsp; Paste directly from your DB — TOP and BOT as separate rows.</span><br>
       <span style="color:#22c55e;">💡 Import defect data first — detected weeks shown below filters.</span>
@@ -186,7 +195,7 @@
   </div>
 
   <!-- Formula -->
-  <div class="dk" style="font-size:11px;color:#94a3b8;line-height:2.2;">
+  <div class="dk" style="font-size:11px;color:var(--muted);line-height:2.2;">
     <span style="color:#22c55e;font-weight:700;">YIELD TOP &nbsp;&nbsp;&nbsp;</span>= ( InspTOP − Unique Failed SN(TOP) ) ÷ InspTOP × 100<br>
     <span style="color:#a78bfa;font-weight:700;">YIELD BOT &nbsp;&nbsp;&nbsp;</span>= ( InspBOT − Unique Failed SN(BOT) ) ÷ InspBOT × 100<br>
     <span style="color:#f59e0b;font-weight:700;">YIELD OVERALL</span>= ( InspTOP+InspBOT − Total Failed SN+Side ) ÷ ( InspTOP+InspBOT ) × 100<br>
@@ -195,7 +204,7 @@
 
   <!-- Filters -->
   <div style="display:flex;gap:10px;margin-bottom:8px;flex-wrap:wrap;align-items:center;">
-    <span style="font-size:10px;color:#64748b;">FILTER:</span>
+    <span style="font-size:10px;color:var(--muted);">FILTER:</span>
     <select id="f-week" onchange="renderYield()" style="width:auto;"></select>
     <select id="f-cust" onchange="renderYield()" style="width:auto;"></select>
     <select id="f-model" onchange="renderYield()" style="width:auto;"></select>
@@ -209,17 +218,17 @@
     <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;">
       <div class="ct" style="margin-bottom:0;">📊 TREND CHART</div>
       <div style="display:flex;align-items:center;gap:6px;">
-        <span style="font-size:10px;color:#64748b;">CUSTOMER:</span>
+        <span style="font-size:10px;color:var(--muted);">CUSTOMER:</span>
         <select id="chart-cust" onchange="renderYield()" style="width:auto;font-size:10px;padding:3px 6px;"></select>
       </div>
       <div style="display:flex;align-items:center;gap:6px;">
-        <span style="font-size:10px;color:#64748b;">YIELD:</span>
+        <span style="font-size:10px;color:var(--muted);">YIELD:</span>
         <select id="yield-view" onchange="renderYield()" style="width:auto;font-size:10px;padding:3px 6px;">
           <option value="overall">Combined</option><option value="customer">Per Customer</option>
         </select>
       </div>
       <div style="display:flex;align-items:center;gap:6px;">
-        <span style="font-size:10px;color:#64748b;">DPPM:</span>
+        <span style="font-size:10px;color:var(--muted);">DPPM:</span>
         <select id="dppm-view" onchange="renderYield()" style="width:auto;font-size:10px;padding:3px 6px;">
           <option value="overall">Combined</option><option value="customer">Per Customer</option>
         </select>
@@ -273,7 +282,7 @@
 
 <div id="tab-time" style="display:none">
   <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
-    <span style="font-size:10px;color:#64748b;">FILTER:</span>
+    <span style="font-size:10px;color:var(--muted);">FILTER:</span>
     <select id="tf-week" onchange="renderTime()" style="width:auto;"></select>
     <select id="tf-cust" onchange="renderTime()" style="width:auto;"></select>
     <select id="tf-model" onchange="renderTime()" style="width:auto;"></select>
@@ -297,7 +306,7 @@
 
 <div id="tab-tiers" style="display:none">
   <div class="kpi-row" id="tier-kpi"></div>
-  <div class="dk" style="font-size:10px;color:#94a3b8;line-height:2;">
+  <div class="dk" style="font-size:10px;color:var(--muted);line-height:2;">
     Score=Vol(≥5000→3,≥3000→2,else 1)+Rate(≥3%→3,≥1.5%→2,else 1)+Crit(High→3,Med→2,Low→1)<br>
     <span style="color:#ef4444;">■ T1:7-9 Weekly RCA</span> &nbsp;<span style="color:#f59e0b;">■ T2:4-6 Monthly</span> &nbsp;<span style="color:#22c55e;">■ T3:3 Monitor</span>
   </div>
@@ -329,7 +338,7 @@
       <div id="lib-items"></div>
     </div>
     <div id="lib-detail">
-      <div class="card" style="text-align:center;padding:60px;color:#64748b;"><div style="font-size:40px;margin-bottom:12px;">📚</div>Select a defect type</div>
+      <div class="card" style="text-align:center;padding:60px;color:var(--muted);"><div style="font-size:40px;margin-bottom:12px;">📚</div>Select a defect type</div>
     </div>
   </div>
 </div>
@@ -337,8 +346,8 @@
 
 <div id="tab-report" style="display:none">
   <!-- Email report generator -->
-  <div class="card" style="background:#1e3a5f;border-color:#3b82f6;margin-bottom:14px;">
-    <div class="ct" style="color:#93c5fd;">📧 EMAIL REPORT — generate PNG to paste into email</div>
+  <div class="card" style="background:var(--surface2);border-color:var(--accent);margin-bottom:14px;">
+    <div class="ct">📧 EMAIL REPORT — generate PNG to paste into email</div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
       <div class="fl"><div class="fl-lbl">REPORT WEEK</div><input id="rpt-week" placeholder="2026-W17" style="width:130px;"/></div>
       <div class="fl"><div class="fl-lbl">PREPARED BY</div><input id="rpt-author" placeholder="Your name" style="width:150px;"/></div>
