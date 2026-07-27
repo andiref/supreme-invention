@@ -2258,3 +2258,136 @@
 #yc-root .li { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; cursor: pointer; margin-bottom: 7px; transition: all 0.15s; }
 #yc-root .li:hover, #yc-root .li.active { background: var(--surface2); border-color: var(--accent); }
 #yc-root canvas { display: block; max-width: 100%; }
+
+
+
+/* ═══════════════════════════════════════════════════════════
+   UPLOAD ENGINE CSS  — append to end of styles.css
+   ═══════════════════════════════════════════════════════════ */
+
+.hidden { display: none !important; }
+
+.drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+  padding: 28px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all .2s;
+  background: var(--surface2);
+}
+.drop-zone:hover,
+.drop-zone.dragover {
+  border-color: var(--accent);
+  background: rgba(59,130,246,0.08);
+}
+.dz-icon { font-size: 28px; margin-bottom: 6px; }
+.dz-main { font-size: 13px; color: var(--text); font-weight: 600; }
+.dz-sub  { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.dz-hint { font-size: 10px; color: var(--muted); margin-top: 8px; opacity: .7; }
+
+.file-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 12px;
+  margin-top: 10px;
+}
+.file-badge .remove {
+  color: var(--critical);
+  cursor: pointer;
+  font-weight: 700;
+  margin-left: 6px;
+}
+
+.mapping-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+.map-box {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+}
+.map-box .map-label {
+  font-size: 9px;
+  color: var(--muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: 6px;
+}
+.map-box .map-label .req { color: var(--critical); }
+.map-box select {
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: var(--font);
+}
+.map-box.mapped { border-color: var(--green); }
+.map-box.mapped .map-label { color: var(--green); }
+
+.stats-bar {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  background: var(--surface2);
+  border-radius: 6px;
+}
+.stats-bar b { color: var(--text); }
+
+.preview-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  min-width: 500px;
+}
+.preview-table th {
+  background: var(--surface2);
+  color: var(--accent2);
+  padding: 7px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  font-size: 10px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.preview-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  white-space: nowrap;
+}
+.preview-table tr:nth-child(even) td { background: var(--surface2); }
+.preview-table .err-cell { color: var(--critical); background: #450a0a18 !important; }
+.preview-table .ok-cell  { color: var(--green); }
+
+/* ═══════════════════════════════════════════════════════════
+   NOTE: Remove dead CSS selectors for deleted features:
+   .task-card, .line-card, #line-grid, .comment-list,
+   .audit-table, .task-remark-panel, etc.
+   ═══════════════════════════════════════════════════════════ */
+
