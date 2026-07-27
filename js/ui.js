@@ -1,243 +1,232 @@
-// ─── INIT APP ──────────────────────────────────────────────────────
-        var appInitialized = false;
-        function initApp() {
-            initListeners();
-            initNav();
-            initCustomerForms();
-            initThemeToggles();
-            updateHeader();
-            setInterval(updateHeader, 60000);
-            // Canvas chart text is drawn synchronously, so it may render with
-            // a fallback font for one frame while Inter is still loading.
-            if (document.fonts && document.fonts.ready) {
-                document.fonts.ready.then(function() {
-                    if (typeof renderAll === 'function') renderAll();
-                });
-            }
-        }
+/* ═══════════════════════════════════════════════════════════
+   UI CONTROLLER
+   ═══════════════════════════════════════════════════════════ */
 
-        // ─── FIREBASE LISTENERS ─────────────────────────────────────────────
-        // Connection state monitoring
-        db.ref('.info/connected').on('value', function(snap) {
-            var connected = snap.val();
-            var dd = document.getElementById('sync-dot');
-            var dl = document.getElementById('sync-label');
-            var md = document.getElementById('sync-dot-mobile');
-            var ml = document.getElementById('sync-label-mobile');
-            if (connected) {
-                if (dd) dd.className = 'sync-dot live';
-                if (dl) dl.textContent = 'Live — synced';
-                if (md) md.className = 'sync-dot live';
-                if (ml) ml.textContent = 'Live — synced';
-            } else {
-                if (dd) dd.className = 'sync-dot error';
-                if (dl) dl.textContent = 'Offline — changes queued locally';
-                if (md) md.className = 'sync-dot error';
-                if (ml) ml.textContent = 'Offline — changes queued locally';
-            }
+var currentUser = null;
+var readTimeout = null;
+
+function initApp() {
+    initListeners();
+    initNav();
+    initCustomerForms();
+    initThemeToggles();
+    initUpload('defect');
+    initUpload('prod');
+    updateHeader();
+    setInterval(updateHeader, 60000);
+
+    var stored = getStoredUser();
+    if (stored && stored.expires > Date.now()) {
+        currentUser = stored;
+        startApp();
+    } else {
+        clearStoredUser();
+        showLogin();
+    }
+}
+
+function initListeners() {
+    window.addEventListener('online', function() { showToast('Back online'); });
+    window.addEventListener('offline', function() { showToast('Offline mode'); });
+}
+
+function initNav() {
+    document.querySelectorAll('.nav-item').forEach(function(el) {
+        el.addEventListener('click', function() {
+            document.querySelectorAll('.nav-item').forEach(function(x) { x.classList.remove('active'); });
+            el.classList.add('active');
         });
+    });
+}
 
-        function setSyncStatus(live, msg, time) {
-            // Desktop sync bar
-            var dd = document.getElementById('sync-dot');
-            var dl = document.getElementById('sync-label');
-            var dt = document.getElementById('sync-time');
-            if (dd) dd.className = 'sync-dot' + (live ? ' live' : ' error');
-            if (dl) dl.textContent = msg;
-            if (dt && time) dt.textContent = time;
-            // Mobile sync bar
-            var md = document.getElementById('sync-dot-mobile');
-            var ml = document.getElementById('sync-label-mobile');
-            var mt = document.getElementById('sync-time-mobile');
-            if (md) md.className = 'sync-dot' + (live ? ' live' : ' error');
-            if (ml) ml.textContent = msg;
-            if (mt && time) mt.textContent = time;
+function switchView(view) {
+    document.querySelectorAll('.view').forEach(function(v) { v.classList.add('hidden'); });
+    var target = document.getElementById('view-' + view);
+    if (target) target.classList.remove('hidden');
+    document.getElementById('page-title').textContent = view.charAt(0).toUpperCase() + view.slice(1);
+
+    if (view === 'customers') renderCustomers();
+    if (view === 'complaints') renderComplaints();
+    if (view === 'yield') renderYield();
+    if (view === 'dashboard') renderDashboard();
+}
+
+function showLogin() {
+    var modal = document.createElement('div');
+    modal.id = 'login-modal';
+    modal.innerHTML =
+        '<div style="position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:1000;">' +
+        '<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;min-width:300px;">' +
+        '<h3 style="margin:0 0 16px;">Login</h3>' +
+        '<input id="login-email" type="email" placeholder="Email" style="width:100%;padding:8px;margin-bottom:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);" />' +
+        '<button onclick="doLogin()" style="width:100%;padding:8px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;">Login</button>' +
+        '</div></div>';
+    document.body.appendChild(modal);
+}
+
+function doLogin() {
+    var email = document.getElementById('login-email').value.trim();
+    if (!email) { showToast('Enter email'); return; }
+
+    fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email })
+    }).then(function(r) { return r.json(); })
+      .then(function(d) {
+          if (d.ok) {
+              currentUser = { email: d.email, name: d.name, expires: Date.now() + 8 * 3600000 };
+              setStoredUser(currentUser);
+              var modal = document.getElementById('login-modal');
+              if (modal) modal.remove();
+              startApp();
+          } else {
+              showToast(d.error || 'Login failed');
+          }
+      }).catch(function() { showToast('Network error'); });
+}
+
+function logout() {
+    clearStoredUser();
+    currentUser = null;
+    location.reload();
+}
+
+function startApp() {
+    if (!currentUser) return;
+    document.getElementById('user-email').textContent = currentUser.email;
+
+    readTimeout = setTimeout(function() {
+        showToast('Firebase read timeout — check connection');
+    }, 10000);
+
+    fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-User-Email': currentUser.email },
+        body: JSON.stringify({ email: currentUser.email })
+    }).then(function(r) {
+        clearTimeout(readTimeout);
+        return r.json();
+    }).then(function(d) {
+        if (!d.ok) { logout(); return; }
+        loadFirebaseData();
+    }).catch(function(err) {
+        clearTimeout(readTimeout);
+        console.error('Auth check failed:', err);
+        clearStoredUser();
+    });
+}
+
+function loadFirebaseData() {
+    var db = firebase.database();
+
+    safeOnValue(db.ref('smt_customers'), function(snap) {
+        var val = snap.val() || {};
+        customers = Object.keys(val).map(function(k) { return { id: k, ...val[k] }; });
+        if (document.getElementById('view-customers') && !document.getElementById('view-customers').classList.contains('hidden')) {
+            renderCustomers();
         }
+        updateHeader();
+    });
 
-        function initListeners() {
-            function safeOnValue(ref, callback, errorCallback, retries) {
-                retries = retries || 3;
-                ref.on('value', callback, function(err) {
-                    console.error('Firebase error:', err);
-                    // Don't retry permission errors — retrying won't help and causes error loops
-                    var isPermissionError = err && err.code && err.code.indexOf('PERMISSION_DENIED') !== -1;
-                    if (!isPermissionError && retries > 0) {
-                        setTimeout(function() {
-                            safeOnValue(ref, callback, errorCallback, retries - 1);
-                        }, 2000);
-                    } else if (errorCallback) {
-                        errorCallback(err);
-                    } else if (isPermissionError) {
-                        console.warn('Permission denied — check Firebase Rules and Anonymous Auth is enabled.');
-                    }
-                });
-            }
+    safeOnValue(db.ref('smt_models'), function(snap) {
+        var val = snap.val() || {};
+        models = Object.keys(val).map(function(k) { return val[k].name; });
+    });
 
-            safeOnValue(customersRef, function(snap) {
-                customers = snap.val() || {};
-                populateCustomerSelects();
-                if (currentView === 'customers') renderCustomers();
-                setSyncStatus(true, 'Live — synced',
-                    'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-            }, function(err) {
-                setSyncStatus(false, 'Error: ' + err.message, null);
-            });
-            safeOnValue(modelsRef, function(snap) {
-                models = snap.val() || {};
-                populateCustomerSelects();
-                if (currentView === 'customers') renderCustomers();
-            });
-            safeOnValue(complaintsRef.orderByChild('created').limitToLast(200), function(snap) {
-                complaints = snap.val() || {};
-                if (currentView === 'complaints') renderComplaints();
-            });
-
-            // ── Yield/DPPM analytics tool (js/yield.js) ──────────────────────
-            safeOnValue(defectsRef, function(snap) {
-                var raw = snap.val() || {};
-                // Reconstruct full rows (week/hour/shift/dow/datetime) from the
-                // 7 stored fields via mkRow(), same as the original tool's
-                // loadData() did from localStorage.
-                rawDef = Object.keys(raw).map(function(id) {
-                    var r = raw[id];
-                    return mkRow(r.dtStr, r.customer, r.model, r.sn, r.side, r.comp, r.defect);
-                }).filter(Boolean);
-                if (currentView === 'yield') { populateFilters(); renderYield(); }
-                if (currentView === 'time') { populateTimeFilters(); renderTime(); }
-                if (currentView === 'report') { populateRptFilter(); renderReport(); }
-            });
-            safeOnValue(prodVolRef, function(snap) {
-                var raw = snap.val() || {};
-                prodVol = Object.keys(raw).map(function(id) {
-                    var r = raw[id];
-                    return { week: r.week, customer: r.customer, model: r.model, inspTOP: r.inspTOP || 0, inspBOT: r.inspBOT || 0 };
-                });
-                if (currentView === 'yield') { populateFilters(); renderYield(); }
-            });
-            safeOnValue(modelTiersRef, function(snap) {
-                var raw = snap.val() || {};
-                modelTiers = Object.keys(raw).map(function(id) {
-                    return Object.assign({}, raw[id], { _id: id });
-                });
-                if (currentView === 'tiers') renderTiers();
-            });
+    safeOnValue(db.ref('smt_complaints'), function(snap) {
+        var val = snap.val() || {};
+        complaints = Object.keys(val).map(function(k) { return { id: k, ...val[k] }; });
+        if (document.getElementById('view-complaints') && !document.getElementById('view-complaints').classList.contains('hidden')) {
+            renderComplaints();
         }
-
-        // ─── SHOW CONFIRM ────────────────────────────────────────────────────
-        function showConfirm(title, msg, onYes, yesLabel) {
-            document.getElementById('confirm-title').textContent = title;
-            document.getElementById('confirm-msg').textContent = msg || '';
-            document.getElementById('confirm-yes').textContent = yesLabel || 'Confirm';
-            document.getElementById('confirm-overlay').classList.add('show');
-            confirmCallback = onYes;
+        if (document.getElementById('view-dashboard') && !document.getElementById('view-dashboard').classList.contains('hidden')) {
+            renderDashboard();
         }
+    });
 
-        document.getElementById('confirm-yes').addEventListener('click', function() {
-            document.getElementById('confirm-overlay').classList.remove('show');
-            if (confirmCallback) confirmCallback();
-            confirmCallback = null;
-        });
-        document.getElementById('confirm-no').addEventListener('click', function() {
-            document.getElementById('confirm-overlay').classList.remove('show');
-            confirmCallback = null;
-        });
-
-        // ─── NAV ─────────────────────────────────────────────────────────────
-        function initNav() {
-            var navBtns = {
-                'btn-customers': 'customers',
-                'btn-complaints': 'complaints',
-                'btn-yield': 'yield',
-                'btn-time': 'time',
-                'btn-tiers': 'tiers',
-                'btn-library': 'library',
-                'btn-report': 'report'
-            };
-            Object.keys(navBtns).forEach(function(id) {
-                var btn = document.getElementById(id);
-                if (!btn) return;
-                btn.addEventListener('click', function() {
-                    switchView(navBtns[id]);
-                });
-            });
-
-            // Sidebar nav buttons
-            document.querySelectorAll('#sidebar-nav .snav-btn').forEach(function(btn) {
-                btn.addEventListener('click', function() {
-                    var target = btn.getAttribute('data-target');
-                    if (target && navBtns[target]) switchView(navBtns[target]);
-                });
-            });
-            // Sidebar logout
-            var sLogout = document.getElementById('sidebar-logout-btn2');
-            if (sLogout) sLogout.addEventListener('click', logout);
-
-            document.addEventListener('keydown', function(e) {
-                if (e.key === 'Escape') {
-                    document.getElementById('confirm-overlay').classList.remove('show');
-                }
-            });
+    safeOnValue(db.ref('smt_defects'), function(snap) {
+        var val = snap.val() || {};
+        rawDef = Object.keys(val).map(function(k) { return val[k]; });
+        if (document.getElementById('view-yield') && !document.getElementById('view-yield').classList.contains('hidden')) {
+            renderYield();
         }
+    });
 
-        function switchView(v) {
-            currentView = v;
-            var viewToBtn = {
-                customers: 'btn-customers', complaints: 'btn-complaints',
-                yield: 'btn-yield', time: 'btn-time', tiers: 'btn-tiers',
-                library: 'btn-library', report: 'btn-report'
-            };
-            var allViews = ['customers', 'complaints', 'yield', 'time', 'tiers', 'library', 'report'];
-            allViews.forEach(function(name) {
-                var btn = document.getElementById('btn-' + name);
-                if (btn) btn.classList.toggle('active', name === v);
-            });
-            // Sidebar active state
-            document.querySelectorAll('#sidebar-nav .snav-btn').forEach(function(btn) {
-                btn.classList.toggle('active', btn.getAttribute('data-target') === viewToBtn[v]);
-            });
-            document.getElementById('customers-view').style.display = v === 'customers' ? 'block' : 'none';
-            document.getElementById('complaints-view').style.display = v === 'complaints' ? 'block' : 'none';
-            document.getElementById('tab-yield').style.display = v === 'yield' ? 'block' : 'none';
-            document.getElementById('tab-time').style.display = v === 'time' ? 'block' : 'none';
-            document.getElementById('tab-tiers').style.display = v === 'tiers' ? 'block' : 'none';
-            document.getElementById('tab-library').style.display = v === 'library' ? 'block' : 'none';
-            document.getElementById('tab-report').style.display = v === 'report' ? 'block' : 'none';
+    safeOnValue(db.ref('smt_prodvol'), function(snap) {
+        var val = snap.val() || {};
+        prodVol = Object.keys(val).map(function(k) { return { id: k, ...val[k] }; });
+    });
 
-            if (v === 'customers') renderCustomers();
-            if (v === 'complaints') renderComplaints();
-            if (v === 'yield') { populateFilters(); renderYield(); }
-            if (v === 'time') { populateTimeFilters(); renderTime(); }
-            if (v === 'tiers') renderTiers();
-            if (v === 'library') renderLib();
-            if (v === 'report') { populateRptFilter(); renderReport(); }
-            applyRoleUI();
+    safeOnValue(db.ref('smt_modeltiers'), function(snap) {
+        var val = snap.val() || {};
+        modelTiers = Object.keys(val).map(function(k) { return { id: k, ...val[k] }; });
+    });
+}
+
+// FIXED: detach listener before retry to prevent memory leak
+function safeOnValue(ref, callback, errorCallback, retries) {
+    retries = retries || 3;
+    var handler = function(snap) { callback(snap); };
+    var errorHandler = function(err) {
+        console.error('Firebase read error:', err);
+        ref.off('value', handler);
+        if (errorCallback) errorCallback(err);
+        if (retries > 0) {
+            setTimeout(function() {
+                safeOnValue(ref, callback, errorCallback, retries - 1);
+            }, 2000);
         }
+    };
+    ref.on('value', handler, errorHandler);
+}
 
-        // ─── RENDER ALL ──────────────────────────────────────────────────────
-        function renderAll() {
-            updateHeader();
-            if (currentView === 'customers') renderCustomers();
-            if (currentView === 'complaints') renderComplaints();
-            if (currentView === 'yield') renderYield();
-            if (currentView === 'time') renderTime();
-            if (currentView === 'tiers') renderTiers();
-            if (currentView === 'library') renderLib();
-            if (currentView === 'report') renderReport();
-            applyRoleUI();
-        }
+function updateHeader() {
+    var extra = document.getElementById('header-extra');
+    if (!extra) return;
+    var now = new Date();
+    extra.innerHTML = '<span style="color:var(--muted);font-size:12px;">' +
+        now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) +
+        '</span>';
+}
 
-        // ─── UPDATE HEADER ──────────────────────────────────────────────────
-        // Trimmed down to just the date/shift label — the open/done/critical
-        // counts and line-status grid were all Task-board derived and went
-        // away with it.
-        function updateHeader() {
-            var now = new Date();
-            var dateStr = now.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
-            var shiftStr = getShift() + ' · ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            document.getElementById('date-label').textContent = dateStr;
-            document.getElementById('shift-label').textContent = shiftStr;
-            var ssl = document.getElementById('sidebar-shift-label');
-            if (ssl) ssl.textContent = shiftStr;
-            var sdl = document.getElementById('sidebar-date-label');
-            if (sdl) sdl.textContent = dateStr;
-        }
+function showToast(msg) {
+    var existing = document.querySelector('.toast');
+    if (existing) existing.remove();
+    var toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.textContent = msg;
+    toast.style.cssText = 'position:fixed;bottom:20px;right:20px;background:var(--surface2);color:var(--text);padding:10px 16px;border-radius:8px;border:1px solid var(--border);z-index:9999;font-size:12px;animation:fadeIn 0.3s;';
+    document.body.appendChild(toast);
+    setTimeout(function() { toast.remove(); }, 3000);
+}
+
+function getStoredUser() {
+    try { return JSON.parse(localStorage.getItem('smt_user')); } catch(e) { return null; }
+}
+
+function setStoredUser(u) {
+    localStorage.setItem('smt_user', JSON.stringify(u));
+}
+
+function clearStoredUser() {
+    localStorage.removeItem('smt_user');
+}
+
+function initThemeToggles() {
+    var toggle = document.getElementById('theme-toggle');
+    if (!toggle) return;
+    var dark = localStorage.getItem('smt_theme') === 'dark';
+    toggle.checked = dark;
+    if (dark) document.body.classList.add('dark');
+    toggle.addEventListener('change', function() {
+        document.body.classList.toggle('dark', toggle.checked);
+        localStorage.setItem('smt_theme', toggle.checked ? 'dark' : 'light');
+        invalidateCssVarCache();
+    });
+}
+
+function toggleTheme() {
+    var toggle = document.getElementById('theme-toggle');
+    if (toggle) toggle.dispatchEvent(new Event('change'));
+}
