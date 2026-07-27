@@ -56,6 +56,9 @@
         }
         function toggleTheme() {
             applyTheme(!document.body.classList.contains('light'));
+            // Canvas charts (Yield/Time tabs) are painted with resolved
+            // colors, not CSS variables, so they need an explicit repaint.
+            if (typeof renderAll === 'function') renderAll();
         }
         // Apply saved preference immediately on load
         (function() {
