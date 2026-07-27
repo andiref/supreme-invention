@@ -10,6 +10,12 @@ const SHIFTS=[
 const DAYS=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 const CC=["#3b82f6","#f59e0b","#22c55e","#ef4444","#a78bfa","#f472b6","#34d399","#fb923c"];
 
+// Canvas can't read CSS var() directly, so charts pull the *current* resolved
+// value of the app's theme variables (which flip with the light/dark toggle
+// via the body.light class) at draw time instead of hardcoding dark-mode hex.
+function cssVar(name){return getComputedStyle(document.body).getPropertyValue(name).trim();}
+const FONT="'Inter',system-ui,-apple-system,sans-serif";
+
 // ═══════════════════════════════════════════════════════
 // DATETIME
 // ═══════════════════════════════════════════════════════
@@ -191,16 +197,16 @@ function drawLine(id,labels,values,target,targLabel,color,dmin){
   const p={t:22,r:20,b:30,l:60};
   const cw=W-p.l-p.r,ch=H-p.t-p.b;
   ctx.clearRect(0,0,W,H);
-  if(!labels.length){ctx.fillStyle='#64748b';ctx.font='11px Courier New';ctx.fillText('No data — import production volume',p.l,H/2);return;}
+  if(!labels.length){ctx.fillStyle=cssVar('--muted');ctx.font='11px '+FONT+'';ctx.fillText('No data — import production volume',p.l,H/2);return;}
   const maxV=Math.max(...values.filter(v=>v!=null),target||0)*1.05;
   const minV=Math.min(...values.filter(v=>v!=null),dmin??0)*0.95;
   const xp=i=>p.l+(labels.length<2?cw/2:i/(labels.length-1)*cw);
   const yp=v=>p.t+ch-(v-minV)/(maxV-minV||1)*ch;
-  ctx.strokeStyle='#1e293b';ctx.lineWidth=1;
+  ctx.strokeStyle=cssVar('--border');ctx.lineWidth=1;
   for(let i=0;i<=4;i++){
     const gy=p.t+ch*(1-i/4);
     ctx.beginPath();ctx.moveTo(p.l,gy);ctx.lineTo(p.l+cw,gy);ctx.stroke();
-    ctx.fillStyle='#64748b';ctx.font='9px Courier New';ctx.textAlign='right';
+    ctx.fillStyle=cssVar('--muted');ctx.font='9px '+FONT+'';ctx.textAlign='right';
     const v=minV+(maxV-minV)*(i/4);
     ctx.fillText(dmin!==undefined&&dmin!==null?v.toFixed(1)+'%':Math.round(v).toLocaleString(),p.l-4,gy+3);
   }
@@ -208,7 +214,7 @@ function drawLine(id,labels,values,target,targLabel,color,dmin){
     const ty=yp(target);
     ctx.strokeStyle='#f59e0b';ctx.lineWidth=1;ctx.setLineDash([5,3]);
     ctx.beginPath();ctx.moveTo(p.l,ty);ctx.lineTo(p.l+cw,ty);ctx.stroke();
-    ctx.setLineDash([]);ctx.fillStyle='#f59e0b';ctx.font='9px Courier New';ctx.textAlign='left';
+    ctx.setLineDash([]);ctx.fillStyle='#f59e0b';ctx.font='9px '+FONT+'';ctx.textAlign='left';
     ctx.fillText(targLabel,p.l+4,ty-3);
   }
   ctx.setLineDash([]);
@@ -219,9 +225,9 @@ function drawLine(id,labels,values,target,targLabel,color,dmin){
     if(v==null)return;
     ctx.beginPath();ctx.arc(xp(i),yp(v),5,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();
     const lbl=dmin!==undefined&&dmin!==null?v.toFixed(2)+'%':Math.round(v).toLocaleString();
-    ctx.fillStyle='#e2e8f0';ctx.font='9px Courier New';ctx.textAlign='center';
+    ctx.fillStyle=cssVar('--text');ctx.font='9px '+FONT+'';ctx.textAlign='center';
     ctx.fillText(lbl,xp(i),yp(v)-9);
-    ctx.fillStyle='#64748b';ctx.fillText(labels[i],xp(i),H-8);
+    ctx.fillStyle=cssVar('--muted');ctx.fillText(labels[i],xp(i),H-8);
   });
 }
 
@@ -234,16 +240,16 @@ function drawMultiLine(id,labels,series,target,targLabel,dmin,isYield){
   const cw=W-p.l-p.r,ch=H-p.t-p.b;
   ctx.clearRect(0,0,W,H);
   const allV=series.flatMap(s=>s.values.filter(v=>v!=null));
-  if(!allV.length){ctx.fillStyle='#64748b';ctx.font='11px Courier New';ctx.fillText('No data',p.l,H/2);return;}
+  if(!allV.length){ctx.fillStyle=cssVar('--muted');ctx.font='11px '+FONT+'';ctx.fillText('No data',p.l,H/2);return;}
   const maxV=Math.max(...allV,target||0)*1.05;
   const minV=Math.min(...allV,dmin??0)*0.95;
   const xp=i=>p.l+(labels.length<2?cw/2:i/(labels.length-1)*cw);
   const yp=v=>p.t+ch-(v-minV)/(maxV-minV||1)*ch;
-  ctx.strokeStyle='#1e293b';ctx.lineWidth=1;
+  ctx.strokeStyle=cssVar('--border');ctx.lineWidth=1;
   for(let i=0;i<=4;i++){
     const gy=p.t+ch*(1-i/4);
     ctx.beginPath();ctx.moveTo(p.l,gy);ctx.lineTo(p.l+cw,gy);ctx.stroke();
-    ctx.fillStyle='#64748b';ctx.font='9px Courier New';ctx.textAlign='right';
+    ctx.fillStyle=cssVar('--muted');ctx.font='9px '+FONT+'';ctx.textAlign='right';
     const v=minV+(maxV-minV)*(i/4);
     ctx.fillText(isYield?v.toFixed(1)+'%':Math.round(v).toLocaleString(),p.l-4,gy+3);
   }
@@ -251,7 +257,7 @@ function drawMultiLine(id,labels,series,target,targLabel,dmin,isYield){
     const ty=yp(target);
     ctx.strokeStyle='#f59e0b';ctx.lineWidth=1;ctx.setLineDash([5,3]);
     ctx.beginPath();ctx.moveTo(p.l,ty);ctx.lineTo(p.l+cw,ty);ctx.stroke();
-    ctx.setLineDash([]);ctx.fillStyle='#f59e0b';ctx.font='9px Courier New';ctx.textAlign='left';
+    ctx.setLineDash([]);ctx.fillStyle='#f59e0b';ctx.font='9px '+FONT+'';ctx.textAlign='left';
     ctx.fillText(targLabel,p.l+4,yp(target)-3);
   }
   ctx.setLineDash([]);
@@ -264,12 +270,12 @@ function drawMultiLine(id,labels,series,target,targLabel,dmin,isYield){
     s.values.forEach((v,i)=>{
       if(v==null)return;
       ctx.beginPath();ctx.arc(xp(i),yp(v),4,0,Math.PI*2);ctx.fillStyle=col;ctx.fill();
-      ctx.fillStyle=col;ctx.font='8px Courier New';ctx.textAlign='center';
+      ctx.fillStyle=col;ctx.font='8px '+FONT+'';ctx.textAlign='center';
       ctx.fillText(isYield?v.toFixed(1)+'%':Math.round(v).toLocaleString(),xp(i),yp(v)-8);
     });
   });
   labels.forEach((l,i)=>{
-    ctx.fillStyle='#64748b';ctx.font='9px Courier New';ctx.textAlign='center';
+    ctx.fillStyle=cssVar('--muted');ctx.font='9px '+FONT+'';ctx.textAlign='center';
     ctx.fillText(l,xp(i),H-8);
   });
 }
@@ -283,15 +289,15 @@ function drawBar(id,labels,values,colors,rotate){
   const p={t:15,r:15,b:bp,l:45};
   const cw=W-p.l-p.r,ch=H-p.t-p.b;
   ctx.clearRect(0,0,W,H);
-  if(!labels.length){ctx.fillStyle='#64748b';ctx.font='11px Courier New';ctx.fillText('No data',W/2-20,H/2);return;}
+  if(!labels.length){ctx.fillStyle=cssVar('--muted');ctx.font='11px '+FONT+'';ctx.fillText('No data',W/2-20,H/2);return;}
   const maxV=Math.max(...values)*1.15||1;
   const bw=Math.min(cw/labels.length*0.65,60);
   const gap=cw/labels.length;
-  ctx.strokeStyle='#1e293b';ctx.lineWidth=1;
+  ctx.strokeStyle=cssVar('--border');ctx.lineWidth=1;
   for(let i=0;i<=4;i++){
     const gy=p.t+ch*(1-i/4);
     ctx.beginPath();ctx.moveTo(p.l,gy);ctx.lineTo(p.l+cw,gy);ctx.stroke();
-    ctx.fillStyle='#64748b';ctx.font='9px Courier New';ctx.textAlign='right';
+    ctx.fillStyle=cssVar('--muted');ctx.font='9px '+FONT+'';ctx.textAlign='right';
     ctx.fillText(Math.round(maxV*(i/4)),p.l-4,gy+3);
   }
   labels.forEach((l,i)=>{
@@ -300,13 +306,13 @@ function drawBar(id,labels,values,colors,rotate){
     const y=p.t+ch-bh;
     ctx.fillStyle=Array.isArray(colors)?colors[i%colors.length]:colors;
     ctx.fillRect(x,y,bw,bh);
-    if(bh>14){ctx.fillStyle='#e2e8f0';ctx.font='9px Courier New';ctx.textAlign='center';ctx.fillText(values[i],x+bw/2,y+12);}
+    if(bh>14){ctx.fillStyle=cssVar('--text');ctx.font='9px '+FONT+'';ctx.textAlign='center';ctx.fillText(values[i],x+bw/2,y+12);}
     if(rotate){
       ctx.save();ctx.translate(x+bw/2,p.t+ch+8);ctx.rotate(-0.6);
-      ctx.fillStyle='#64748b';ctx.font='9px Courier New';ctx.textAlign='right';
+      ctx.fillStyle=cssVar('--muted');ctx.font='9px '+FONT+'';ctx.textAlign='right';
       ctx.fillText(l.length>18?l.slice(0,17)+'…':l,0,0);ctx.restore();
     } else {
-      ctx.fillStyle='#64748b';ctx.font='9px Courier New';ctx.textAlign='center';
+      ctx.fillStyle=cssVar('--muted');ctx.font='9px '+FONT+'';ctx.textAlign='center';
       ctx.fillText(l,x+bw/2,p.t+ch+14);
     }
   });
@@ -388,8 +394,8 @@ function renderYield(){
 
   // Breakdown table
   document.getElementById('tbl-body').innerHTML=filt.map((r,i)=>{
-    const ytc=r.yieldTOP!=null?(r.yieldTOP>=TY?'#22c55e':'#ef4444'):'#64748b';
-    const ybc=r.yieldBOT!=null?(r.yieldBOT>=TY?'#22c55e':'#ef4444'):'#64748b';
+    const ytc=r.yieldTOP!=null?(r.yieldTOP>=TY?'#22c55e':'#ef4444'):'var(--muted)';
+    const ybc=r.yieldBOT!=null?(r.yieldBOT>=TY?'#22c55e':'#ef4444'):'var(--muted)';
     const yoc=r.yieldOk?'#22c55e':'#ef4444';
     const dc=r.dppmOk?'#22c55e':'#ef4444';
     return`<tr><td>${r.week}</td><td>${r.customer}</td><td><b>${r.model}</b></td>
@@ -419,8 +425,8 @@ function renderYield(){
     return`<tr><td style="color:${rc[Math.min(i,5)]};font-weight:700;">#${i+1}</td>
       <td><b style="color:#34d399;">${comp}</b></td>
       <td class="num" style="color:${rc[Math.min(i,5)]};font-weight:700;">${v.count}</td>
-      <td style="color:#94a3b8;">${td2?td2[0]+' ('+td2[1]+')':'—'}</td>
-      <td style="color:#64748b;font-size:10px;">${[...v.seenModels].join(', ')}</td>
+      <td style="color:var(--muted);">${td2?td2[0]+' ('+td2[1]+')':'—'}</td>
+      <td style="color:var(--muted);font-size:10px;">${[...v.seenModels].join(', ')}</td>
       <td>${sstr}</td></tr>`;
   }).join('');
 
@@ -441,7 +447,7 @@ function renderYield(){
     <td>${r.customer}</td><td><b>${r.model}</b></td>
     <td class="num" style="color:#a78bfa;">${r.total}</td>
     <td class="num" style="color:#f59e0b;font-weight:700;">${r.fail}</td>
-    <td style="color:#94a3b8;font-size:10px;">${r.topDef}</td></tr>`).join('');
+    <td style="color:var(--muted);font-size:10px;">${r.topDef}</td></tr>`).join('');
 }
 
 // ═══════════════════════════════════════════════════════
@@ -450,7 +456,7 @@ function renderYield(){
 function renderTime(){
   const f={week:document.getElementById('tf-week')?.value||'ALL',cust:document.getElementById('tf-cust')?.value||'ALL',model:document.getElementById('tf-model')?.value||'ALL'};
   const fd=rawDef.filter(d=>(f.week==='ALL'||d.week===f.week)&&(f.cust==='ALL'||d.customer===f.cust)&&(f.model==='ALL'||d.model===f.model));
-  if(!fd.length){['shift-kpi','hour-heatmap','shift-top-body'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='<div style="color:#64748b;padding:20px;">No data</div>';});['chart-shift','chart-dow','chart-daily'].forEach(id=>{const cv=document.getElementById(id);if(cv){const ctx=cv.getContext('2d');ctx.clearRect(0,0,cv.width,cv.height);ctx.fillStyle='#64748b';ctx.font='11px Courier New';ctx.fillText('No data',cv.width/2-20,cv.height/2);}});return;}
+  if(!fd.length){['shift-kpi','hour-heatmap','shift-top-body'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='<div style="color:var(--muted);padding:20px;">No data</div>';});['chart-shift','chart-dow','chart-daily'].forEach(id=>{const cv=document.getElementById(id);if(cv){const ctx=cv.getContext('2d');ctx.clearRect(0,0,cv.width,cv.height);ctx.fillStyle=cssVar('--muted');ctx.font='11px '+FONT+'';ctx.fillText('No data',cv.width/2-20,cv.height/2);}});return;}
 
   const shiftMap={Morning:0,Afternoon:0,Night:0};
   const shiftSN={Morning:new Set(),Afternoon:new Set(),Night:new Set()};
@@ -467,28 +473,28 @@ function renderTime(){
   setTimeout(()=>{
     drawBar('chart-shift',SHIFTS.map(s=>s.label),SHIFTS.map(s=>shiftMap[s.name]),SHIFTS.map(s=>s.color),false);
     const dw=[0,0,0,0,0,0,0];fd.forEach(d=>dw[d.dow]++);
-    drawBar('chart-dow',DAYS,dw,DAYS.map((_,i)=>['#374151','#3b82f6','#3b82f6','#3b82f6','#3b82f6','#3b82f6','#374151'][i]),false);
+    drawBar('chart-dow',DAYS,dw,DAYS.map((_,i)=>[cssVar('--muted'),'#3b82f6','#3b82f6','#3b82f6','#3b82f6','#3b82f6',cssVar('--muted')][i]),false);
   },50);
 
   const hm=Array(24).fill(0);fd.forEach(d=>hm[d.hour]++);
   const maxH=Math.max(...hm)||1;
   document.getElementById('hour-heatmap').innerHTML=`
-    <div style="font-size:9px;color:#64748b;margin-bottom:6px;display:flex;gap:16px;">
+    <div style="font-size:9px;color:var(--muted);margin-bottom:6px;display:flex;gap:16px;">
       <span style="color:#3b82f6;">■ Morning (07-15)</span>
       <span style="color:#f59e0b;">■ Afternoon (15-23)</span>
       <span style="color:#a78bfa;">■ Night (23-07)</span>
-      <span style="color:#64748b;margin-left:auto;">Darker = more defects</span>
+      <span style="color:var(--muted);margin-left:auto;">Darker = more defects</span>
     </div>
     <div style="display:grid;grid-template-columns:repeat(24,1fr);gap:3px;">
       ${hm.map((cnt,h)=>{
         const sh=ycShift(h);
         const bc=sh==='Morning'?'#3b82f6':sh==='Afternoon'?'#f59e0b':'#a78bfa';
         const alpha=(0.1+cnt/maxH*0.85).toFixed(2);
-        return`<div style="background:${bc};opacity:${alpha};border:1px solid #1e293b;border-radius:3px;height:28px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;text-align:center;line-height:1.2;">${String(h).padStart(2,'0')}<br>${cnt}</div>`;
+        return`<div style="background:${bc};opacity:${alpha};border:1px solid var(--border);border-radius:3px;height:28px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;text-align:center;line-height:1.2;">${String(h).padStart(2,'0')}<br>${cnt}</div>`;
       }).join('')}
     </div>
     <div style="display:grid;grid-template-columns:repeat(24,1fr);gap:3px;margin-top:3px;">
-      ${hm.map((_,h)=>`<div style="font-size:8px;color:#64748b;text-align:center;">${h}</div>`).join('')}
+      ${hm.map((_,h)=>`<div style="font-size:8px;color:var(--muted);text-align:center;">${h}</div>`).join('')}
     </div>`;
 
   const sd={Morning:{},Afternoon:{},Night:{}};
@@ -496,12 +502,12 @@ function renderTime(){
   const si={Morning:"Check machine warm-up, paste temp, operator handover.",Afternoon:"Check changeover quality, material FIFO, operator fatigue.",Night:"Check supervisor presence, machine stability, PM compliance."};
   document.getElementById('shift-top-body').innerHTML=SHIFTS.map(sh=>{
     const ent=Object.entries(sd[sh.name]).sort((a,b)=>b[1]-a[1]);
-    if(!ent.length)return`<tr><td>${badge(sh.name,sh.color)}</td><td style="color:#64748b;">No defects</td><td>—</td><td>—</td><td>—</td></tr>`;
+    if(!ent.length)return`<tr><td>${badge(sh.name,sh.color)}</td><td style="color:var(--muted);">No defects</td><td>—</td><td>—</td><td>—</td></tr>`;
     const[top,cnt]=ent[0];
     return`<tr><td>${badge(sh.name,sh.color)}</td><td><b>${top}</b></td>
       <td class="num" style="color:${sh.color};font-weight:700;">${cnt}</td>
       <td class="num">${shiftMap[sh.name]?Math.round(cnt/shiftMap[sh.name]*100):0}%</td>
-      <td style="color:#64748b;font-size:10px;">${si[sh.name]}</td></tr>`;
+      <td style="color:var(--muted);font-size:10px;">${si[sh.name]}</td></tr>`;
   }).join('');
 
   const dm={};fd.forEach(d=>{if(!dm[d.dateStr])dm[d.dateStr]=new Set();dm[d.dateStr].add(`${d.sn}|${d.side}`);});
@@ -528,7 +534,7 @@ function renderTiers(){
       <td class="num">${fmt(m.weeklyVol)}</td>
       <td class="num" style="color:${rc};font-weight:700;">${m.defectRate}%</td>
       <td>${badge(m.criticality,cc(m.criticality))}</td>
-      <td style="color:#94a3b8;">${fl(t)}</td>
+      <td style="color:var(--muted);">${fl(t)}</td>
       <td><button class="btn br" style="padding:3px 8px;font-size:10px;" onclick="removeModel(${i})">✕</button></td></tr>`;
   }).join('');
 }
@@ -571,7 +577,7 @@ function renderLib(){
   const f2=LIB.filter(d=>d.type.toLowerCase().includes(q)||d.cat.toLowerCase().includes(q));
   document.getElementById('lib-items').innerHTML=f2.map(d=>`
     <div class="li${selLib===d.id?' active':''}" onclick="selLibFn(${d.id})">
-      <div>${d.icon} ${d.type}</div><div style="font-size:10px;color:#64748b;margin-top:2px;">${d.cat}</div>
+      <div>${d.icon} ${d.type}</div><div style="font-size:10px;color:var(--muted);margin-top:2px;">${d.cat}</div>
     </div>`).join('');
   if(selLib){const d=LIB.find(x=>x.id===selLib);if(d)showLibDetail(d);}
 }
@@ -582,18 +588,18 @@ function showLibDetail(d){
       <div style="display:flex;gap:12px;align-items:center;margin-bottom:14px;"><span style="font-size:28px;">${d.icon}</span>
         <div><div style="font-size:17px;font-weight:700;">${d.type}</div>${badge(d.cat,'#3b82f6')}</div></div>
       <div class="ct">⚠️ TYPICAL ROOT CAUSES</div>
-      ${d.causes.map(c=>`<div style="font-size:11px;color:#94a3b8;padding:4px 0;border-bottom:1px solid #1e293b;">• ${c}</div>`).join('')}
+      ${d.causes.map(c=>`<div style="font-size:11px;color:var(--muted);padding:4px 0;border-bottom:1px solid var(--border);">• ${c}</div>`).join('')}
     </div>
     <div class="card">
       <div class="ct">🔍 5-WHY TEMPLATE</div>
       ${d.whys.map((w,i)=>`<div style="display:flex;gap:10px;margin-bottom:12px;align-items:flex-start;">
-        <div style="background:#1d4ed8;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:10px;font-weight:700;">W${i+1}</div>
-        <div style="font-size:11px;color:${i===4?'#f59e0b':'#94a3b8'};font-weight:${i===4?700:400};${i===4?'background:#f59e0b10;padding:5px 10px;border-radius:4px;':''}">${w}</div>
+        <div style="background:var(--accent);border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:10px;font-weight:700;">W${i+1}</div>
+        <div style="font-size:11px;color:${i===4?'#f59e0b':'var(--muted)'};font-weight:${i===4?700:400};${i===4?'background:#f59e0b10;padding:5px 10px;border-radius:4px;':''}">${w}</div>
       </div>`).join('')}
     </div>
     <div class="card">
       <div class="ct">✅ CORRECTIVE ACTIONS</div>
-      ${d.actions.map(a=>`<div style="font-size:11px;color:#22c55e;padding:5px 0;border-bottom:1px solid #1e293b;">→ ${a}</div>`).join('')}
+      ${d.actions.map(a=>`<div style="font-size:11px;color:#22c55e;padding:5px 0;border-bottom:1px solid var(--border);">→ ${a}</div>`).join('')}
       <div style="margin-top:12px;font-size:11px;color:#a78bfa;"><span style="font-weight:700;">🛡️ PREVENTION: </span>${d.prev}</div>
     </div>`;
 }
@@ -624,16 +630,16 @@ function renderReport(){
       <div style="font-size:12px;font-weight:700;color:#3b82f6;margin-bottom:12px;">📋 WEEKLY QUALITY REPORT — ${lw}</div>
       <div style="display:flex;gap:24px;flex-wrap:wrap;">
         ${[['YIELD',wy.toFixed(3)+'%',wy>=TY],['DPPM',Math.round(wd).toLocaleString(),wd<=TD],['TOTAL INSP',fmt(tp),null],['FAILED SN+SIDE',tf,null],['DEFECT RECORDS',td,null]].map(([l,v,ok])=>`
-          <div><div style="font-size:9px;color:#64748b;">${l}</div>
-          <div style="font-size:20px;font-weight:700;color:${ok===null?'#e2e8f0':ok?'#22c55e':'#ef4444'};">${v}</div></div>`).join('')}
+          <div><div style="font-size:9px;color:var(--muted);">${l}</div>
+          <div style="font-size:20px;font-weight:700;color:${ok===null?'var(--text)':ok?'#22c55e':'#ef4444'};">${v}</div></div>`).join('')}
       </div>
     </div>
     <div class="card" style="border-left:3px solid #a78bfa;">
       <div class="ct">⏱️ SHIFT INSIGHT</div>
       <div style="display:flex;gap:20px;flex-wrap:wrap;">
-        ${SHIFTS.map(sh=>`<div><div style="font-size:9px;color:#64748b;">${sh.label}</div>
+        ${SHIFTS.map(sh=>`<div><div style="font-size:9px;color:var(--muted);">${sh.label}</div>
           <div style="font-size:18px;font-weight:700;color:${sh.color};">${ss[sh.name]} defects</div>
-          <div style="font-size:9px;color:#64748b;">${wRaw.length?Math.round(ss[sh.name]/wRaw.length*100):0}%</div></div>`).join('')}
+          <div style="font-size:9px;color:var(--muted);">${wRaw.length?Math.round(ss[sh.name]/wRaw.length*100):0}%</div></div>`).join('')}
         ${ws?`<div style="background:#ef444410;border:1px solid #ef444450;border-radius:6px;padding:8px 14px;font-size:11px;color:#ef4444;font-weight:700;align-self:center;">🚨 Worst: ${ws[0]} (${ws[1]})</div>`:''}
       </div>
     </div>
@@ -645,16 +651,16 @@ function renderReport(){
           <span style="font-weight:700;font-size:13px;">${lib?.icon||'🔧'} #${i+1} ${def}</span>
           <span style="font-size:20px;font-weight:700;color:${bc};">${cnt} defects</span>
         </div>
-        ${lib?`<div style="font-size:10px;background:#060a12;border:1px solid #1e293b;border-radius:4px;padding:7px 11px;margin-bottom:10px;color:#94a3b8;">
+        ${lib?`<div style="font-size:10px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:7px 11px;margin-bottom:10px;color:var(--muted);">
           <span style="color:#3b82f6;font-weight:700;">TEMPLATE RC: </span>${lib.whys[4]}</div>`:''}
-        <div style="font-size:9px;color:#64748b;margin-bottom:4px;">ACTUAL ROOT CAUSE:</div>
+        <div style="font-size:9px;color:var(--muted);margin-bottom:4px;">ACTUAL ROOT CAUSE:</div>
         <textarea rows="2" style="font-size:10px;" placeholder="Enter root cause..."></textarea>
         ${lib?`<div style="margin-top:8px;font-size:10px;color:#22c55e;">${lib.actions.slice(0,2).map(a=>`<div>→ ${a}</div>`).join('')}</div>`:''}
       </div>`;
     }).join('')}
     <div class="card">
       <div class="ct">⚠️ ESCALATION CHECK — ≥3 weeks in Top 3 → escalate to manager</div>
-      ${t3.map(([def])=>{const cnt=w3(def);return`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #1e293b;font-size:11px;flex-wrap:wrap;gap:8px;">
+      ${t3.map(([def])=>{const cnt=w3(def);return`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:11px;flex-wrap:wrap;gap:8px;">
         <span>${def}</span><span style="font-weight:700;color:${cnt>=3?'#ef4444':'#22c55e'};">${cnt} week(s) in Top 3 ${cnt>=3?'🚨 ESCALATE':'✅ OK'}</span></div>`;}).join('')}
     </div>`;
 }
