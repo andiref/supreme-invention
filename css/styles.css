@@ -2198,17 +2198,17 @@
 
 /* ═══════════════════════════════════════════════════════════════
    YIELD / DPPM ANALYTICS TOOL (js/yield.js)
-   Scoped entirely under #yc-root so it can keep its own terminal/mono
-   visual identity without touching any class or bare element selector
-   used by the rest of the app (this file's own .card/.btn/.badge/etc
-   are unrelated — this ported tool originally defined *unscoped*
-   .card/.btn/.badge/.nav-btn/table/input/textarea rules that would have
-   silently overridden this app's real ones if merged unscoped).
+   Scoped under #yc-root so it can keep its own class names (.card/
+   .btn/.badge/etc) without colliding with the rest of the app's
+   class names of the same name — but now built entirely on the same
+   design tokens (--bg/--surface/--text/--font/--radius/etc) as the
+   rest of the app, so it matches visually and follows the light/dark
+   toggle instead of being locked to a fixed dark "terminal" look.
    ═══════════════════════════════════════════════════════════════ */
 #yc-root {
-    background: #0a0e17;
-    color: #e2e8f0;
-    font-family: 'Courier New', monospace;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
     font-size: 13px;
     padding: 18px 24px;
     max-width: 1440px;
@@ -2216,44 +2216,45 @@
 }
 #yc-root * { box-sizing: border-box; }
 #yc-root ::-webkit-scrollbar { width: 6px; height: 6px; }
-#yc-root ::-webkit-scrollbar-track { background: #0f172a; }
-#yc-root ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+#yc-root ::-webkit-scrollbar-track { background: var(--surface); }
+#yc-root ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 #yc-root textarea, #yc-root input, #yc-root select { outline: none; }
-#yc-root .card { background: #111827; border: 1px solid #1e293b; border-radius: 8px; padding: 16px 20px; margin-bottom: 14px; }
-#yc-root .dk { background: #060a12; border: 1px solid #1e3a5f; border-radius: 8px; padding: 14px 18px; margin-bottom: 14px; }
-#yc-root .ct { font-size: 10px; color: #3b82f6; font-weight: 700; letter-spacing: 0.1em; margin-bottom: 10px; text-transform: uppercase; }
+#yc-root .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; margin-bottom: 14px; }
+#yc-root .dk { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 18px; margin-bottom: 14px; }
+#yc-root .ct { font-size: 10px; color: var(--accent); font-weight: 700; letter-spacing: 0.1em; margin-bottom: 10px; text-transform: uppercase; }
 #yc-root .kpi-row { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
-#yc-root .kpi { flex: 1; min-width: 130px; border-radius: 8px; padding: 14px 18px; text-align: center; }
+#yc-root .kpi { flex: 1; min-width: 130px; border-radius: var(--radius); padding: 14px 18px; text-align: center; }
 #yc-root .kpi-n { font-size: 24px; font-weight: 700; letter-spacing: -1px; }
-#yc-root .kpi-l { font-size: 10px; color: #64748b; margin-top: 2px; }
-#yc-root .kpi-s { font-size: 9px; color: #64748b; margin-top: 4px; }
+#yc-root .kpi-l { font-size: 10px; color: var(--muted); margin-top: 2px; }
+#yc-root .kpi-s { font-size: 9px; color: var(--muted); margin-top: 4px; }
 #yc-root table { width: 100%; border-collapse: collapse; font-size: 11px; }
-#yc-root th { background: #1e3a5f; color: #93c5fd; padding: 7px 11px; text-align: left; border-bottom: 1px solid #1e293b; font-weight: 700; font-size: 10px; white-space: nowrap; }
-#yc-root td { padding: 7px 11px; border-bottom: 1px solid #1a2234; vertical-align: middle; }
-#yc-root tr:nth-child(even) { background: #0a0e17; }
+#yc-root th { background: var(--surface2); color: var(--accent2); padding: 7px 11px; text-align: left; border-bottom: 1px solid var(--border); font-weight: 700; font-size: 10px; white-space: nowrap; }
+#yc-root td { padding: 7px 11px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+#yc-root tr:nth-child(even) { background: var(--surface); }
 #yc-root .num { text-align: right; }
 #yc-root .badge { border-radius: 3px; padding: 1px 7px; font-size: 10px; display: inline-block; }
 #yc-root .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 5px; }
 #yc-root input, #yc-root select, #yc-root textarea {
-    background: #1e293b; border: 1px solid #334155; border-radius: 4px; color: #e2e8f0;
-    padding: 6px 9px; font-size: 11px; font-family: 'Courier New', monospace; width: 100%;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text);
+    padding: 6px 9px; font-size: 11px; font-family: var(--font); width: 100%;
 }
+#yc-root input:focus, #yc-root select:focus, #yc-root textarea:focus { border-color: var(--accent); }
 #yc-root textarea { resize: vertical; }
-#yc-root .btn { border: none; border-radius: 4px; padding: 7px 13px; font-size: 11px; cursor: pointer; font-family: 'Courier New', monospace; font-weight: 700; color: #fff; }
-#yc-root .bg { background: #16a34a; }
-#yc-root .bb { background: #1d4ed8; }
-#yc-root .br { background: #dc2626; }
-#yc-root .bx { background: #374151; }
+#yc-root .btn { border: none; border-radius: 8px; padding: 7px 13px; font-size: 11px; cursor: pointer; font-family: var(--font); font-weight: 700; color: #fff; }
+#yc-root .bg { background: var(--low); }
+#yc-root .bb { background: var(--accent); }
+#yc-root .br { background: var(--critical); }
+#yc-root .bx { background: var(--surface2); color: var(--text); }
 #yc-root .row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
 #yc-root .col { flex: 1; min-width: 280px; }
 #yc-root .fw { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
 #yc-root .fl { flex: 1; min-width: 90px; }
-#yc-root .fl-lbl { font-size: 9px; color: #64748b; margin-bottom: 3px; }
+#yc-root .fl-lbl { font-size: 9px; color: var(--muted); margin-bottom: 3px; }
 #yc-root .tbl-wrap { overflow-x: auto; }
-#yc-root .pc { background: #060a12; border: 1px solid #1e3a5f; border-radius: 4px; padding: 10px 14px; margin-bottom: 8px; font-size: 10px; font-family: 'Courier New', monospace; line-height: 2.2; color: #94a3b8; }
-#yc-root .err { color: #ef4444; font-size: 10px; margin-top: 4px; }
+#yc-root .pc { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; font-size: 10px; font-family: var(--font); line-height: 2.2; color: var(--muted); }
+#yc-root .err { color: var(--critical); font-size: 10px; margin-top: 4px; }
 #yc-root #lib-wrap { display: flex; gap: 14px; }
 #yc-root #lib-list { width: 240px; flex-shrink: 0; }
-#yc-root .li { background: #111827; border: 1px solid #1e293b; border-radius: 6px; padding: 9px 12px; cursor: pointer; margin-bottom: 7px; transition: all 0.15s; }
-#yc-root .li:hover, #yc-root .li.active { background: #1e3a5f; border-color: #3b82f6; }
+#yc-root .li { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; cursor: pointer; margin-bottom: 7px; transition: all 0.15s; }
+#yc-root .li:hover, #yc-root .li.active { background: var(--surface2); border-color: var(--accent); }
 #yc-root canvas { display: block; max-width: 100%; }
