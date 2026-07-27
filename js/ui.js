@@ -7,6 +7,13 @@
             initThemeToggles();
             updateHeader();
             setInterval(updateHeader, 60000);
+            // Canvas chart text is drawn synchronously, so it may render with
+            // a fallback font for one frame while Inter is still loading.
+            if (document.fonts && document.fonts.ready) {
+                document.fonts.ready.then(function() {
+                    if (typeof renderAll === 'function') renderAll();
+                });
+            }
         }
 
         // ─── FIREBASE LISTENERS ─────────────────────────────────────────────
