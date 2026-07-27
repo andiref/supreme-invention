@@ -8,6 +8,10 @@
 // are standalone — there's nothing left to link them to.
 // ============================================
 
+// Which complaint (if any) currently has its 8D detail fields open for
+// editing in the Complaints list. Null = nothing being edited.
+var editingComplaintId = null;
+
 function fillCustomerSelect(selEl, placeholder) {
     if (!selEl) return;
     var current = selEl.value;
@@ -45,8 +49,8 @@ function updateComplaintSubmitState() {
     if (!btn) return;
     var customerId = document.getElementById('cp-customer').value;
     var modelId = document.getElementById('cp-model').value;
-    var description = document.getElementById('cp-description').value.trim();
-    btn.disabled = !(customerId && modelId && description);
+    var finding = document.getElementById('cp-finding').value.trim();
+    btn.disabled = !(customerId && modelId && finding);
 }
 
 function initCustomerForms() {
@@ -58,8 +62,8 @@ function initCustomerForms() {
     });
     var cpModel = document.getElementById('cp-model');
     if (cpModel) cpModel.addEventListener('change', updateComplaintSubmitState);
-    var cpDescription = document.getElementById('cp-description');
-    if (cpDescription) cpDescription.addEventListener('input', updateComplaintSubmitState);
+    var cpFinding = document.getElementById('cp-finding');
+    if (cpFinding) cpFinding.addEventListener('input', updateComplaintSubmitState);
 
     // ── Add Customer ──────────────────────────────────────────────────────
     var cuAddBtn = document.getElementById('cu-add-btn');
@@ -108,21 +112,36 @@ function initCustomerForms() {
     if (cpSubmitBtn) cpSubmitBtn.addEventListener('click', function() {
         var customerId = document.getElementById('cp-customer').value;
         var modelId = document.getElementById('cp-model').value;
-        var descEl = document.getElementById('cp-description');
-        var description = descEl.value.trim();
-        if (!customerId || !modelId || !description) return;
+        var findingEl = document.getElementById('cp-finding');
+        var locationEl = document.getElementById('cp-location');
+        var rcOccurrenceEl = document.getElementById('cp-rc-occurrence');
+        var rcEscapeeEl = document.getElementById('cp-rc-escapee');
+        var actionEl = document.getElementById('cp-action');
+        var finding = findingEl.value.trim();
+        if (!customerId || !modelId || !finding) return;
         if (!currentUser) { showToast('Not logged in'); return; }
         cpSubmitBtn.disabled = true;
         cpSubmitBtn.textContent = 'Logging…';
         fetch('/api/complaints', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-User-Email': currentUser.email },
-            body: JSON.stringify({ action: 'add', customerId: customerId, modelId: modelId, description: description })
+            body: JSON.stringify({
+                action: 'add', customerId: customerId, modelId: modelId,
+                finding: finding,
+                location: locationEl.value.trim(),
+                rcOccurrence: rcOccurrenceEl.value.trim(),
+                rcEscapee: rcEscapeeEl.value.trim(),
+                correctiveAction: actionEl.value.trim()
+            })
         }).then(function(r) { return r.json(); })
         .then(function(d) {
             cpSubmitBtn.textContent = 'Log Complaint →';
             if (d.ok) {
-                descEl.value = '';
+                findingEl.value = '';
+                locationEl.value = '';
+                rcOccurrenceEl.value = '';
+                rcEscapeeEl.value = '';
+                actionEl.value = '';
                 updateComplaintSubmitState();
                 showToast('Complaint logged \u2713');
             } else {
@@ -229,6 +248,48 @@ function renderComplaints() {
 
     list.innerHTML = arr.map(function(cm) {
         var dt = cm.created ? new Date(cm.created).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+        // `description` is a fallback for complaints logged before the 8D
+        // field upgrade — they only ever had that one field.
+        var finding = cm.finding || cm.description || '';
+        var isEditing = editingComplaintId === cm._id;
+
+        var topHtml;
+        if (isEditing) {
+            topHtml =
+                '<div class="form-group"><label>Finding *</label><textarea class="cp-edit-finding">' + esc(finding) + '</textarea></div>' +
+                '<div class="form-group"><label>Location</label><input type="text" class="cp-edit-location" value="' + esc(cm.location || '') + '" /></div>' +
+                '<div class="form-row">' +
+                '<div class="form-group" style="margin-bottom:0"><label>Root Cause — Occurrence</label><textarea class="cp-edit-rc-occurrence">' + esc(cm.rcOccurrence || '') + '</textarea></div>' +
+                '<div class="form-group" style="margin-bottom:0"><label>Root Cause — Escapee</label><textarea class="cp-edit-rc-escapee">' + esc(cm.rcEscapee || '') + '</textarea></div>' +
+                '</div>' +
+                '<div class="form-group"><label>Action</label><textarea class="cp-edit-action">' + esc(cm.correctiveAction || '') + '</textarea></div>';
+        } else {
+            topHtml =
+                '<div class="task-title">📣 ' + esc(finding) + '</div>' +
+                (cm.location ? '<div class="task-info">📍 ' + esc(cm.location) + '</div>' : '') +
+                (cm.rcOccurrence ? '<div class="task-info"><b>RC — Occurrence:</b> ' + esc(cm.rcOccurrence) + '</div>' : '') +
+                (cm.rcEscapee ? '<div class="task-info"><b>RC — Escapee:</b> ' + esc(cm.rcEscapee) + '</div>' : '') +
+                (cm.correctiveAction ? '<div class="task-info"><b>Action:</b> ' + esc(cm.correctiveAction) + '</div>' : '') +
+                '<div class="task-info">🗓 ' + dt + '</div>';
+        }
+
+        var bottomHtml;
+        if (isEditing) {
+            bottomHtml =
+                '<div style="display:flex;gap:8px">' +
+                '<button class="edit-btn cp-save-btn" data-id="' + cm._id + '">💾 Save</button>' +
+                '<button class="cancel-edit-btn cp-cancel-btn" data-id="' + cm._id + '">✕ Cancel</button>' +
+                '</div>';
+        } else {
+            bottomHtml =
+                '<div class="status-row" style="align-items:center">' +
+                ['Open', 'Closed'].map(function(s) {
+                    var activeCls = cm.status === s ? (s === 'Closed' ? 'cp-active-closed' : 'cp-active-open') : '';
+                    return '<button class="cp-status-btn ' + activeCls + '" data-id="' + cm._id + '" data-status="' + s + '">' + s + '</button>';
+                }).join('') +
+                '<button class="edit-btn cp-edit-toggle-btn" data-id="' + cm._id + '" style="margin-left:auto">✏️ Edit</button>' +
+                '</div>';
+        }
 
         return '<div class="cu-card">' +
             '<div class="cu-header" style="cursor:default">' +
@@ -237,18 +298,10 @@ function renderComplaints() {
             '<span class="badge badge-line">' + esc(customerName(cm.customerId)) + '</span>' +
             '<span class="badge badge-model">' + esc(modelCode(cm.modelId)) + '</span>' +
             '</div>' +
-            '<div class="task-title">📣 ' + esc(cm.description) + '</div>' +
-            '<div class="task-info">🗓 ' + dt + '</div>' +
+            topHtml +
             '</div>' +
             '</div>' +
-            '<div class="cu-body open">' +
-            '<div class="status-row">' +
-            ['Open', 'Closed'].map(function(s) {
-                var activeCls = cm.status === s ? (s === 'Closed' ? 'cp-active-closed' : 'cp-active-open') : '';
-                return '<button class="cp-status-btn ' + activeCls + '" data-id="' + cm._id + '" data-status="' + s + '">' + s + '</button>';
-            }).join('') +
-            '</div>' +
-            '</div>' +
+            '<div class="cu-body open">' + bottomHtml + '</div>' +
             '</div>';
     }).join('');
 
@@ -264,6 +317,62 @@ function renderComplaints() {
             }).then(function(r) { return r.json(); })
             .then(function(d) { showToast(d.ok ? d.msg : 'Error: ' + d.error); })
             .catch(function() { showToast('Network error'); });
+        });
+    });
+
+    document.querySelectorAll('.cp-edit-toggle-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            editingComplaintId = btn.getAttribute('data-id');
+            renderComplaints();
+        });
+    });
+
+    document.querySelectorAll('.cp-cancel-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            editingComplaintId = null;
+            renderComplaints();
+        });
+    });
+
+    document.querySelectorAll('.cp-save-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var id = btn.getAttribute('data-id');
+            var card = btn.closest('.cu-card');
+            var finding = card.querySelector('.cp-edit-finding').value.trim();
+            var location = card.querySelector('.cp-edit-location').value.trim();
+            var rcOccurrence = card.querySelector('.cp-edit-rc-occurrence').value.trim();
+            var rcEscapee = card.querySelector('.cp-edit-rc-escapee').value.trim();
+            var correctiveAction = card.querySelector('.cp-edit-action').value.trim();
+            if (!finding) { showToast('Finding cannot be empty'); return; }
+            if (!currentUser) { showToast('Not logged in'); return; }
+            btn.disabled = true;
+            btn.textContent = 'Saving…';
+            fetch('/api/complaints', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-User-Email': currentUser.email },
+                body: JSON.stringify({
+                    action: 'update', complaintId: id,
+                    finding: finding, location: location,
+                    rcOccurrence: rcOccurrence, rcEscapee: rcEscapee, correctiveAction: correctiveAction
+                })
+            }).then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.ok) {
+                    editingComplaintId = null;
+                    showToast('Complaint updated \u2713');
+                    // The realtime listener will also re-render once the write
+                    // lands, but do it now too so the edit form closes right away.
+                    renderComplaints();
+                } else {
+                    btn.disabled = false;
+                    btn.textContent = '💾 Save';
+                    showToast('Error: ' + d.error);
+                }
+            }).catch(function() {
+                btn.disabled = false;
+                btn.textContent = '💾 Save';
+                showToast('Network error');
+            });
         });
     });
 }
