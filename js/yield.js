@@ -129,14 +129,38 @@ const LIB=[
 // ═══════════════════════════════════════════════════════
 // CORE CALCULATION
 // ═══════════════════════════════════════════════════════
+// Normalizes a Week+Customer+Model combo into a join key that ignores case
+// and leading/trailing whitespace. Defect Data and Production Volume are
+// typically typed or exported from two different sources, so "CUST-A" vs
+// "Cust-A" (or a stray trailing space) would otherwise silently drop that
+// entire combination from every KPI, chart, and table on this tab.
+function normKey(week,customer,model){
+  const n=s=>String(s||'').trim().toLowerCase();
+  return n(week)+'|'+n(customer)+'|'+n(model);
+}
+
 function calcMetrics(dr,pr){
-  const keys=new Set([...dr.map(d=>`${d.week}|${d.customer}|${d.model}`),...pr.map(p=>`${p.week}|${p.customer}|${p.model}`)]);
+  const pvByKey=new Map();
+  pr.forEach(p=>{
+    const k=normKey(p.week,p.customer,p.model);
+    if(!pvByKey.has(k))pvByKey.set(k,p);
+  });
+  // Display text (week/customer/model as shown in KPIs/table) is taken from
+  // whichever Defect Data row first used this combo, since that's usually
+  // the more detailed/authoritative source; falls back to the Production
+  // Volume row's text if there's no defect data for this combo yet.
+  const drDisplay=new Map();
+  dr.forEach(d=>{
+    const k=normKey(d.week,d.customer,d.model);
+    if(!drDisplay.has(k))drDisplay.set(k,{week:d.week,customer:d.customer,model:d.model});
+  });
+  const keys=new Set([...pvByKey.keys(),...drDisplay.keys()]);
   const res=[];
   keys.forEach(k=>{
-    const[week,customer,model]=k.split('|');
-    const drows=dr.filter(d=>d.week===week&&d.customer===customer&&d.model===model);
-    const prow=pr.find(p=>p.week===week&&p.customer===customer&&p.model===model);
+    const prow=pvByKey.get(k);
     if(!prow)return;
+    const drows=dr.filter(d=>normKey(d.week,d.customer,d.model)===k);
+    const disp=drDisplay.get(k)||{week:prow.week,customer:prow.customer,model:prow.model};
     const it=prow.inspTOP||0, ib=prow.inspBOT||0;
     const ft=new Set(drows.filter(d=>d.side==='TOP').map(d=>`${d.sn}|TOP`)).size;
     const fb=new Set(drows.filter(d=>d.side==='BOT').map(d=>`${d.sn}|BOT`)).size;
@@ -145,7 +169,7 @@ function calcMetrics(dr,pr){
     const yb=ib?(ib-fb)/ib*100:null;
     const yo=ti?(ti-tf)/ti*100:0;
     const dp=ti?tf/ti*1e6:0;
-    res.push({week,customer,model,inspTOP:it,inspBOT:ib,failedTOP:ft,failedBOT:fb,
+    res.push({week:disp.week,customer:disp.customer,model:disp.model,inspTOP:it,inspBOT:ib,failedTOP:ft,failedBOT:fb,
       totalFailed:tf,totalInsp:ti,yieldTOP:yt,yieldBOT:yb,yieldOverall:yo,dppm:dp,
       totalDefects:drows.length,
       yieldOk:yo>=TY,dppmOk:dp<=TD});
@@ -323,6 +347,41 @@ function renderYield(){
   const allWeeks=[...new Set(allM.map(m=>m.week))].sort();
   const allCusts=[...new Set(allM.map(m=>m.customer))].sort();
 
+  // ── Data-match diagnostics ────────────────────────────────────────────
+  // calcMetrics() only produces a row once a Defect Data combo AND a
+  // Production Volume combo share the same Week+Customer+Model (matching
+  // now ignores case/whitespace, but the values must still line up).
+  // Surface *why* nothing shows instead of silently rendering 0%/blank.
+  const warnEl=document.getElementById('match-warning');
+  if(warnEl){
+    const pvKeySet=new Set(prodVol.map(p=>normKey(p.week,p.customer,p.model)));
+    const defCombos=new Map();
+    rawDef.forEach(d=>{
+      const k=normKey(d.week,d.customer,d.model);
+      if(!defCombos.has(k))defCombos.set(k,{week:d.week,customer:d.customer,model:d.model});
+    });
+    const missingPV=[...defCombos.values()].filter(c=>!pvKeySet.has(normKey(c.week,c.customer,c.model)));
+
+    if(!rawDef.length&&!prodVol.length){
+      warnEl.innerHTML='';
+    } else if(rawDef.length&&!prodVol.length){
+      warnEl.innerHTML='<div class="dk" style="border-color:#f59e0b;margin-bottom:14px;">'+
+        '<span style="color:#f59e0b;font-weight:700;">⚠ No Production Volume imported yet.</span> '+
+        'Yield/DPPM needs both Defect Data <em>and</em> a matching Production Volume row for the same Week + Customer + Model. Import Production Volume to see results.</div>';
+    } else if(!rawDef.length&&prodVol.length){
+      warnEl.innerHTML='<div class="dk" style="border-color:#f59e0b;margin-bottom:14px;">'+
+        '<span style="color:#f59e0b;font-weight:700;">⚠ No Defect Data imported yet.</span> '+
+        'Import Defect Data to calculate Yield/DPPM against your Production Volume.</div>';
+    } else if(missingPV.length){
+      warnEl.innerHTML='<div class="dk" style="border-color:#f59e0b;margin-bottom:14px;">'+
+        '<span style="color:#f59e0b;font-weight:700;">⚠ '+missingPV.length+' Week/Customer/Model combo(s) have Defect Data but no matching Production Volume — excluded below:</span><br>'+
+        missingPV.map(c=>'&nbsp;&nbsp;• '+esc(c.week)+' | '+esc(c.customer)+' | '+esc(c.model)).join('<br>')+'<br>'+
+        '<span style="color:#64748b;">Matching ignores case and extra spaces, but the text otherwise has to line up exactly with Production Volume — including the week format (e.g. 2026-W17).</span></div>';
+    } else {
+      warnEl.innerHTML='';
+    }
+  }
+
   const tp=filt.reduce((s,r)=>s+r.totalInsp,0);
   const tf=filt.reduce((s,r)=>s+r.totalFailed,0);
   const ft=filt.reduce((s,r)=>s+r.failedTOP,0);
@@ -341,13 +400,18 @@ function renderYield(){
   if(hint)hint.textContent=dw.length?`📅 Weeks in defect data: ${dw.join(', ')} — use these in Production Volume`:'';
 
   // KPIs
-  document.getElementById('kpi-row').innerHTML=[
-    {l:'YIELD OVERALL',v:oy.toFixed(3)+'%',c:oy>=TY?'#22c55e':'#ef4444',s:`Target ≥${TY}%  ${oy>=TY?'✅':'❌'}`},
-    {l:'YIELD TOP',v:ot!==null?ot.toFixed(3)+'%':'—',c:ot!==null&&ot>=TY?'#22c55e':'#ef4444',s:`Insp:${fmt(it)} Fail:${ft}`},
-    {l:'YIELD BOT',v:ob!==null?ob.toFixed(3)+'%':'—',c:ob!==null&&ob>=TY?'#22c55e':'#a78bfa',s:`Insp:${fmt(ib)} Fail:${fb}`},
-    {l:'DPPM',v:Math.round(od).toLocaleString(),c:od<=TD?'#22c55e':'#ef4444',s:`Target ≤${fmt(TD)}  ${od<=TD?'✅':'❌'}`},
-    {l:'DEFECT RECORDS',v:td,c:'#a78bfa',s:'Total defect rows'},
-  ].map(k=>`<div class="kpi" style="background:${k.c}12;border:1px solid ${k.c}50;"><div class="kpi-n" style="color:${k.c};">${k.v}</div><div class="kpi-l">${k.l}</div><div class="kpi-s">${k.s}</div></div>`).join('');
+  const kpiRow=document.getElementById('kpi-row');
+  if(!allM.length){
+    kpiRow.innerHTML='<div style="font-size:11px;color:#64748b;padding:8px 2px;">No matched Week+Customer+Model data yet — see note above.</div>';
+  } else {
+    kpiRow.innerHTML=[
+      {l:'YIELD OVERALL',v:oy.toFixed(3)+'%',c:oy>=TY?'#22c55e':'#ef4444',s:`Target ≥${TY}%  ${oy>=TY?'✅':'❌'}`},
+      {l:'YIELD TOP',v:ot!==null?ot.toFixed(3)+'%':'—',c:ot!==null&&ot>=TY?'#22c55e':'#ef4444',s:`Insp:${fmt(it)} Fail:${ft}`},
+      {l:'YIELD BOT',v:ob!==null?ob.toFixed(3)+'%':'—',c:ob!==null&&ob>=TY?'#22c55e':'#a78bfa',s:`Insp:${fmt(ib)} Fail:${fb}`},
+      {l:'DPPM',v:Math.round(od).toLocaleString(),c:od<=TD?'#22c55e':'#ef4444',s:`Target ≤${fmt(TD)}  ${od<=TD?'✅':'❌'}`},
+      {l:'DEFECT RECORDS',v:td,c:'#a78bfa',s:'Total defect rows'},
+    ].map(k=>`<div class="kpi" style="background:${k.c}12;border:1px solid ${k.c}50;"><div class="kpi-n" style="color:${k.c};">${k.v}</div><div class="kpi-l">${k.l}</div><div class="kpi-s">${k.s}</div></div>`).join('');
+  }
 
   // Charts
   const yv=document.getElementById('yield-view')?.value||'overall';
@@ -387,7 +451,7 @@ function renderYield(){
   },50);
 
   // Breakdown table
-  document.getElementById('tbl-body').innerHTML=filt.map((r,i)=>{
+  document.getElementById('tbl-body').innerHTML=filt.length?filt.map((r,i)=>{
     const ytc=r.yieldTOP!=null?(r.yieldTOP>=TY?'#22c55e':'#ef4444'):'#64748b';
     const ybc=r.yieldBOT!=null?(r.yieldBOT>=TY?'#22c55e':'#ef4444'):'#64748b';
     const yoc=r.yieldOk?'#22c55e':'#ef4444';
@@ -400,7 +464,7 @@ function renderYield(){
       <td class="num" style="color:${yoc};font-weight:700;">${r.yieldOverall.toFixed(3)}%</td>
       <td class="num" style="color:${dc};font-weight:700;">${Math.round(r.dppm).toLocaleString()}</td>
       <td>${pdot(r.yieldOk&&r.dppmOk)}</td></tr>`;
-  }).join('');
+  }).join(''):'<tr><td colspan="12" style="text-align:center;color:#64748b;padding:14px;">No rows to show.</td></tr>';
 
   // Pareto
   const fd=rawDef.filter(d=>(f.week==='ALL'||d.week===f.week)&&(f.cust==='ALL'||d.customer===f.cust)&&(f.model==='ALL'||d.model===f.model));
