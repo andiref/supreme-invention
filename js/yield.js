@@ -2,8 +2,9 @@
    YIELD & DPPM ANALYTICS
    ═══════════════════════════════════════════════════════════ */
 
-var customers = [], models = [], complaints = [], rawDef = [], prodVol = [], modelTiers = [];
+var rawDef = [], prodVol = [], modelTiers = [];
 var yieldFilters = { customer: '', model: '', from: '', to: '' };
+var lastYieldReport = null; // populated by updateYield(), read by exportYieldReport()
 
 // Cached CSS variable reader
 var cssVarCache = {};
@@ -51,16 +52,42 @@ function renderYield() {
 
     container.innerHTML =
         '<select id="yf-cust" onchange="updateYield()"><option value="">All Customers</option>' +
-        customers.map(function(c) { return '<option value="' + esc(c.name) + '">' + esc(c.name) + '</option>'; }).join('') +
+        customerArray().map(function(c) { return '<option value="' + esc(c.name) + '">' + esc(c.name) + '</option>'; }).join('') +
         '</select>' +
         '<select id="yf-model" onchange="updateYield()"><option value="">All Models</option>' +
-        models.map(function(m) { return '<option value="' + esc(m) + '">' + esc(m) + '</option>'; }).join('') +
+        modelArray().map(function(m) { return '<option value="' + esc(m.code) + '">' + esc(m.code) + '</option>'; }).join('') +
         '</select>' +
         '<input type="date" id="yf-from" onchange="updateYield()" />' +
         '<input type="date" id="yf-to" onchange="updateYield()" />' +
         '<button class="submit-btn" onclick="updateYield()">Refresh</button>';
 
     updateYield();
+}
+
+function buildVolMap() {
+    var volMap = {};
+    prodVol.forEach(function(v) {
+        var key = v.week + '_' + v.customer + '_' + v.model;
+        volMap[key] = (volMap[key] || 0) + (v.inspTOP || 0) + (v.inspBOT || 0);
+    });
+    return volMap;
+}
+
+function computePareto(defects) {
+    if (!defects.length) return [];
+    var counts = {};
+    defects.forEach(function(r) { counts[r.defect] = (counts[r.defect] || 0) + 1; });
+    var rows = Object.keys(counts)
+        .map(function(k) { return { type: k, count: counts[k] }; })
+        .sort(function(a, b) { return b.count - a.count; });
+    var total = defects.length;
+    var cum = 0;
+    rows.forEach(function(r) {
+        cum += r.count;
+        r.pct = r.count / total * 100;
+        r.cumPct = cum / total * 100;
+    });
+    return rows;
 }
 
 function updateYield() {
@@ -84,24 +111,49 @@ function updateYield() {
         var d = parseDT(r.dtStr);
         if (!d) return;
         var w = weekLabel(d);
-        if (!weeks[w]) weeks[w] = { TOP: { total: 0, unique: new Set() }, BOT: { total: 0, unique: new Set() } };
+        if (!weeks[w]) weeks[w] = { TOP: { total: 0, unique: new Set() }, BOT: { total: 0, unique: new Set() }, groupKeys: new Set(), count: 0 };
         weeks[w][r.side].total++;
         weeks[w][r.side].unique.add(r.sn);
+        weeks[w].groupKeys.add(w + '_' + r.customer + '_' + r.model);
+        weeks[w].count++;
     });
 
     var wkArr = Object.keys(weeks).sort();
+    var volMap = buildVolMap();
+
+    // Volume is summed once per (week, customer, model) group via groupKeys
+    // — not once per defect in that group. Previously it was added once for
+    // every defect that fell in the group, so a defect-heavy week inflated
+    // the volume denominator and made DPPM come out artificially low.
     var chartData = wkArr.map(function(w) {
+        var vol = 0;
+        weeks[w].groupKeys.forEach(function(k) { vol += volMap[k] || 0; });
+        var defCount = weeks[w].count;
         return {
             week: w,
             topFails: weeks[w].TOP.total,
             topUnique: weeks[w].TOP.unique.size,
             botFails: weeks[w].BOT.total,
-            botUnique: weeks[w].BOT.unique.size
+            botUnique: weeks[w].BOT.unique.size,
+            vol: vol,
+            dppm: vol ? Math.round((defCount / vol) * 1000000) : 0
         };
     });
 
+    var pareto = computePareto(filtered);
+    var totalVol = chartData.reduce(function(sum, w) { return sum + w.vol; }, 0);
+    var totalDefects = filtered.length;
+    var uniqueSN = new Set(filtered.map(function(r) { return r.sn; })).size;
+    var dppm = totalVol ? Math.round((totalDefects / totalVol) * 1000000) : 0;
+
+    lastYieldReport = {
+        cust: cust, model: model, from: from, to: to,
+        filtered: filtered, chartData: chartData, pareto: pareto,
+        totalDefects: totalDefects, uniqueSN: uniqueSN, totalVol: totalVol, dppm: dppm
+    };
+
     renderYieldCharts(chartData);
-    renderYieldSummary(filtered, wkArr);
+    renderYieldSummary(totalDefects, uniqueSN, totalVol, dppm, pareto);
 }
 
 function renderYieldCharts(data) {
@@ -109,12 +161,14 @@ function renderYieldCharts(data) {
     if (!container) return;
     if (!data.length) { container.innerHTML = '<p style="color:var(--muted)">No data for selected filters.</p>'; return; }
 
-    var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">';
+    var html = '<div class="form-card" style="margin-bottom:16px;"><div class="form-title">DPPM Trend</div><canvas id="chart-dppm"></canvas></div>';
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">';
     html += '<div class="form-card"><div class="form-title">Weekly Failures (TOP)</div><canvas id="chart-top"></canvas></div>';
     html += '<div class="form-card"><div class="form-title">Weekly Failures (BOT)</div><canvas id="chart-bot"></canvas></div>';
     html += '</div>';
     container.innerHTML = html;
 
+    drawBarChart('chart-dppm', data.map(function(d) { return d.week; }), data.map(function(d) { return d.dppm; }), '#eab308');
     drawBarChart('chart-top', data.map(function(d) { return d.week; }), data.map(function(d) { return d.topFails; }), '#3b82f6');
     drawBarChart('chart-bot', data.map(function(d) { return d.week; }), data.map(function(d) { return d.botFails; }), '#22c55e');
 }
@@ -157,29 +211,9 @@ function drawBarChart(canvasId, labels, values, color) {
     });
 }
 
-function renderYieldSummary(defects, weeks) {
+function renderYieldSummary(totalDefects, uniqueSN, totalVol, dppm, pareto) {
     var container = document.getElementById('yield-summary');
     if (!container) return;
-
-    var totalDefects = defects.length;
-    var uniqueSN = new Set(defects.map(function(r) { return r.sn; })).size;
-
-    var volMap = {};
-    prodVol.forEach(function(v) {
-        var key = v.week + '_' + v.customer + '_' + v.model;
-        volMap[key] = (volMap[key] || 0) + (v.inspTOP || 0) + (v.inspBOT || 0);
-    });
-
-    var totalVol = 0;
-    defects.forEach(function(r) {
-        var d = parseDT(r.dtStr);
-        if (!d) return;
-        var w = weekLabel(d);
-        var key = w + '_' + r.customer + '_' + r.model;
-        if (volMap[key]) totalVol += volMap[key];
-    });
-
-    var dppm = totalVol ? Math.round((totalDefects / totalVol) * 1000000) : 0;
 
     container.innerHTML =
         '<div class="cards-row">' +
@@ -187,7 +221,65 @@ function renderYieldSummary(defects, weeks) {
         '<div class="card"><div class="card-label">Unique SN Failed</div><div class="card-value">' + uniqueSN + '</div></div>' +
         '<div class="card"><div class="card-label">Est. Volume</div><div class="card-value">' + totalVol.toLocaleString() + '</div></div>' +
         '<div class="card"><div class="card-label">DPPM</div><div class="card-value">' + dppm.toLocaleString() + '</div></div>' +
-        '</div>';
+        '</div>' +
+        renderParetoHTML(pareto);
+
+    if (pareto.length) {
+        var top = pareto.slice(0, 10);
+        drawBarChart('chart-pareto', top.map(function(r) { return r.type; }), top.map(function(r) { return r.count; }), '#f97316');
+    }
+}
+
+function renderParetoHTML(pareto) {
+    if (!pareto.length) return '';
+    var top = pareto.slice(0, 10);
+    var rows = top.map(function(r) {
+        return '<tr><td>' + esc(r.type) + '</td><td>' + r.count + '</td><td>' + r.pct.toFixed(1) + '%</td><td>' + r.cumPct.toFixed(1) + '%</td></tr>';
+    }).join('');
+
+    return '<div class="form-card" style="margin-top:4px;">' +
+        '<div class="form-title">Defect Pareto' + (pareto.length > 10 ? ' (top 10)' : '') + '</div>' +
+        '<canvas id="chart-pareto"></canvas>' +
+        '<div class="preview-wrap" style="margin-top:10px;">' +
+        '<table class="preview-table"><thead><tr><th>Defect Type</th><th>Count</th><th>% of Total</th><th>Cum. %</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody></table></div></div>';
+}
+
+function exportYieldReport() {
+    if (typeof XLSX === 'undefined') { showToast('Export unavailable — XLSX library failed to load'); return; }
+    if (!lastYieldReport || !lastYieldReport.filtered.length) { showToast('Nothing to export — adjust filters first'); return; }
+
+    var r = lastYieldReport;
+    var wb = XLSX.utils.book_new();
+
+    var summaryAOA = [
+        ['SMT Yield & DPPM Report'],
+        ['Generated', new Date().toLocaleString()],
+        ['Customer filter', r.cust || 'All'],
+        ['Model filter', r.model || 'All'],
+        ['Date from', r.from || '(none)'],
+        ['Date to', r.to || '(none)'],
+        [],
+        ['Total Defects', r.totalDefects],
+        ['Unique SN Failed', r.uniqueSN],
+        ['Est. Volume Inspected', r.totalVol],
+        ['DPPM', r.dppm]
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryAOA), 'Summary');
+
+    var weeklyAOA = [['Week', 'TOP Fails', 'TOP Unique SN', 'BOT Fails', 'BOT Unique SN', 'Volume', 'DPPM']]
+        .concat(r.chartData.map(function(w) { return [w.week, w.topFails, w.topUnique, w.botFails, w.botUnique, w.vol, w.dppm]; }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(weeklyAOA), 'Weekly Trend');
+
+    var paretoAOA = [['Defect Type', 'Count', '% of Total', 'Cumulative %']]
+        .concat(r.pareto.map(function(p) { return [p.type, p.count, p.pct.toFixed(1) + '%', p.cumPct.toFixed(1) + '%']; }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(paretoAOA), 'Defect Pareto');
+
+    var rawAOA = [['Customer', 'Model', 'Serial', 'Side', 'Component', 'Defect Type', 'DateTime']]
+        .concat(r.filtered.map(function(d) { return [d.customer, d.model, d.sn, d.side, d.comp, d.defect, d.dtStr]; }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rawAOA), 'Raw Defects');
+
+    XLSX.writeFile(wb, 'yield_report_' + toISO(new Date()) + '.xlsx');
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -508,7 +600,13 @@ function submitUploadSingleShot(type) {
               if (d.ok) {
                   clearUpload(type);
                   tog(type === 'defect' ? 'pd' : 'pp');
-                  showToast('Imported ' + d.imported + ' rows ✓' + (d.skipped ? ' (' + d.skipped + ' skipped)' : ''));
+                  var msg = 'Imported ' + d.imported + ' rows ✓';
+                  if (d.skipped) {
+                      msg += ' (' + d.skipped + ' skipped';
+                      if (d.duplicates) msg += ', ' + d.duplicates + ' duplicate' + (d.duplicates !== 1 ? 's' : '');
+                      msg += ')';
+                  }
+                  showToast(msg);
               } else {
                   showToast('Error: ' + d.error);
               }
