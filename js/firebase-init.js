@@ -12,7 +12,6 @@ firebase.initializeApp({
 
 var db = firebase.database();
 var auth = firebase.auth();
-var analytics = firebase.analytics();
 
 // Auth ready system (unchanged)
 var _authReady = false;
