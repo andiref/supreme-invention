@@ -96,10 +96,37 @@ export default async function handler(req, res) {
 
         const token = await getToken(env);
 
+        let importedCount = parsed.length;
+        let dupCount = 0;
+
         if (type === 'defect') {
+            // A defect record is identified by customer+model+serial+side+
+            // component+defect type+datetime together. Dedupe against what's
+            // already in the DB *and* against repeats within this same file,
+            // so re-uploading a file (or retrying after a network blip)
+            // doesn't double-count defects / inflate DPPM.
+            const dupKey = r => [r.customer, r.model, r.sn, r.side, r.comp, r.defect, r.dtStr]
+                .map(v => String(v).toLowerCase()).join('|');
+
+            const existingDefects = (await fbGet(env, token, 'smt_defects')) || {};
+            const existingKeys = new Set(Object.values(existingDefects).map(dupKey));
+
+            const toImport = [];
+            const seenInFile = new Set();
+            for (const r of parsed) {
+                const key = dupKey(r);
+                if (existingKeys.has(key) || seenInFile.has(key)) {
+                    dupCount++;
+                    continue;
+                }
+                seenInFile.add(key);
+                toImport.push(r);
+            }
+            importedCount = toImport.length;
+
             const CHUNK = 50;
-            for (let i = 0; i < parsed.length; i += CHUNK) {
-                const chunk = parsed.slice(i, i + CHUNK);
+            for (let i = 0; i < toImport.length; i += CHUNK) {
+                const chunk = toImport.slice(i, i + CHUNK);
                 await Promise.all(chunk.map(r => fbPush(env, token, 'smt_defects', r)));
             }
         } else {
@@ -128,8 +155,9 @@ export default async function handler(req, res) {
 
         return jsonResponse(res, {
             ok: true,
-            imported: parsed.length,
-            skipped: errors.length,
+            imported: importedCount,
+            duplicates: dupCount,
+            skipped: errors.length + dupCount,
             total: rawRows.length,
             errors: errors.slice(0, 10)
         });
