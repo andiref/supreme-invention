@@ -2198,17 +2198,17 @@
 
 /* ═══════════════════════════════════════════════════════════════
    YIELD / DPPM ANALYTICS TOOL (js/yield.js)
-   Scoped under #yc-root so it can keep its own class names (.card/
-   .btn/.badge/etc) without colliding with the rest of the app's
-   class names of the same name — but now built entirely on the same
-   design tokens (--bg/--surface/--text/--font/--radius/etc) as the
-   rest of the app, so it matches visually and follows the light/dark
-   toggle instead of being locked to a fixed dark "terminal" look.
+   Scoped entirely under #yc-root so it can keep its own terminal/mono
+   visual identity without touching any class or bare element selector
+   used by the rest of the app (this file's own .card/.btn/.badge/etc
+   are unrelated — this ported tool originally defined *unscoped*
+   .card/.btn/.badge/.nav-btn/table/input/textarea rules that would have
+   silently overridden this app's real ones if merged unscoped).
    ═══════════════════════════════════════════════════════════════ */
 #yc-root {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--font);
+    background: #0a0e17;
+    color: #e2e8f0;
+    font-family: 'Courier New', monospace;
     font-size: 13px;
     padding: 18px 24px;
     max-width: 1440px;
@@ -2216,280 +2216,53 @@
 }
 #yc-root * { box-sizing: border-box; }
 #yc-root ::-webkit-scrollbar { width: 6px; height: 6px; }
-#yc-root ::-webkit-scrollbar-track { background: var(--surface); }
-#yc-root ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+#yc-root ::-webkit-scrollbar-track { background: #0f172a; }
+#yc-root ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
 #yc-root textarea, #yc-root input, #yc-root select { outline: none; }
-#yc-root .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; margin-bottom: 14px; }
-#yc-root .dk { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 18px; margin-bottom: 14px; }
-#yc-root .ct { font-size: 10px; color: var(--accent); font-weight: 700; letter-spacing: 0.1em; margin-bottom: 10px; text-transform: uppercase; }
+#yc-root .card { background: #111827; border: 1px solid #1e293b; border-radius: 8px; padding: 16px 20px; margin-bottom: 14px; }
+#yc-root .dk { background: #060a12; border: 1px solid #1e3a5f; border-radius: 8px; padding: 14px 18px; margin-bottom: 14px; }
+#yc-root .ct { font-size: 10px; color: #3b82f6; font-weight: 700; letter-spacing: 0.1em; margin-bottom: 10px; text-transform: uppercase; }
 #yc-root .kpi-row { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
-#yc-root .kpi { flex: 1; min-width: 130px; border-radius: var(--radius); padding: 14px 18px; text-align: center; }
+#yc-root .kpi { flex: 1; min-width: 130px; border-radius: 8px; padding: 14px 18px; text-align: center; }
 #yc-root .kpi-n { font-size: 24px; font-weight: 700; letter-spacing: -1px; }
-#yc-root .kpi-l { font-size: 10px; color: var(--muted); margin-top: 2px; }
-#yc-root .kpi-s { font-size: 9px; color: var(--muted); margin-top: 4px; }
+#yc-root .kpi-l { font-size: 10px; color: #64748b; margin-top: 2px; }
+#yc-root .kpi-s { font-size: 9px; color: #64748b; margin-top: 4px; }
 #yc-root table { width: 100%; border-collapse: collapse; font-size: 11px; }
-#yc-root th { background: var(--surface2); color: var(--accent2); padding: 7px 11px; text-align: left; border-bottom: 1px solid var(--border); font-weight: 700; font-size: 10px; white-space: nowrap; }
-#yc-root td { padding: 7px 11px; border-bottom: 1px solid var(--border); vertical-align: middle; }
-#yc-root tr:nth-child(even) { background: var(--surface); }
+#yc-root th { background: #1e3a5f; color: #93c5fd; padding: 7px 11px; text-align: left; border-bottom: 1px solid #1e293b; font-weight: 700; font-size: 10px; white-space: nowrap; }
+#yc-root td { padding: 7px 11px; border-bottom: 1px solid #1a2234; vertical-align: middle; }
+#yc-root tr:nth-child(even) { background: #0a0e17; }
 #yc-root .num { text-align: right; }
 #yc-root .badge { border-radius: 3px; padding: 1px 7px; font-size: 10px; display: inline-block; }
 #yc-root .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 5px; }
 #yc-root input, #yc-root select, #yc-root textarea {
-    background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text);
-    padding: 6px 9px; font-size: 11px; font-family: var(--font); width: 100%;
+    background: #1e293b; border: 1px solid #334155; border-radius: 4px; color: #e2e8f0;
+    padding: 6px 9px; font-size: 11px; font-family: 'Courier New', monospace; width: 100%;
 }
-#yc-root input:focus, #yc-root select:focus, #yc-root textarea:focus { border-color: var(--accent); }
 #yc-root textarea { resize: vertical; }
-#yc-root .btn { border: none; border-radius: 8px; padding: 7px 13px; font-size: 11px; cursor: pointer; font-family: var(--font); font-weight: 700; color: #fff; }
-#yc-root .bg { background: var(--low); }
-#yc-root .bb { background: var(--accent); }
-#yc-root .br { background: var(--critical); }
-#yc-root .bx { background: var(--surface2); color: var(--text); }
+#yc-root .btn { border: none; border-radius: 4px; padding: 7px 13px; font-size: 11px; cursor: pointer; font-family: 'Courier New', monospace; font-weight: 700; color: #fff; }
+#yc-root .bg { background: #16a34a; }
+#yc-root .bb { background: #1d4ed8; }
+#yc-root .br { background: #dc2626; }
+#yc-root .bx { background: #374151; }
 #yc-root .row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
 #yc-root .col { flex: 1; min-width: 280px; }
 #yc-root .fw { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
 #yc-root .fl { flex: 1; min-width: 90px; }
-#yc-root .fl-lbl { font-size: 9px; color: var(--muted); margin-bottom: 3px; }
+#yc-root .fl-lbl { font-size: 9px; color: #64748b; margin-bottom: 3px; }
 #yc-root .tbl-wrap { overflow-x: auto; }
-#yc-root .pc { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; font-size: 10px; font-family: var(--font); line-height: 2.2; color: var(--muted); }
-#yc-root .err { color: var(--critical); font-size: 10px; margin-top: 4px; }
+#yc-root .pc { background: #060a12; border: 1px solid #1e3a5f; border-radius: 4px; padding: 10px 14px; margin-bottom: 8px; font-size: 10px; font-family: 'Courier New', monospace; line-height: 2.2; color: #94a3b8; }
+#yc-root .err { color: #ef4444; font-size: 10px; margin-top: 4px; }
+#yc-root input[type="file"] { padding: 8px 9px; cursor: pointer; }
+#yc-root input[type="file"]::file-selector-button,
+#yc-root input[type="file"]::-webkit-file-upload-button {
+    background: #1d4ed8; border: none; border-radius: 4px; color: #fff;
+    padding: 6px 12px; font-size: 11px; font-family: 'Courier New', monospace; font-weight: 700;
+    cursor: pointer; margin-right: 10px;
+}
+#yc-root input[type="file"]::file-selector-button:hover,
+#yc-root input[type="file"]::-webkit-file-upload-button:hover { background: #1e40af; }
 #yc-root #lib-wrap { display: flex; gap: 14px; }
 #yc-root #lib-list { width: 240px; flex-shrink: 0; }
-#yc-root .li { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; cursor: pointer; margin-bottom: 7px; transition: all 0.15s; }
-#yc-root .li:hover, #yc-root .li.active { background: var(--surface2); border-color: var(--accent); }
+#yc-root .li { background: #111827; border: 1px solid #1e293b; border-radius: 6px; padding: 9px 12px; cursor: pointer; margin-bottom: 7px; transition: all 0.15s; }
+#yc-root .li:hover, #yc-root .li.active { background: #1e3a5f; border-color: #3b82f6; }
 #yc-root canvas { display: block; max-width: 100%; }
-
-
-
-/* ═══════════════════════════════════════════════════════════
-   UPLOAD ENGINE CSS  — append to end of styles.css
-   ═══════════════════════════════════════════════════════════ */
-
-.hidden { display: none !important; }
-
-.drop-zone {
-  border: 2px dashed var(--border);
-  border-radius: 10px;
-  padding: 28px 20px;
-  text-align: center;
-  cursor: pointer;
-  transition: all .2s;
-  background: var(--surface2);
-}
-.drop-zone:hover,
-.drop-zone.dragover {
-  border-color: var(--accent);
-  background: rgba(59,130,246,0.08);
-}
-.dz-icon { font-size: 28px; margin-bottom: 6px; }
-.dz-main { font-size: 13px; color: var(--text); font-weight: 600; }
-.dz-sub  { font-size: 11px; color: var(--muted); margin-top: 4px; }
-.dz-hint { font-size: 10px; color: var(--muted); margin-top: 8px; opacity: .7; }
-
-.file-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 7px 12px;
-  font-size: 12px;
-  margin-top: 10px;
-}
-.file-badge .remove {
-  color: var(--critical);
-  cursor: pointer;
-  font-weight: 700;
-  margin-left: 6px;
-}
-
-.mapping-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 10px;
-  margin: 14px 0;
-}
-.map-box {
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px;
-}
-.map-box .map-label {
-  font-size: 9px;
-  color: var(--muted);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .5px;
-  margin-bottom: 6px;
-}
-.map-box .map-label .req { color: var(--critical); }
-.map-box select {
-  width: 100%;
-  background: var(--bg);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 6px 8px;
-  font-size: 12px;
-  font-family: var(--font);
-}
-.map-box.mapped { border-color: var(--green); }
-.map-box.mapped .map-label { color: var(--green); }
-
-.stats-bar {
-  display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-  font-size: 11px;
-  color: var(--muted);
-  margin-bottom: 10px;
-  padding: 8px 12px;
-  background: var(--surface2);
-  border-radius: 6px;
-}
-.stats-bar b { color: var(--text); }
-
-.preview-wrap {
-  overflow-x: auto;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  max-height: 240px;
-  overflow-y: auto;
-}
-.preview-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 11px;
-  min-width: 500px;
-}
-.preview-table th {
-  background: var(--surface2);
-  color: var(--accent2);
-  padding: 7px 10px;
-  text-align: left;
-  border-bottom: 1px solid var(--border);
-  font-size: 10px;
-  position: sticky;
-  top: 0;
-  z-index: 2;
-}
-.preview-table td {
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--border);
-  color: var(--text);
-  white-space: nowrap;
-}
-.preview-table tr:nth-child(even) td { background: var(--surface2); }
-.preview-table .err-cell { color: var(--critical); background: #450a0a18 !important; }
-.preview-table .ok-cell  { color: var(--green); }
-
-/* ═══════════════════════════════════════════════════════════
-   NOTE: Remove dead CSS selectors for deleted features:
-   .task-card, .line-card, #line-grid, .comment-list,
-   .audit-table, .task-remark-panel, etc.
-   ═══════════════════════════════════════════════════════════ */
-
-
-/* ═══════════════════════════════════════════════════════════
-   SMT REPORT CENTER — app shell additions
-   Most #app-scoped component styles above already match this
-   app's markup (form-card, cu-card, badges, toast, login box,
-   header/nav/main, etc.) — a lot of that CSS was written for an
-   earlier, richer version of this same app (see the "dead CSS"
-   note near the Upload Engine section) whose desktop layout used
-   a permanent #sidebar + #desktop-topbar instead of the simple
-   #header + #nav bar this app now uses. This block re-enables
-   #header/#nav at desktop widths (the old rule hid them in favor
-   of that sidebar) and adds the handful of classes this app's
-   dashboard/tabs use that were never styled anywhere.
-   ═══════════════════════════════════════════════════════════ */
-
-#app #header,
-#app #nav {
-    display: flex !important;
-}
-
-@media (min-width: 900px) {
-    #app #main {
-        max-width: 1000px;
-        margin: 0 auto;
-        width: 100%;
-    }
-    #app .form-card {
-        max-width: 720px;
-    }
-}
-
-.cards-row {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-    gap: 10px;
-    margin-bottom: 18px;
-}
-.card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 14px 16px;
-}
-.card-label {
-    font-size: 10px;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: .6px;
-    font-weight: 600;
-    margin-bottom: 6px;
-}
-.card-value {
-    font-size: 22px;
-    font-weight: 800;
-    color: var(--text);
-}
-
-.section-title {
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: .6px;
-    margin: 4px 0 8px;
-}
-
-.tab-bar {
-    display: flex;
-    gap: 6px;
-    margin-bottom: 14px;
-    flex-wrap: wrap;
-}
-.tab-btn {
-    background: var(--surface2);
-    color: var(--muted);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 8px 14px;
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    font-family: var(--font);
-}
-.tab-btn.active {
-    background: var(--accent);
-    color: #fff;
-    border-color: var(--accent);
-}
-
-.btn-row {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-.btn-row .submit-btn {
-    width: auto;
-    flex: 0 0 auto;
-}
-
-body.light .card { background: #fff; border-color: var(--border); }
-body.light .tab-btn { background: #fff; border-color: var(--border); color: var(--text); }
-body.light .tab-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
