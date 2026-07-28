@@ -3,187 +3,216 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#0a0a0f" />
 <title>SMT Report Center</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-<div id="wrapper">
-  <aside id="sidebar">
+
+<!-- LOGIN GATE -->
+<div id="login-overlay">
+  <div id="login-box">
     <div class="logo">📊 SMT Report Center</div>
-    <nav id="nav">
-      <a class="nav-item active" data-view="dashboard" onclick="switchView('dashboard')">Dashboard</a>
-      <a class="nav-item" data-view="customers" onclick="switchView('customers')">Customers</a>
-      <a class="nav-item" data-view="complaints" onclick="switchView('complaints')">Complaints</a>
-      <a class="nav-item" data-view="yield" onclick="switchView('yield')">Yield & DPPM</a>
-      <a class="nav-item" data-view="settings" onclick="switchView('settings')">Settings</a>
-    </nav>
-    <div class="user-info" id="user-info">
-      <span id="user-email">—</span>
-      <button class="logout-btn" onclick="logout()">Logout</button>
+    <div class="sub">Sign in with your <span>owner email</span></div>
+    <form id="login-form">
+      <div class="login-field">
+        <label for="login-email">Email</label>
+        <input type="email" id="login-email" placeholder="you@company.com" autocomplete="email" required />
+      </div>
+      <div id="login-error" class="login-error"></div>
+      <button type="submit" id="login-btn" class="login-btn">Sign In →</button>
+    </form>
+  </div>
+</div>
+
+<!-- APP (hidden until login succeeds) -->
+<div id="app">
+  <header id="header">
+    <div class="header-top">
+      <div>
+        <div class="header-title" id="page-title">Dashboard</div>
+        <div class="header-sub" id="header-extra"></div>
+      </div>
+      <div class="user-menu">
+        <span class="user-avatar" id="user-avatar"></span>
+        <span class="user-name-tag" id="user-name-tag"></span>
+        <button type="button" id="theme-toggle-sidebar" class="logout-btn-visible" title="Toggle theme">🌙</button>
+        <button type="button" id="logout-btn-visible" class="logout-btn-visible">Logout</button>
+      </div>
     </div>
-  </aside>
+  </header>
+
+  <nav id="nav">
+    <button type="button" class="nav-btn active" data-view="dashboard" onclick="switchView('dashboard')">📊 Dashboard</button>
+    <button type="button" class="nav-btn" data-view="customers" onclick="switchView('customers')">🏭 Customers</button>
+    <button type="button" class="nav-btn" data-view="complaints" onclick="switchView('complaints')">📣 Complaints</button>
+    <button type="button" class="nav-btn" data-view="yield" onclick="switchView('yield')">📈 Yield &amp; DPPM</button>
+    <button type="button" class="nav-btn" data-view="settings" onclick="switchView('settings')">⚙️ Settings</button>
+  </nav>
 
   <main id="main">
-    <header id="top-bar">
-      <h1 id="page-title">Dashboard</h1>
-      <div id="header-extra"></div>
-    </header>
+    <!-- DASHBOARD -->
+    <div id="view-dashboard" class="view">
+      <div class="cards-row" id="dash-cards"></div>
+      <div class="section-title">Recent Complaints</div>
+      <div id="dash-recent"></div>
+    </div>
 
-    <div id="content">
-      <!-- DASHBOARD -->
-      <div id="view-dashboard" class="view">
-        <div class="cards-row" id="dash-cards"></div>
-        <div class="section-title">Recent Complaints</div>
-        <div id="dash-recent"></div>
+    <!-- CUSTOMERS -->
+    <div id="view-customers" class="view hidden">
+      <div class="form-card">
+        <div class="form-title">Add Customer</div>
+        <div class="form-row">
+          <input id="cu-name" placeholder="Customer name" />
+          <button type="button" class="submit-btn" id="cu-add-btn">Add Customer</button>
+        </div>
+      </div>
+      <div class="form-card">
+        <div class="form-title">Add Model</div>
+        <div class="form-row">
+          <select id="cu-model-customer"><option value="">Select customer…</option></select>
+          <input id="cu-model-code" placeholder="Model code (e.g. X-200)" />
+        </div>
+        <button type="button" class="submit-btn" id="cu-model-add-btn">Add Model</button>
+      </div>
+      <div id="customers-list"></div>
+    </div>
+
+    <!-- COMPLAINTS -->
+    <div id="view-complaints" class="view hidden">
+      <div class="form-card">
+        <div class="form-title">Log Complaint</div>
+        <div class="form-row">
+          <select id="cp-customer"><option value="">Select…</option></select>
+          <select id="cp-model"><option value="">Select customer first</option></select>
+        </div>
+        <div class="form-group">
+          <label for="cp-finding">Finding *</label>
+          <textarea id="cp-finding" placeholder="What was found…"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="cp-location">Location</label>
+          <input id="cp-location" placeholder="e.g. Line 3, Station 2" />
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="margin-bottom:0">
+            <label for="cp-rc-occurrence">Root Cause — Occurrence</label>
+            <textarea id="cp-rc-occurrence" placeholder="Why did it happen?"></textarea>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label for="cp-rc-escapee">Root Cause — Escapee</label>
+            <textarea id="cp-rc-escapee" placeholder="Why wasn't it caught?"></textarea>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="cp-action">Corrective Action</label>
+          <textarea id="cp-action" placeholder="What will fix it?"></textarea>
+        </div>
+        <button type="button" class="submit-btn" id="cp-submit-btn" disabled>Log Complaint →</button>
+      </div>
+      <div id="complaints-list"></div>
+    </div>
+
+    <!-- YIELD & DPPM -->
+    <div id="view-yield" class="view hidden">
+      <div class="tab-bar">
+        <button type="button" class="tab-btn active" onclick="tog('pd')">Defect Data</button>
+        <button type="button" class="tab-btn" onclick="tog('pp')">Production Volume</button>
+        <button type="button" class="tab-btn" onclick="tog('pr')">Reports</button>
       </div>
 
-      <!-- CUSTOMERS -->
-      <div id="view-customers" class="view hidden">
-        <div class="form-card">
-          <div class="form-title">Add Customer</div>
-          <div class="form-row">
-            <input id="cust-name" placeholder="Customer Name" />
-            <input id="cust-code" placeholder="Code (e.g. CUST-001)" />
-            <button class="submit-btn" onclick="addCustomer()">Add</button>
-          </div>
+      <!-- DEFECT DATA UPLOAD -->
+      <div id="pd" class="form-card">
+        <div class="form-title">📋 Import Defect Data</div>
+        <div class="drop-zone" id="dz-defect">
+          <div class="dz-icon">📁</div>
+          <div class="dz-main">Drop CSV or Excel file here, or click to browse</div>
+          <div class="dz-sub">Customer · SerialNo · Model · DefectType · Component · DateTime · Side</div>
+          <div class="dz-hint">.csv, .xlsx, .xls · Max 5,000 rows</div>
         </div>
-        <div id="customers-list"></div>
-      </div>
+        <input type="file" id="file-defect" class="hidden" accept=".csv,.xlsx,.xls" />
 
-      <!-- COMPLAINTS -->
-      <div id="view-complaints" class="view hidden">
-        <div class="form-card">
-          <div class="form-title">New Complaint (8D)</div>
-          <div class="form-row">
-            <select id="c-cust"></select>
-            <input id="c-model" placeholder="Model" />
-            <input id="c-lot" placeholder="Lot / Batch" />
-          </div>
-          <div class="form-row">
-            <input id="c-defect" placeholder="Defect Type" />
-            <input id="c-qty" placeholder="Qty Affected" type="number" />
-            <select id="c-sev"><option value="Low">Low</option><option value="Medium">Medium</option><option value="High">High</option><option value="Critical">Critical</option></select>
-          </div>
-          <div class="form-row">
-            <textarea id="c-desc" placeholder="Problem Description (D2)"></textarea>
-          </div>
-          <div class="form-row">
-            <textarea id="c-contain" placeholder="Containment Action (D3)"></textarea>
-          </div>
-          <div class="form-row">
-            <textarea id="c-root" placeholder="Root Cause (D4)"></textarea>
-          </div>
-          <div class="form-row">
-            <textarea id="c-correct" placeholder="Corrective Action (D5)"></textarea>
-          </div>
-          <div class="form-row">
-            <textarea id="c-prevent" placeholder="Preventive Action (D6)"></textarea>
-          </div>
-          <div class="form-row">
-            <textarea id="c-verify" placeholder="Verification (D7)"></textarea>
-          </div>
-          <div class="form-row">
-            <button class="submit-btn" onclick="submitComplaint()">Submit Complaint</button>
-          </div>
-        </div>
-        <div id="complaints-list"></div>
-      </div>
-
-      <!-- YIELD & DPPM -->
-      <div id="view-yield" class="view hidden">
-        <div class="tab-bar">
-          <button class="tab-btn active" onclick="tog('pd')">Defect Data</button>
-          <button class="tab-btn" onclick="tog('pp')">Production Volume</button>
-          <button class="tab-btn" onclick="tog('pr')">Reports</button>
+        <div id="badge-defect" class="file-badge hidden">
+          📄 <b id="fname-defect">—</b> · <span id="frows-defect">0</span> rows
+          <span class="remove" onclick="clearUpload('defect')">✕</span>
         </div>
 
-        <!-- DEFECT DATA UPLOAD -->
-        <div id="pd" class="form-card">
-          <div class="form-title">📋 Import Defect Data</div>
-          <div class="drop-zone" id="dz-defect">
-            <div class="dz-icon">📁</div>
-            <div class="dz-main">Drop CSV or Excel file here, or click to browse</div>
-            <div class="dz-sub">Customer · SerialNo · Model · DefectType · Component · DateTime · Side</div>
-            <div class="dz-hint">.csv, .xlsx, .xls · Max 5,000 rows</div>
-          </div>
-          <input type="file" id="file-defect" class="hidden" accept=".csv,.xlsx,.xls" />
+        <div id="map-defect" class="mapping-grid hidden"></div>
 
-          <div id="badge-defect" class="file-badge hidden">
-            📄 <b id="fname-defect">—</b> · <span id="frows-defect">0</span> rows
-            <span class="remove" onclick="clearUpload('defect')">✕</span>
-          </div>
-
-          <div id="map-defect" class="mapping-grid hidden"></div>
-
-          <div id="preview-defect" class="hidden">
-            <div class="stats-bar" id="stats-defect"></div>
-            <div class="preview-wrap"><table class="preview-table" id="tbl-defect"><thead><tr></tr></thead><tbody></tbody></table></div>
-          </div>
-
-          <div class="btn-row" style="margin-top:12px;">
-            <button class="submit-btn" id="btn-import-defect" disabled onclick="submitUploadSingleShot('defect')">Import & Calculate</button>
-            <button class="submit-btn" style="background:var(--surface2);color:var(--text);" onclick="clearUpload('defect')">Cancel</button>
-            <button class="submit-btn" style="background:var(--surface2);color:var(--accent2);margin-left:auto;" onclick="downloadTemplate('defect')">⬇ Template</button>
-          </div>
+        <div id="preview-defect" class="hidden">
+          <div class="stats-bar" id="stats-defect"></div>
+          <div class="preview-wrap"><table class="preview-table" id="tbl-defect"><thead><tr></tr></thead><tbody></tbody></table></div>
         </div>
 
-        <!-- PRODUCTION VOLUME UPLOAD -->
-        <div id="pp" class="form-card" style="display:none;">
-          <div class="form-title">📊 Import Production Volume</div>
-          <div class="drop-zone" id="dz-prod">
-            <div class="dz-icon">📁</div>
-            <div class="dz-main">Drop CSV or Excel file here, or click to browse</div>
-            <div class="dz-sub">Week · Customer · Model · Side · TotalInspected</div>
-            <div class="dz-hint">.csv, .xlsx, .xls · TOP and BOT as separate rows</div>
-          </div>
-          <input type="file" id="file-prod" class="hidden" accept=".csv,.xlsx,.xls" />
-
-          <div id="badge-prod" class="file-badge hidden">
-            📄 <b id="fname-prod">—</b> · <span id="frows-prod">0</span> rows
-            <span class="remove" onclick="clearUpload('prod')">✕</span>
-          </div>
-
-          <div id="map-prod" class="mapping-grid hidden"></div>
-
-          <div id="preview-prod" class="hidden">
-            <div class="stats-bar" id="stats-prod"></div>
-            <div class="preview-wrap"><table class="preview-table" id="tbl-prod"><thead><tr></tr></thead><tbody></tbody></table></div>
-          </div>
-
-          <div class="btn-row" style="margin-top:12px;">
-            <button class="submit-btn" id="btn-import-prod" disabled onclick="submitUploadSingleShot('prod')">Import Production Volume</button>
-            <button class="submit-btn" style="background:var(--surface2);color:var(--text);" onclick="clearUpload('prod')">Cancel</button>
-            <button class="submit-btn" style="background:var(--surface2);color:var(--accent2);margin-left:auto;" onclick="downloadTemplate('prod')">⬇ Template</button>
-          </div>
-        </div>
-
-        <!-- REPORTS -->
-        <div id="pr" class="form-card" style="display:none;">
-          <div class="form-title">Yield & DPPM Reports</div>
-          <div id="yield-filters" class="form-row"></div>
-          <div id="yield-charts"></div>
-          <div id="yield-summary"></div>
+        <div class="btn-row" style="margin-top:12px;">
+          <button type="button" class="submit-btn" id="btn-import-defect" disabled onclick="submitUploadSingleShot('defect')">Import & Calculate</button>
+          <button type="button" class="submit-btn" style="background:var(--surface2);color:var(--text);" onclick="clearUpload('defect')">Cancel</button>
+          <button type="button" class="submit-btn" style="background:var(--surface2);color:var(--accent2);margin-left:auto;" onclick="downloadTemplate('defect')">⬇ Template</button>
         </div>
       </div>
 
-      <!-- SETTINGS -->
-      <div id="view-settings" class="view hidden">
-        <div class="form-card">
-          <div class="form-title">Appearance</div>
-          <div class="form-row">
-            <label><input type="checkbox" id="theme-toggle" onchange="toggleTheme()"> Dark Mode</label>
-          </div>
+      <!-- PRODUCTION VOLUME UPLOAD -->
+      <div id="pp" class="form-card" style="display:none;">
+        <div class="form-title">📊 Import Production Volume</div>
+        <div class="drop-zone" id="dz-prod">
+          <div class="dz-icon">📁</div>
+          <div class="dz-main">Drop CSV or Excel file here, or click to browse</div>
+          <div class="dz-sub">Week · Customer · Model · Side · TotalInspected</div>
+          <div class="dz-hint">.csv, .xlsx, .xls · TOP and BOT as separate rows</div>
         </div>
+        <input type="file" id="file-prod" class="hidden" accept=".csv,.xlsx,.xls" />
+
+        <div id="badge-prod" class="file-badge hidden">
+          📄 <b id="fname-prod">—</b> · <span id="frows-prod">0</span> rows
+          <span class="remove" onclick="clearUpload('prod')">✕</span>
+        </div>
+
+        <div id="map-prod" class="mapping-grid hidden"></div>
+
+        <div id="preview-prod" class="hidden">
+          <div class="stats-bar" id="stats-prod"></div>
+          <div class="preview-wrap"><table class="preview-table" id="tbl-prod"><thead><tr></tr></thead><tbody></tbody></table></div>
+        </div>
+
+        <div class="btn-row" style="margin-top:12px;">
+          <button type="button" class="submit-btn" id="btn-import-prod" disabled onclick="submitUploadSingleShot('prod')">Import Production Volume</button>
+          <button type="button" class="submit-btn" style="background:var(--surface2);color:var(--text);" onclick="clearUpload('prod')">Cancel</button>
+          <button type="button" class="submit-btn" style="background:var(--surface2);color:var(--accent2);margin-left:auto;" onclick="downloadTemplate('prod')">⬇ Template</button>
+        </div>
+      </div>
+
+      <!-- REPORTS -->
+      <div id="pr" class="form-card" style="display:none;">
+        <div class="form-title">Yield & DPPM Reports</div>
+        <div id="yield-filters" class="form-row"></div>
+        <div id="yield-charts"></div>
+        <div id="yield-summary"></div>
+        <button type="button" class="submit-btn" style="margin-top:14px;" onclick="exportYieldReport()">⬇ Export Report (.xlsx)</button>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div id="view-settings" class="view hidden">
+      <div class="form-card">
+        <div class="form-title">Appearance</div>
+        <button type="button" class="submit-btn" onclick="toggleTheme()">Toggle Light / Dark Mode</button>
+      </div>
+      <div class="form-card">
+        <div class="form-title">Account</div>
+        <div class="task-info">Signed in as <span id="settings-email"></span></div>
+        <button type="button" class="submit-btn" style="margin-top:10px;background:var(--surface2);color:var(--critical);" onclick="logout()">Logout</button>
       </div>
     </div>
   </main>
+
+  <div id="toast"></div>
 </div>
 
 <!-- Firebase SDK MUST load BEFORE your scripts -->
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>   <!-- ← ADD THIS -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
 <!-- SheetJS for Excel parsing -->
@@ -192,11 +221,9 @@
 <!-- Your app scripts -->
 <script src="js/firebase-init.js"></script>
 <script src="js/auth.js"></script>
-<script src="js/ui.js"></script>
 <script src="js/customers.js"></script>
 <script src="js/yield.js"></script>
+<script src="js/ui.js"></script>
 
-</body>
-</html>
 </body>
 </html>
