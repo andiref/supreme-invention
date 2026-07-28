@@ -2391,3 +2391,105 @@
    .audit-table, .task-remark-panel, etc.
    ═══════════════════════════════════════════════════════════ */
 
+
+/* ═══════════════════════════════════════════════════════════
+   SMT REPORT CENTER — app shell additions
+   Most #app-scoped component styles above already match this
+   app's markup (form-card, cu-card, badges, toast, login box,
+   header/nav/main, etc.) — a lot of that CSS was written for an
+   earlier, richer version of this same app (see the "dead CSS"
+   note near the Upload Engine section) whose desktop layout used
+   a permanent #sidebar + #desktop-topbar instead of the simple
+   #header + #nav bar this app now uses. This block re-enables
+   #header/#nav at desktop widths (the old rule hid them in favor
+   of that sidebar) and adds the handful of classes this app's
+   dashboard/tabs use that were never styled anywhere.
+   ═══════════════════════════════════════════════════════════ */
+
+#app #header,
+#app #nav {
+    display: flex !important;
+}
+
+@media (min-width: 900px) {
+    #app #main {
+        max-width: 1000px;
+        margin: 0 auto;
+        width: 100%;
+    }
+    #app .form-card {
+        max-width: 720px;
+    }
+}
+
+.cards-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 10px;
+    margin-bottom: 18px;
+}
+.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+}
+.card-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+.card-value {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--text);
+}
+
+.section-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    margin: 4px 0 8px;
+}
+
+.tab-bar {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+}
+.tab-btn {
+    background: var(--surface2);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--font);
+}
+.tab-btn.active {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+}
+
+.btn-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.btn-row .submit-btn {
+    width: auto;
+    flex: 0 0 auto;
+}
+
+body.light .card { background: #fff; border-color: var(--border); }
+body.light .tab-btn { background: #fff; border-color: var(--border); color: var(--text); }
+body.light .tab-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
