@@ -1,171 +1,236 @@
-/* ═══════════════════════════════════════════════════════════
-   UI CONTROLLER
-   Boots once, right after a successful login (auth.js calls
-   initApp() from loginSuccess()). Owns: view switching + nav
-   highlighting, the live Firebase → state sync, the header
-   clock, and the online/offline toast.
-   Login, session persistence, theme, and logout all live in
-   auth.js — this file doesn't duplicate any of that.
-   ═══════════════════════════════════════════════════════════ */
-
-function initApp() {
-    initListeners();
-    initCustomerForms();
-    initThemeToggles();
-    initUpload('defect');
-    initUpload('prod');
-    updateHeader();
-    setInterval(updateHeader, 60000);
-    loadFirebaseData();
-}
-
-function initListeners() {
-    window.addEventListener('online', function() { showToast('Back online'); });
-    window.addEventListener('offline', function() { showToast('Offline mode'); });
-}
-
-function viewVisible(view) {
-    var el = document.getElementById('view-' + view);
-    return !!(el && !el.classList.contains('hidden'));
-}
-
-function switchView(view) {
-    document.querySelectorAll('.view').forEach(function(v) { v.classList.add('hidden'); });
-    var target = document.getElementById('view-' + view);
-    if (target) target.classList.remove('hidden');
-
-    document.querySelectorAll('#nav .nav-btn').forEach(function(el) {
-        el.classList.toggle('active', el.getAttribute('data-view') === view);
-    });
-
-    var title = document.getElementById('page-title');
-    if (title) title.textContent = view.charAt(0).toUpperCase() + view.slice(1);
-
-    if (view === 'customers') { populateCustomerSelects(); renderCustomers(); }
-    if (view === 'complaints') { populateCustomerSelects(); renderComplaints(); }
-    if (view === 'yield') renderYield();
-    if (view === 'dashboard') renderDashboard();
-}
-
-// Called by auth.js's loginSuccess() (initial load) and toggleTheme()
-// (canvas charts need a repaint after a theme change).
-function renderAll() {
-    populateCustomerSelects();
-    renderCustomers();
-    renderComplaints();
-    renderDashboard();
-    if (viewVisible('yield')) renderYield();
-}
-
-// ─── DASHBOARD ──────────────────────────────────────────────────────
-function renderDashboard() {
-    var cardsEl = document.getElementById('dash-cards');
-    var recentEl = document.getElementById('dash-recent');
-    if (!cardsEl || !recentEl) return;
-
-    var custArr = customerArray();
-    var modArr = modelArray();
-    var complaintArr = Object.keys(complaints).map(function(id) {
-        return Object.assign({}, complaints[id], { _id: id });
-    });
-    var openCount = complaintArr.filter(function(c) { return c.status !== 'Closed'; }).length;
-
-    cardsEl.innerHTML =
-        '<div class="card"><div class="card-label">Customers</div><div class="card-value">' + custArr.length + '</div></div>' +
-        '<div class="card"><div class="card-label">Models</div><div class="card-value">' + modArr.length + '</div></div>' +
-        '<div class="card"><div class="card-label">Open Complaints</div><div class="card-value">' + openCount + '</div></div>' +
-        '<div class="card"><div class="card-label">Total Complaints</div><div class="card-value">' + complaintArr.length + '</div></div>';
-
-    if (!complaintArr.length) {
-        recentEl.innerHTML = '<div class="empty"><div class="empty-icon">📣</div><div>No complaints logged yet</div></div>';
-        return;
-    }
-
-    complaintArr.sort(function(a, b) { return (b.created || 0) - (a.created || 0); });
-
-    recentEl.innerHTML = complaintArr.slice(0, 5).map(function(cm) {
-        var dt = cm.created ? new Date(cm.created).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
-        var finding = cm.finding || cm.description || '';
-        return '<div class="cu-card"><div class="cu-header" style="cursor:default"><div style="flex:1;min-width:0">' +
-            '<div class="task-meta">' +
-            '<span class="badge badge-line">' + esc(customerName(cm.customerId)) + '</span>' +
-            '<span class="badge badge-model">' + esc(modelCode(cm.modelId)) + '</span>' +
-            '<span class="badge badge-' + (cm.status === 'Closed' ? 'Resolved' : 'Open') + '">' + esc(cm.status || 'Open') + '</span>' +
-            '</div>' +
-            '<div class="task-title">📣 ' + esc(finding) + '</div>' +
-            '<div class="task-info">🗓 ' + dt + '</div>' +
-            '</div></div></div>';
-    }).join('');
-}
-
-// ─── LIVE FIREBASE SYNC ─────────────────────────────────────────────
-// customers/models/complaints stay as Firebase-ID-keyed objects here
-// (matching auth.js's customerArray()/customerName()/modelCode()/
-// modelsForCustomer() and customers.js's renderCustomers()/
-// renderComplaints(), which all do Object.keys(...) lookups on them).
-// rawDef/prodVol/modelTiers stay as plain arrays for yield.js.
-function loadFirebaseData() {
-    var db = firebase.database();
-
-    safeOnValue(db.ref('smt_customers'), function(snap) {
-        customers = snap.val() || {};
-        populateCustomerSelects();
-        if (viewVisible('customers')) renderCustomers();
-        if (viewVisible('dashboard')) renderDashboard();
-    });
-
-    safeOnValue(db.ref('smt_models'), function(snap) {
-        models = snap.val() || {};
-        populateCustomerSelects();
-        if (viewVisible('customers')) renderCustomers();
-        if (viewVisible('yield')) renderYield();
-    });
-
-    safeOnValue(db.ref('smt_complaints'), function(snap) {
-        complaints = snap.val() || {};
-        if (viewVisible('complaints')) renderComplaints();
-        if (viewVisible('customers')) renderCustomers();
-        if (viewVisible('dashboard')) renderDashboard();
-    });
-
-    safeOnValue(db.ref('smt_defects'), function(snap) {
-        var val = snap.val() || {};
-        rawDef = Object.keys(val).map(function(k) { return val[k]; });
-        if (viewVisible('yield')) renderYield();
-    });
-
-    safeOnValue(db.ref('smt_prodvol'), function(snap) {
-        var val = snap.val() || {};
-        prodVol = Object.keys(val).map(function(k) { return Object.assign({}, val[k], { _id: k }); });
-    });
-
-    safeOnValue(db.ref('smt_modeltiers'), function(snap) {
-        var val = snap.val() || {};
-        modelTiers = Object.keys(val).map(function(k) { return Object.assign({}, val[k], { _id: k }); });
-    });
-}
-
-// Detaches the listener before retrying, to avoid piling up duplicate
-// handlers on the same ref across retries.
-function safeOnValue(ref, callback, errorCallback, retries) {
-    retries = retries || 3;
-    var handler = function(snap) { callback(snap); };
-    var errorHandler = function(err) {
-        console.error('Firebase read error:', err);
-        ref.off('value', handler);
-        if (errorCallback) errorCallback(err);
-        if (retries > 0) {
-            setTimeout(function() {
-                safeOnValue(ref, callback, errorCallback, retries - 1);
-            }, 2000);
+// ─── INIT APP ──────────────────────────────────────────────────────
+        var appInitialized = false;
+        function initApp() {
+            initListeners();
+            initNav();
+            initCustomerForms();
+            initThemeToggles();
+            updateHeader();
+            setInterval(updateHeader, 60000);
         }
-    };
-    ref.on('value', handler, errorHandler);
-}
 
-function updateHeader() {
-    var extra = document.getElementById('header-extra');
-    if (!extra) return;
-    var now = new Date();
-    extra.textContent = now.toLocaleDateString() + ' · ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
+        // ─── FIREBASE LISTENERS ─────────────────────────────────────────────
+        // Connection state monitoring
+        db.ref('.info/connected').on('value', function(snap) {
+            var connected = snap.val();
+            var dd = document.getElementById('sync-dot');
+            var dl = document.getElementById('sync-label');
+            var md = document.getElementById('sync-dot-mobile');
+            var ml = document.getElementById('sync-label-mobile');
+            if (connected) {
+                if (dd) dd.className = 'sync-dot live';
+                if (dl) dl.textContent = 'Live — synced';
+                if (md) md.className = 'sync-dot live';
+                if (ml) ml.textContent = 'Live — synced';
+            } else {
+                if (dd) dd.className = 'sync-dot error';
+                if (dl) dl.textContent = 'Offline — changes queued locally';
+                if (md) md.className = 'sync-dot error';
+                if (ml) ml.textContent = 'Offline — changes queued locally';
+            }
+        });
+
+        function setSyncStatus(live, msg, time) {
+            // Desktop sync bar
+            var dd = document.getElementById('sync-dot');
+            var dl = document.getElementById('sync-label');
+            var dt = document.getElementById('sync-time');
+            if (dd) dd.className = 'sync-dot' + (live ? ' live' : ' error');
+            if (dl) dl.textContent = msg;
+            if (dt && time) dt.textContent = time;
+            // Mobile sync bar
+            var md = document.getElementById('sync-dot-mobile');
+            var ml = document.getElementById('sync-label-mobile');
+            var mt = document.getElementById('sync-time-mobile');
+            if (md) md.className = 'sync-dot' + (live ? ' live' : ' error');
+            if (ml) ml.textContent = msg;
+            if (mt && time) mt.textContent = time;
+        }
+
+        function initListeners() {
+            function safeOnValue(ref, callback, errorCallback, retries) {
+                retries = retries || 3;
+                ref.on('value', callback, function(err) {
+                    console.error('Firebase error:', err);
+                    // Don't retry permission errors — retrying won't help and causes error loops
+                    var isPermissionError = err && err.code && err.code.indexOf('PERMISSION_DENIED') !== -1;
+                    if (!isPermissionError && retries > 0) {
+                        setTimeout(function() {
+                            safeOnValue(ref, callback, errorCallback, retries - 1);
+                        }, 2000);
+                    } else if (errorCallback) {
+                        errorCallback(err);
+                    } else if (isPermissionError) {
+                        console.warn('Permission denied — check Firebase Rules and Anonymous Auth is enabled.');
+                    }
+                });
+            }
+
+            safeOnValue(customersRef, function(snap) {
+                customers = snap.val() || {};
+                populateCustomerSelects();
+                if (currentView === 'customers') renderCustomers();
+                setSyncStatus(true, 'Live — synced',
+                    'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+            }, function(err) {
+                setSyncStatus(false, 'Error: ' + err.message, null);
+            });
+            safeOnValue(modelsRef, function(snap) {
+                models = snap.val() || {};
+                populateCustomerSelects();
+                if (currentView === 'customers') renderCustomers();
+            });
+            safeOnValue(complaintsRef.orderByChild('created').limitToLast(200), function(snap) {
+                complaints = snap.val() || {};
+                if (currentView === 'complaints') renderComplaints();
+            });
+
+            // ── Yield/DPPM analytics tool (js/yield.js) ──────────────────────
+            safeOnValue(defectsRef, function(snap) {
+                var raw = snap.val() || {};
+                // Reconstruct full rows (week/hour/shift/dow/datetime) from the
+                // 7 stored fields via mkRow(), same as the original tool's
+                // loadData() did from localStorage.
+                rawDef = Object.keys(raw).map(function(id) {
+                    var r = raw[id];
+                    return mkRow(r.dtStr, r.customer, r.model, r.sn, r.side, r.comp, r.defect);
+                }).filter(Boolean);
+                if (currentView === 'yield') { populateFilters(); renderYield(); }
+                if (currentView === 'time') { populateTimeFilters(); renderTime(); }
+                if (currentView === 'report') { populateRptFilter(); renderReport(); }
+            });
+            safeOnValue(prodVolRef, function(snap) {
+                var raw = snap.val() || {};
+                prodVol = Object.keys(raw).map(function(id) {
+                    var r = raw[id];
+                    return { week: r.week, customer: r.customer, model: r.model, inspTOP: r.inspTOP || 0, inspBOT: r.inspBOT || 0 };
+                });
+                if (currentView === 'yield') { populateFilters(); renderYield(); }
+            });
+            safeOnValue(modelTiersRef, function(snap) {
+                var raw = snap.val() || {};
+                modelTiers = Object.keys(raw).map(function(id) {
+                    return Object.assign({}, raw[id], { _id: id });
+                });
+                if (currentView === 'tiers') renderTiers();
+            });
+        }
+
+        // ─── SHOW CONFIRM ────────────────────────────────────────────────────
+        function showConfirm(title, msg, onYes, yesLabel) {
+            document.getElementById('confirm-title').textContent = title;
+            document.getElementById('confirm-msg').textContent = msg || '';
+            document.getElementById('confirm-yes').textContent = yesLabel || 'Confirm';
+            document.getElementById('confirm-overlay').classList.add('show');
+            confirmCallback = onYes;
+        }
+
+        document.getElementById('confirm-yes').addEventListener('click', function() {
+            document.getElementById('confirm-overlay').classList.remove('show');
+            if (confirmCallback) confirmCallback();
+            confirmCallback = null;
+        });
+        document.getElementById('confirm-no').addEventListener('click', function() {
+            document.getElementById('confirm-overlay').classList.remove('show');
+            confirmCallback = null;
+        });
+
+        // ─── NAV ─────────────────────────────────────────────────────────────
+        function initNav() {
+            var navBtns = {
+                'btn-customers': 'customers',
+                'btn-complaints': 'complaints',
+                'btn-yield': 'yield',
+                'btn-time': 'time',
+                'btn-tiers': 'tiers',
+                'btn-library': 'library',
+                'btn-report': 'report'
+            };
+            Object.keys(navBtns).forEach(function(id) {
+                var btn = document.getElementById(id);
+                if (!btn) return;
+                btn.addEventListener('click', function() {
+                    switchView(navBtns[id]);
+                });
+            });
+
+            // Sidebar nav buttons
+            document.querySelectorAll('#sidebar-nav .snav-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    var target = btn.getAttribute('data-target');
+                    if (target && navBtns[target]) switchView(navBtns[target]);
+                });
+            });
+            // Sidebar logout
+            var sLogout = document.getElementById('sidebar-logout-btn2');
+            if (sLogout) sLogout.addEventListener('click', logout);
+
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    document.getElementById('confirm-overlay').classList.remove('show');
+                }
+            });
+        }
+
+        function switchView(v) {
+            currentView = v;
+            var viewToBtn = {
+                customers: 'btn-customers', complaints: 'btn-complaints',
+                yield: 'btn-yield', time: 'btn-time', tiers: 'btn-tiers',
+                library: 'btn-library', report: 'btn-report'
+            };
+            var allViews = ['customers', 'complaints', 'yield', 'time', 'tiers', 'library', 'report'];
+            allViews.forEach(function(name) {
+                var btn = document.getElementById('btn-' + name);
+                if (btn) btn.classList.toggle('active', name === v);
+            });
+            // Sidebar active state
+            document.querySelectorAll('#sidebar-nav .snav-btn').forEach(function(btn) {
+                btn.classList.toggle('active', btn.getAttribute('data-target') === viewToBtn[v]);
+            });
+            document.getElementById('customers-view').style.display = v === 'customers' ? 'block' : 'none';
+            document.getElementById('complaints-view').style.display = v === 'complaints' ? 'block' : 'none';
+            document.getElementById('tab-yield').style.display = v === 'yield' ? 'block' : 'none';
+            document.getElementById('tab-time').style.display = v === 'time' ? 'block' : 'none';
+            document.getElementById('tab-tiers').style.display = v === 'tiers' ? 'block' : 'none';
+            document.getElementById('tab-library').style.display = v === 'library' ? 'block' : 'none';
+            document.getElementById('tab-report').style.display = v === 'report' ? 'block' : 'none';
+
+            if (v === 'customers') renderCustomers();
+            if (v === 'complaints') renderComplaints();
+            if (v === 'yield') { populateFilters(); renderYield(); }
+            if (v === 'time') { populateTimeFilters(); renderTime(); }
+            if (v === 'tiers') renderTiers();
+            if (v === 'library') renderLib();
+            if (v === 'report') { populateRptFilter(); renderReport(); }
+            applyRoleUI();
+        }
+
+        // ─── RENDER ALL ──────────────────────────────────────────────────────
+        function renderAll() {
+            updateHeader();
+            if (currentView === 'customers') renderCustomers();
+            if (currentView === 'complaints') renderComplaints();
+            if (currentView === 'yield') renderYield();
+            if (currentView === 'time') renderTime();
+            if (currentView === 'tiers') renderTiers();
+            if (currentView === 'library') renderLib();
+            if (currentView === 'report') renderReport();
+            applyRoleUI();
+        }
+
+        // ─── UPDATE HEADER ──────────────────────────────────────────────────
+        // Trimmed down to just the date/shift label — the open/done/critical
+        // counts and line-status grid were all Task-board derived and went
+        // away with it.
+        function updateHeader() {
+            var now = new Date();
+            var dateStr = now.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+            var shiftStr = getShift() + ' · ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            document.getElementById('date-label').textContent = dateStr;
+            document.getElementById('shift-label').textContent = shiftStr;
+            var ssl = document.getElementById('sidebar-shift-label');
+            if (ssl) ssl.textContent = shiftStr;
+            var sdl = document.getElementById('sidebar-date-label');
+            if (sdl) sdl.textContent = dateStr;
+        }
