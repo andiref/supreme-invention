@@ -58,6 +58,7 @@
             applyTheme(!document.body.classList.contains('light'));
             // Canvas charts (Yield/Time tabs) are painted with resolved
             // colors, not CSS variables, so they need an explicit repaint.
+            if (typeof invalidateCssVarCache === 'function') invalidateCssVarCache();
             if (typeof renderAll === 'function') renderAll();
         }
         // Apply saved preference immediately on load
@@ -194,6 +195,8 @@
                 if (sAvatar) sAvatar.textContent = currentUser.email.charAt(0).toUpperCase();
                 var sName = document.getElementById('sidebar-name');
                 if (sName) sName.textContent = currentUser.email;
+                var settingsEmail = document.getElementById('settings-email');
+                if (settingsEmail) settingsEmail.textContent = currentUser.email;
                 if (!appInitialized) {
                     initApp();
                     appInitialized = true;
