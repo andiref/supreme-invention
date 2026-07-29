@@ -408,7 +408,7 @@ function renderYield(){
       {l:'YIELD OVERALL',v:oy.toFixed(3)+'%',c:oy>=TY?'#22c55e':'#ef4444',s:`Target ≥${TY}%  ${oy>=TY?'✅':'❌'}`},
       {l:'YIELD TOP',v:ot!==null?ot.toFixed(3)+'%':'—',c:ot!==null&&ot>=TY?'#22c55e':'#ef4444',s:`Insp:${fmt(it)} Fail:${ft}`},
       {l:'YIELD BOT',v:ob!==null?ob.toFixed(3)+'%':'—',c:ob!==null&&ob>=TY?'#22c55e':'#a78bfa',s:`Insp:${fmt(ib)} Fail:${fb}`},
-      {l:'DPPM',v:Math.round(od).toLocaleString(),c:od<=TD?'#22c55e':'#ef4444',s:`Target ≤${fmt(TD)}  ${od<=TD?'✅':'❌'}`},
+      {l:'DPPM',v:Math.round(od).toLocaleString(),c:od<=TD?'#22c55e':'#ef4444',s:`Limit ≤${fmt(TD)}  ${od<=TD?'✅':'❌'}`},
       {l:'DEFECT RECORDS',v:td,c:'#a78bfa',s:'Total defect rows'},
     ].map(k=>`<div class="kpi" style="background:${k.c}12;border:1px solid ${k.c}50;"><div class="kpi-n" style="color:${k.c};">${k.v}</div><div class="kpi-l">${k.l}</div><div class="kpi-s">${k.s}</div></div>`).join('');
   }
@@ -442,10 +442,10 @@ function renderYield(){
         const tf2=rows.reduce((s,r)=>s+r.totalFailed,0);
         return ti2?tf2/ti2*1e6:null;
       })}));
-      drawMultiLine('chart-dppm',allWeeks,series,TD,fmt(TD)+' target',0,false);
+      drawMultiLine('chart-dppm',allWeeks,series,TD,fmt(TD)+' limit',0,false);
       document.getElementById('dppm-legend').innerHTML=series.map(s=>`<span style="color:${s.color};font-weight:700;">■ ${s.name}</span>`).join('');
     } else {
-      drawLine('chart-dppm',wkS.map(w=>w.week),wkS.map(w=>w.dppm),TD,fmt(TD)+' target','#3b82f6',null);
+      drawLine('chart-dppm',wkS.map(w=>w.week),wkS.map(w=>w.dppm),TD,fmt(TD)+' limit','#3b82f6',null);
       document.getElementById('dppm-legend').innerHTML='';
     }
   },50);
@@ -770,18 +770,17 @@ function generateReport(){
   const cv=document.createElement('canvas');cv.width=W;cv.height=TOTAL;
   const ctx=cv.getContext('2d');
 
-  // bg
-  ctx.fillStyle='#0a0e17';ctx.fillRect(0,0,W,TOTAL);
+  // No background fill — canvas stays transparent so the exported PNG
+  // drops cleanly onto white paper, a colored letterhead, or a slide,
+  // instead of carrying its own fixed backdrop color.
 
-  // header gradient
-  const hg=ctx.createLinearGradient(0,0,W,0);hg.addColorStop(0,'#0f172a');hg.addColorStop(1,'#1e293b');
-  ctx.fillStyle=hg;ctx.fillRect(0,0,W,HDR);
-  ctx.strokeStyle='#3b82f6';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(0,HDR);ctx.lineTo(W,HDR);ctx.stroke();
-  ctx.fillStyle='#3b82f6';ctx.font='bold 20px Courier New';ctx.textAlign='left';ctx.fillText('SMT WEEKLY QUALITY REPORT',PAD,34);
-  ctx.fillStyle='#22c55e';ctx.font='bold 13px Courier New';ctx.fillText('Customer: '+custLabel,PAD,56);
-  ctx.fillStyle='#64748b';ctx.font='10px Courier New';ctx.fillText('Week: '+weekLabel+'   |   By: '+author+'   |   '+now,PAD,74);
-  ctx.fillStyle='#475569';ctx.font='10px Courier New';ctx.textAlign='right';
-  ctx.fillText('Target: Yield ≥'+TY+'%  |  DPPM ≤'+fmt(TD),W-PAD,74);
+  // header
+  ctx.strokeStyle='#000000';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(0,HDR);ctx.lineTo(W,HDR);ctx.stroke();
+  ctx.fillStyle='#000000';ctx.font='bold 20px Courier New';ctx.textAlign='left';ctx.fillText('SMT WEEKLY QUALITY REPORT',PAD,34);
+  ctx.fillStyle='#333333';ctx.font='bold 13px Courier New';ctx.fillText('Customer: '+custLabel,PAD,56);
+  ctx.fillStyle='#666666';ctx.font='10px Courier New';ctx.fillText('Week: '+weekLabel+'   |   By: '+author+'   |   '+now,PAD,74);
+  ctx.fillStyle='#666666';ctx.font='10px Courier New';ctx.textAlign='right';
+  ctx.fillText('Yield target ≥'+TY+'%  |  DPPM limit ≤'+fmt(TD),W-PAD,74);
 
   let y=HDR+PAD;
 
@@ -790,19 +789,18 @@ function generateReport(){
     {l:'YIELD OVERALL',v:oy.toFixed(3)+'%',ok:oy>=TY,s:'Failed:'+tf+'/'+fmt(tp)},
     {l:'YIELD TOP',v:ot!=null?ot.toFixed(3)+'%':'—',ok:ot!=null&&ot>=TY,s:'Fail:'+ft+'/'+fmt(it)},
     {l:'YIELD BOT',v:ob!=null?ob.toFixed(3)+'%':'—',ok:ob!=null&&ob>=TY,s:'Fail:'+fb+'/'+fmt(ib)},
-    {l:'DPPM',v:Math.round(od).toLocaleString(),ok:od<=TD,s:'Target ≤'+fmt(TD)},
+    {l:'DPPM',v:Math.round(od).toLocaleString(),ok:od<=TD,s:'Limit ≤'+fmt(TD)},
   ];
   const kw=Math.floor((W-PAD*2-12*3)/4);
   kpis.forEach((k,i)=>{
     const kx=PAD+i*(kw+12);
-    const col=k.ok?'#22c55e':'#ef4444';
-    // box
-    ctx.fillStyle=col+'18';rrect(ctx,kx,y,kw,KPI-10,8);ctx.fill();
-    ctx.strokeStyle=col+'60';ctx.lineWidth=1;rrect(ctx,kx,y,kw,KPI-10,8);ctx.stroke();
-    ctx.fillStyle='#64748b';ctx.font='9px Courier New';ctx.textAlign='center';ctx.fillText(k.l,kx+kw/2,y+20);
-    ctx.fillStyle=col;ctx.font='bold 26px Courier New';ctx.fillText(k.v,kx+kw/2,y+56);
-    ctx.fillStyle=col;ctx.font='bold 10px Courier New';ctx.fillText(k.ok?'✓ PASS':'✗ FAIL',kx+kw/2,y+76);
-    ctx.fillStyle='#475569';ctx.font='9px Courier New';ctx.fillText(k.s,kx+kw/2,y+94);
+    // box — grayscale; pass/fail is conveyed by the ✓/✗ symbol below, not color
+    ctx.fillStyle='rgba(0,0,0,0.04)';rrect(ctx,kx,y,kw,KPI-10,8);ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,0.25)';ctx.lineWidth=1;rrect(ctx,kx,y,kw,KPI-10,8);ctx.stroke();
+    ctx.fillStyle='#666666';ctx.font='9px Courier New';ctx.textAlign='center';ctx.fillText(k.l,kx+kw/2,y+20);
+    ctx.fillStyle='#000000';ctx.font='bold 26px Courier New';ctx.fillText(k.v,kx+kw/2,y+56);
+    ctx.fillStyle='#000000';ctx.font='bold 10px Courier New';ctx.fillText(k.ok?'✓ PASS':'✗ FAIL',kx+kw/2,y+76);
+    ctx.fillStyle='#666666';ctx.font='9px Courier New';ctx.fillText(k.s,kx+kw/2,y+94);
   });
   y+=KPI+PAD;
 
@@ -817,20 +815,21 @@ function generateReport(){
     const yp=v=>oy2+PT+ph-(v-minV)/(maxV-minV||1)*ph;
 
     // chart bg
-    ctx.fillStyle='#111827';rrect(ctx,ox,oy2,W/2-PAD*1.5,CHART,6);ctx.fill();
-    ctx.strokeStyle='#1e293b';ctx.lineWidth=1;rrect(ctx,ox,oy2,W/2-PAD*1.5,CHART,6);ctx.stroke();
+    ctx.fillStyle='rgba(0,0,0,0.03)';rrect(ctx,ox,oy2,W/2-PAD*1.5,CHART,6);ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,0.2)';ctx.lineWidth=1;rrect(ctx,ox,oy2,W/2-PAD*1.5,CHART,6);ctx.stroke();
 
     // grid
     for(let i=0;i<=5;i++){
       const gy=oy2+PT+ph*(1-i/5);
-      ctx.strokeStyle='#1e293b';ctx.lineWidth=0.8;
+      ctx.strokeStyle='rgba(0,0,0,0.12)';ctx.lineWidth=0.8;
       ctx.beginPath();ctx.moveTo(ox+PL,gy);ctx.lineTo(ox+PL+pw,gy);ctx.stroke();
-      ctx.fillStyle='#64748b';ctx.font='9px Courier New';ctx.textAlign='right';
+      ctx.fillStyle='#666666';ctx.font='9px Courier New';ctx.textAlign='right';
       const v=minV+(maxV-minV)*(i/5);
       ctx.fillText(isYield?v.toFixed(2)+'%':Math.round(v).toLocaleString(),ox+PL-5,gy+3);
     }
 
-    // target
+    // target — this is the one line in the report that stays colored:
+    // green for the yield target, red for the DPPM upper limit (set by caller)
     if(target>=minV&&target<=maxV){
       const ty=yp(target);
       ctx.strokeStyle=targColor;ctx.lineWidth=1.5;ctx.setLineDash([6,4]);
@@ -840,7 +839,7 @@ function generateReport(){
     }
     ctx.setLineDash([]);
 
-    // line
+    // line — actual data trend stays black/grayscale
     ctx.strokeStyle=lineColor;ctx.lineWidth=2.5;ctx.beginPath();
     vals.forEach((v,i)=>{if(v==null)return;i===0?ctx.moveTo(xp(i),yp(v)):ctx.lineTo(xp(i),yp(v));});
     ctx.stroke();
@@ -849,10 +848,10 @@ function generateReport(){
     vals.forEach((v,i)=>{
       if(v==null)return;
       ctx.beginPath();ctx.arc(xp(i),yp(v),5,0,Math.PI*2);ctx.fillStyle=lineColor;ctx.fill();
-      ctx.fillStyle='#e2e8f0';ctx.font='bold 9px Courier New';ctx.textAlign='center';
+      ctx.fillStyle='#000000';ctx.font='bold 9px Courier New';ctx.textAlign='center';
       const lbl=isYield?v.toFixed(2)+'%':Math.round(v).toLocaleString();
       ctx.fillText(lbl,xp(i),yp(v)-10);
-      ctx.fillStyle='#64748b';ctx.font='9px Courier New';ctx.fillText(labels[i],xp(i),oy2+PT+ph+16);
+      ctx.fillStyle='#666666';ctx.font='9px Courier New';ctx.fillText(labels[i],xp(i),oy2+PT+ph+16);
     });
 
     // legend
@@ -860,22 +859,22 @@ function generateReport(){
     ctx.strokeStyle=lineColor;ctx.lineWidth=2;
     ctx.beginPath();ctx.moveTo(ox+PL,ly);ctx.lineTo(ox+PL+22,ly);ctx.stroke();
     ctx.beginPath();ctx.arc(ox+PL+11,ly,4,0,Math.PI*2);ctx.fillStyle=lineColor;ctx.fill();
-    ctx.fillStyle='#94a3b8';ctx.font='9px Courier New';ctx.textAlign='left';
+    ctx.fillStyle='#333333';ctx.font='9px Courier New';ctx.textAlign='left';
     ctx.fillText(isYield?'Yield':'DPPM',ox+PL+27,ly+3);
     ctx.strokeStyle=targColor;ctx.lineWidth=1.5;ctx.setLineDash([5,3]);
     ctx.beginPath();ctx.moveTo(ox+PL+80,ly);ctx.lineTo(ox+PL+102,ly);ctx.stroke();
-    ctx.setLineDash([]);ctx.fillStyle='#94a3b8';ctx.fillText(targLabel,ox+PL+107,ly+3);
+    ctx.setLineDash([]);ctx.fillStyle='#333333';ctx.fillText(targLabel,ox+PL+107,ly+3);
   }
 
-  // Yield chart (left)
-  drawChartCtx(PAD,y,yVals,TY,TY+'% target',true,'#22c55e','#f59e0b');
-  ctx.fillStyle='#3b82f6';ctx.font='bold 11px Courier New';ctx.textAlign='left';
+  // Yield chart (left) — data line black, target line green
+  drawChartCtx(PAD,y,yVals,TY,TY+'% target',true,'#000000','#16a34a');
+  ctx.fillStyle='#000000';ctx.font='bold 11px Courier New';ctx.textAlign='left';
   ctx.fillText('📈 '+custLabel+' — Yield',PAD+16,y+18);
 
-  // DPPM chart (right)
+  // DPPM chart (right) — data line black, upper limit line red
   const rx=W/2+PAD/2;
-  drawChartCtx(rx,y,dVals,TD,fmt(TD)+' target',false,'#3b82f6','#f59e0b');
-  ctx.fillStyle='#3b82f6';ctx.font='bold 11px Courier New';ctx.textAlign='left';
+  drawChartCtx(rx,y,dVals,TD,fmt(TD)+' limit',false,'#000000','#dc2626');
+  ctx.fillStyle='#000000';ctx.font='bold 11px Courier New';ctx.textAlign='left';
   ctx.fillText('📈 '+custLabel+' — DPPM',rx+16,y+18);
 
   y+=CHART+PAD;
@@ -885,34 +884,35 @@ function generateReport(){
 
   // Top 3 strip
   if(t3.length){
-    ctx.fillStyle='#111827';rrect(ctx,PAD,y,W-PAD*2,TOP3,8);ctx.fill();
-    ctx.strokeStyle='#1e293b';ctx.lineWidth=1;rrect(ctx,PAD,y,W-PAD*2,TOP3,8);ctx.stroke();
-    ctx.fillStyle='#3b82f6';ctx.font='bold 11px Courier New';ctx.textAlign='left';
+    ctx.fillStyle='rgba(0,0,0,0.03)';rrect(ctx,PAD,y,W-PAD*2,TOP3,8);ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,0.2)';ctx.lineWidth=1;rrect(ctx,PAD,y,W-PAD*2,TOP3,8);ctx.stroke();
+    ctx.fillStyle='#000000';ctx.font='bold 11px Courier New';ctx.textAlign='left';
     ctx.fillText('🔴 TOP 3 DEFECTS — '+lw+' — '+custLabel,PAD+14,y+20);
     const sw2=(W-PAD*2-28)/3;
-    const rc2=['#ef4444','#f59e0b','#22c55e'];
+    // rank conveyed by shade (darkest = #1) instead of color, so it still reads on any background
+    const rankShade=['rgba(0,0,0,0.9)','rgba(0,0,0,0.65)','rgba(0,0,0,0.45)'];
+    const rankFill=['rgba(0,0,0,0.07)','rgba(0,0,0,0.05)','rgba(0,0,0,0.03)'];
     t3.forEach(([def,cnt],i)=>{
       const bx=PAD+14+i*(sw2+10);
-      ctx.fillStyle=rc2[i]+'15';rrect(ctx,bx,y+28,sw2,TOP3-40,5);ctx.fill();
-      ctx.strokeStyle=rc2[i]+'40';ctx.lineWidth=1;rrect(ctx,bx,y+28,sw2,TOP3-40,5);ctx.stroke();
-      ctx.fillStyle=rc2[i];ctx.font='bold 12px Courier New';ctx.textAlign='center';
+      ctx.fillStyle=rankFill[i];rrect(ctx,bx,y+28,sw2,TOP3-40,5);ctx.fill();
+      ctx.strokeStyle='rgba(0,0,0,0.25)';ctx.lineWidth=1;rrect(ctx,bx,y+28,sw2,TOP3-40,5);ctx.stroke();
+      ctx.fillStyle=rankShade[i];ctx.font='bold 12px Courier New';ctx.textAlign='center';
       ctx.fillText('#'+(i+1)+'  '+(def.length>22?def.slice(0,21)+'…':def),bx+sw2/2,y+48);
-      ctx.fillStyle=rc2[i];ctx.font='bold 18px Courier New';
+      ctx.fillStyle=rankShade[i];ctx.font='bold 18px Courier New';
       ctx.fillText(cnt+' defects',bx+sw2/2,y+72);
-      ctx.fillStyle='#94a3b8';ctx.font='9px Courier New';
+      ctx.fillStyle='#555555';ctx.font='9px Courier New';
       ctx.fillText('Model: '+topOf(def,'model'),bx+sw2/2,y+92);
-      ctx.fillStyle='#34d399';ctx.font='9px Courier New';
+      ctx.fillStyle='#555555';ctx.font='9px Courier New';
       ctx.fillText('Comp: '+topOf(def,'comp'),bx+sw2/2,y+108);
     });
     y+=TOP3+PAD;
   }
 
   // Footer
-  ctx.fillStyle='#0f172a';ctx.fillRect(0,y,W,FTR);
-  ctx.strokeStyle='#1e3a5f';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();
-  ctx.fillStyle='#475569';ctx.font='10px Courier New';ctx.textAlign='center';
+  ctx.strokeStyle='rgba(0,0,0,0.3)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();
+  ctx.fillStyle='#666666';ctx.font='10px Courier New';ctx.textAlign='center';
   ctx.fillText('SMT Command Center  ·  '+now+'  ·  Confidential',W/2,y+16);
-  ctx.fillStyle='#3b82f6';ctx.font='9px Courier New';
+  ctx.fillStyle='#000000';ctx.font='9px Courier New';
   ctx.fillText('Yield ≥'+TY+'%  |  DPPM ≤'+fmt(TD)+'  |  '+filtRaw.length.toLocaleString()+' defect records',W/2,y+32);
 
   const link=document.createElement('a');
