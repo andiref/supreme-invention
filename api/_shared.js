@@ -35,6 +35,19 @@ export function sanitize(str, maxLen = 500) {
     return str.replace(/[#$[\]/]/g, '').trim().slice(0, maxLen);
 }
 
+// Like sanitize(), but for date/time strings such as "MM/DD/YYYY HH:MM:SS".
+// sanitize() strips '/' because that character is illegal in Firebase *keys*
+// — but dtStr is only ever stored as a *value*, and its '/' separators are
+// required by the client's date parser (parseDT). Stripping them silently
+// corrupted every date on import, which made every defect row unparseable
+// once read back (rawDef ended up empty, breaking Yield/DPPM entirely).
+// This keeps '/' and ':' but still strips genuinely Firebase-illegal chars
+// as defense in depth.
+export function sanitizeDate(str, maxLen = 30) {
+    if (typeof str !== 'string') return '';
+    return str.replace(/[#$[\]]/g, '').trim().slice(0, maxLen);
+}
+
 // Stricter sanitizer for values used as Firebase *path segments* (e.g. record IDs).
 // Unlike sanitize(), this also strips '.' since periods are illegal in Firebase keys.
 export function sanitizeKey(str, maxLen = 20) {
