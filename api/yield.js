@@ -11,7 +11,7 @@
 
 import {
     jsonResponse, errorResponse, handleOptions,
-    sanitize, sanitizeKey, getToken, fbGet, fbPush, fbUpdate, fbDelete, requireOwner
+    sanitize, sanitizeDate, sanitizeKey, getToken, fbGet, fbPush, fbUpdate, fbDelete, requireOwner
 } from './_shared.js';
 
 export default async function handler(req, res) {
@@ -43,7 +43,7 @@ export default async function handler(req, res) {
             if (rows.length > 5000) return errorResponse(res, 'Too many rows in one import (max 5000)');
 
             const clean = rows.map(r => ({
-                dtStr: sanitize(r.dtStr || '', 30),
+                dtStr: sanitizeDate(r.dtStr || '', 30),
                 customer: sanitize(r.customer || '', 100),
                 model: sanitize(r.model || '', 100),
                 sn: sanitize(r.sn || '', 100),
@@ -123,6 +123,28 @@ export default async function handler(req, res) {
             if (!id) return errorResponse(res, 'Missing id');
             await fbDelete(env, token, `smt_modeltiers/${id}`);
             return jsonResponse(res, { ok: true });
+        }
+
+        // ── ONE-TIME REPAIR: fix defect dates corrupted by the old sanitize()
+        // bug (see sanitizeDate in _shared.js). Before that fix, every dtStr
+        // had its '/' stripped before saving (e.g. "04/07/2025 08:23:15" ->
+        // "04072025 08:23:15"), so rows imported before the fix are still
+        // stored that way and won't parse. This reconstructs the original
+        // MM/DD/YYYY format for exactly that corruption signature and leaves
+        // everything else untouched. Idempotent — safe to call more than
+        // once (already-fixed rows simply won't match the pattern again).
+        if (action === 'repairDefectDates') {
+            const all = (await fbGet(env, token, 'smt_defects')) || {};
+            const pattern = /^(\d{2})(\d{2})(\d{4}) (\d{2}:\d{2}:\d{2})$/;
+            const fixes = {};
+            Object.keys(all).forEach(id => {
+                const m = (all[id].dtStr || '').match(pattern);
+                if (m) fixes[id] = `${m[1]}/${m[2]}/${m[3]} ${m[4]}`;
+            });
+            const ids = Object.keys(fixes);
+            if (!ids.length) return jsonResponse(res, { ok: true, repaired: 0, message: 'No corrupted rows found.' });
+            await Promise.all(ids.map(id => fbUpdate(env, token, `smt_defects/${id}`, { dtStr: fixes[id] })));
+            return jsonResponse(res, { ok: true, repaired: ids.length });
         }
 
         return errorResponse(res, 'Unknown action');
