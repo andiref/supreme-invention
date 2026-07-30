@@ -760,7 +760,7 @@ function generateReport(){
   const wr=filtRaw.filter(d=>d.week===lw);
   const wdf={};wr.forEach(d=>{wdf[d.defect]=(wdf[d.defect]||0)+1;});
   const t3=Object.entries(wdf).sort((a,b)=>b[1]-a[1]).slice(0,3);
-  function topOf(def,key){const m={};wr.filter(d=>d.defect===def).forEach(d=>{m[d[key]]=(m[d[key]]||0)+1;});const s=Object.entries(m).sort((a,b)=>b[1]-a[1]);return s.length?s[0][0]+' ('+s[0][1]+')':'-';}
+  function topOf(def,key){const m={};wr.filter(d=>d.defect===def).forEach(d=>{m[d[key]]=(m[d[key]]||0)+1;});const s=Object.entries(m).sort((a,b)=>b[1]-a[1]);if(!s.length)return'-';const name=String(s[0][0]);const tname=name.length>13?name.slice(0,12)+'…':name;return tname+' ('+s[0][1]+')';}
 
   // Canvas — dark theme
   const W=1100, PAD=32;
@@ -776,7 +776,7 @@ function generateReport(){
 
   // header
   ctx.strokeStyle='#000000';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(0,HDR);ctx.lineTo(W,HDR);ctx.stroke();
-  ctx.fillStyle='#000000';ctx.font='bold 24px Courier New';ctx.textAlign='left';ctx.fillText('SMT WEEKLY QUALITY REPORT',PAD,38);
+  ctx.fillStyle='#000000';ctx.font='bold 24px Courier New';ctx.textAlign='left';ctx.fillText('SMT YIELD & DPPM TREND REPORT',PAD,38);
   ctx.fillStyle='#333333';ctx.font='bold 16px Courier New';ctx.fillText('Customer: '+custLabel,PAD,61);
   ctx.fillStyle='#444444';ctx.font='bold 13px Courier New';ctx.fillText('Week: '+weekLabel+'   |   By: '+author+'   |   '+now,PAD,80);
   ctx.fillStyle='#444444';ctx.font='bold 13px Courier New';ctx.textAlign='right';
@@ -901,9 +901,9 @@ function generateReport(){
       ctx.fillStyle=rankShade[i];ctx.font='bold 22px Courier New';
       ctx.fillText(cnt+' defects',bx+sw2/2,y+79);
       ctx.fillStyle='#444444';ctx.font='bold 11px Courier New';
-      ctx.fillText('Model: '+topOf(def,'model'),bx+sw2/2,y+98);
+      ctx.fillText('Most Contributing Model: '+topOf(def,'model'),bx+sw2/2,y+98);
       ctx.fillStyle='#444444';ctx.font='bold 11px Courier New';
-      ctx.fillText('Comp: '+topOf(def,'comp'),bx+sw2/2,y+115);
+      ctx.fillText('Most Contributing Comp: '+topOf(def,'comp'),bx+sw2/2,y+115);
     });
     y+=TOP3+PAD;
   }
