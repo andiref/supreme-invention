@@ -35,10 +35,17 @@ export default async function handler(req, res) {
         // body.rows: [{dtStr, customer, model, sn, side, comp, defect}, ...]
         // Only the 7 raw fields are stored — week/hour/shift/dow are derived
         // client-side from dtStr via mkRow(), same as the original tool.
+        //
+        // Duplicate rows (same dtStr+customer+model+sn+side+comp+defect as an
+        // already-stored row) are skipped rather than re-imported — protects
+        // against re-uploading the same file, or overlapping date ranges
+        // across two files, inflating defect counts.
         if (action === 'importDefects') {
             const rows = Array.isArray(body.rows) ? body.rows : [];
             if (!rows.length) return errorResponse(res, 'No rows to import');
             if (rows.length > 5000) return errorResponse(res, 'Too many rows in one import (max 5000)');
+
+            const sig = r => [r.dtStr, r.customer, r.model, r.sn, r.side, r.comp, r.defect].join('|');
 
             const clean = rows.map(r => ({
                 dtStr: sanitizeDate(r.dtStr || '', 30),
@@ -47,13 +54,25 @@ export default async function handler(req, res) {
                 sn: sanitize(r.sn || '', 100),
                 side: sanitize(r.side || '', 10),
                 comp: sanitize(r.comp || '', 40),
-                defect: sanitize(r.defect || '', 100),
-                loggedBy: email, created: now
+                defect: sanitize(r.defect || '', 100)
             })).filter(r => r.dtStr && r.customer && r.model && r.sn && r.side && r.comp && r.defect);
 
             if (!clean.length) return errorResponse(res, 'No valid rows after validation');
-            await Promise.all(clean.map(r => fbPush(env, token, 'smt_defects', r)));
-            return jsonResponse(res, { ok: true, count: clean.length });
+
+            const existing = (await fbGet(env, token, 'smt_defects')) || {};
+            const seen = new Set(Object.values(existing).map(sig));
+
+            const toImport = [];
+            let duplicates = 0;
+            for (const r of clean) {
+                const s = sig(r);
+                if (seen.has(s)) { duplicates++; continue; }
+                seen.add(s); // also catches duplicates repeated within this same file
+                toImport.push({ ...r, loggedBy: email, created: now });
+            }
+
+            if (toImport.length) await Promise.all(toImport.map(r => fbPush(env, token, 'smt_defects', r)));
+            return jsonResponse(res, { ok: true, count: toImport.length, duplicates });
         }
 
         // ── IMPORT PRODUCTION VOLUME ─────────────────────────────────────
