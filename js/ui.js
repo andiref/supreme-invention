@@ -3,7 +3,7 @@
         function initApp() {
             initListeners();
             initNav();
-            initCustomerForms();
+            initEquipmentForms();
             initThemeToggles();
             updateHeader();
             setInterval(updateHeader, 60000);
@@ -66,23 +66,13 @@
                 });
             }
 
-            safeOnValue(customersRef, function(snap) {
-                customers = snap.val() || {};
-                populateCustomerSelects();
-                if (currentView === 'customers') renderCustomers();
+            safeOnValue(equipmentRef, function(snap) {
+                equipment = snap.val() || {};
+                if (currentView === 'equipment') renderEquipment();
                 setSyncStatus(true, 'Live — synced',
                     'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
             }, function(err) {
                 setSyncStatus(false, 'Error: ' + err.message, null);
-            });
-            safeOnValue(modelsRef, function(snap) {
-                models = snap.val() || {};
-                populateCustomerSelects();
-                if (currentView === 'customers') renderCustomers();
-            });
-            safeOnValue(complaintsRef.orderByChild('created').limitToLast(200), function(snap) {
-                complaints = snap.val() || {};
-                if (currentView === 'complaints') renderComplaints();
             });
 
             // ── Yield/DPPM analytics tool (js/yield.js) ──────────────────────
@@ -106,13 +96,6 @@
                     return { week: r.week, customer: r.customer, model: r.model, inspTOP: r.inspTOP || 0, inspBOT: r.inspBOT || 0 };
                 });
                 if (currentView === 'yield') { populateFilters(); renderYield(); }
-            });
-            safeOnValue(modelTiersRef, function(snap) {
-                var raw = snap.val() || {};
-                modelTiers = Object.keys(raw).map(function(id) {
-                    return Object.assign({}, raw[id], { _id: id });
-                });
-                if (currentView === 'tiers') renderTiers();
             });
         }
 
@@ -138,11 +121,9 @@
         // ─── NAV ─────────────────────────────────────────────────────────────
         function initNav() {
             var navBtns = {
-                'btn-customers': 'customers',
-                'btn-complaints': 'complaints',
+                'btn-equipment': 'equipment',
                 'btn-yield': 'yield',
                 'btn-time': 'time',
-                'btn-tiers': 'tiers',
                 'btn-library': 'library',
                 'btn-report': 'report'
             };
@@ -175,11 +156,11 @@
         function switchView(v) {
             currentView = v;
             var viewToBtn = {
-                customers: 'btn-customers', complaints: 'btn-complaints',
-                yield: 'btn-yield', time: 'btn-time', tiers: 'btn-tiers',
+                equipment: 'btn-equipment',
+                yield: 'btn-yield', time: 'btn-time',
                 library: 'btn-library', report: 'btn-report'
             };
-            var allViews = ['customers', 'complaints', 'yield', 'time', 'tiers', 'library', 'report'];
+            var allViews = ['equipment', 'yield', 'time', 'library', 'report'];
             allViews.forEach(function(name) {
                 var btn = document.getElementById('btn-' + name);
                 if (btn) btn.classList.toggle('active', name === v);
@@ -188,19 +169,15 @@
             document.querySelectorAll('#sidebar-nav .snav-btn').forEach(function(btn) {
                 btn.classList.toggle('active', btn.getAttribute('data-target') === viewToBtn[v]);
             });
-            document.getElementById('customers-view').style.display = v === 'customers' ? 'block' : 'none';
-            document.getElementById('complaints-view').style.display = v === 'complaints' ? 'block' : 'none';
+            document.getElementById('equipment-view').style.display = v === 'equipment' ? 'block' : 'none';
             document.getElementById('tab-yield').style.display = v === 'yield' ? 'block' : 'none';
             document.getElementById('tab-time').style.display = v === 'time' ? 'block' : 'none';
-            document.getElementById('tab-tiers').style.display = v === 'tiers' ? 'block' : 'none';
             document.getElementById('tab-library').style.display = v === 'library' ? 'block' : 'none';
             document.getElementById('tab-report').style.display = v === 'report' ? 'block' : 'none';
 
-            if (v === 'customers') renderCustomers();
-            if (v === 'complaints') renderComplaints();
+            if (v === 'equipment') renderEquipment();
             if (v === 'yield') { populateFilters(); renderYield(); }
             if (v === 'time') { populateTimeFilters(); renderTime(); }
-            if (v === 'tiers') renderTiers();
             if (v === 'library') renderLib();
             if (v === 'report') { populateRptFilter(); renderReport(); }
             applyRoleUI();
@@ -209,11 +186,9 @@
         // ─── RENDER ALL ──────────────────────────────────────────────────────
         function renderAll() {
             updateHeader();
-            if (currentView === 'customers') renderCustomers();
-            if (currentView === 'complaints') renderComplaints();
+            if (currentView === 'equipment') renderEquipment();
             if (currentView === 'yield') renderYield();
             if (currentView === 'time') renderTime();
-            if (currentView === 'tiers') renderTiers();
             if (currentView === 'library') renderLib();
             if (currentView === 'report') renderReport();
             applyRoleUI();

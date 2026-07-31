@@ -38,12 +38,11 @@ function mkRow(dtStr,cust,model,sn,side,comp,defect){
     customer:cust,model,sn,side:side.toUpperCase().replace('BOTTOM','BOT'),comp,defect};
 }
 
-// Real Firebase-backed data now — no seeded sample rows. These three arrays
-// are populated by the smt_defects / smt_prodvol / smt_modeltiers listeners
-// in ui.js's initListeners(), the same way customers/models/complaints are.
+// Real Firebase-backed data now — no seeded sample rows. These two arrays
+// are populated by the smt_defects / smt_prodvol listeners in ui.js's
+// initListeners().
 let rawDef=[];
 let prodVol=[];
-let modelTiers=[];
 
 // ═══════════════════════════════════════════════════════
 // DEFECT LIBRARY
@@ -185,12 +184,6 @@ function wkSummary(metrics){
     return{week,yieldPct:ti?(ti-tf)/ti*100:0,dppm:ti?tf/ti*1e6:0,ti,tf};
   });
 }
-
-function calcTier(v,r,c){
-  let s=0;s+=v>=5000?3:v>=3000?2:1;s+=r>=3?3:r>=1.5?2:1;s+=c==="High"?3:c==="Medium"?2:1;
-  return s>=7?1:s>=4?2:3;
-}
-const TC={1:"#ef4444",2:"#f59e0b",3:"#22c55e"};
 
 // ═══════════════════════════════════════════════════════
 // HELPERS
@@ -571,59 +564,6 @@ function renderTime(){
   const dm={};fd.forEach(d=>{if(!dm[d.dateStr])dm[d.dateStr]=new Set();dm[d.dateStr].add(`${d.sn}|${d.side}`);});
   const dk=Object.keys(dm).sort((a,b)=>{const pa=a.split('/'),pb=b.split('/');return new Date(+pa[2],+pa[0]-1,+pa[1])-new Date(+pb[2],+pb[0]-1,+pb[1]);});
   setTimeout(()=>drawLine('chart-daily',dk,dk.map(k=>dm[k].size),null,null,'#22c55e',null),50);
-}
-
-// ═══════════════════════════════════════════════════════
-// RENDER: TIERS
-// ═══════════════════════════════════════════════════════
-function renderTiers(){
-  const sorted=[...modelTiers].sort((a,b)=>calcTier(a.weeklyVol,a.defectRate,a.criticality)-calcTier(b.weeklyVol,b.defectRate,b.criticality));
-  document.getElementById('tier-kpi').innerHTML=[1,2,3].map(t=>{
-    const cnt=modelTiers.filter(m=>calcTier(m.weeklyVol,m.defectRate,m.criticality)===t).length;
-    return`<div class="kpi" style="background:${TC[t]}12;border:1px solid ${TC[t]}50;"><div class="kpi-n" style="color:${TC[t]};">${cnt}</div><div class="kpi-l">TIER ${t}</div></div>`;
-  }).join('');
-  document.getElementById('tier-title').textContent=`ALL MODELS — ${modelTiers.length} TOTAL`;
-  const fl=t=>t===1?'Every week – 5-Why required':t===2?'Monthly – if rate ↑':'Threshold alert only';
-  const cc=c=>c==="High"?'#ef4444':c==="Medium"?'#f59e0b':'#22c55e';
-  document.getElementById('tier-body').innerHTML=sorted.map((m,i)=>{
-    const t=calcTier(m.weeklyVol,m.defectRate,m.criticality);
-    const rc=m.defectRate>=3?'#ef4444':m.defectRate>=1.5?'#f59e0b':'#22c55e';
-    return`<tr><td>${badge('T'+t,TC[t])}</td><td>${m.customer}</td><td><b>${m.model}</b></td>
-      <td class="num">${fmt(m.weeklyVol)}</td>
-      <td class="num" style="color:${rc};font-weight:700;">${m.defectRate}%</td>
-      <td>${badge(m.criticality,cc(m.criticality))}</td>
-      <td style="color:#94a3b8;">${fl(t)}</td>
-      <td><button class="btn br" style="padding:3px 8px;font-size:10px;" onclick="removeModel(${i})">✕</button></td></tr>`;
-  }).join('');
-}
-
-function addModel(){
-  const m=document.getElementById('nm-m').value.trim();
-  const c=document.getElementById('nm-c').value.trim();
-  const v=parseFloat(document.getElementById('nm-v').value)||0;
-  const r=parseFloat(document.getElementById('nm-r').value)||0;
-  const cr=document.getElementById('nm-cr').value;
-  if(!m||!c){showToast('Model and Customer required.');return;}
-  if(!currentUser){showToast('Not logged in');return;}
-  fetch('/api/yield',{method:'POST',headers:{'Content-Type':'application/json','X-User-Email':currentUser.email},
-    body:JSON.stringify({action:'addModelTier',model:m,customer:c,weeklyVol:v,defectRate:r,criticality:cr})})
-    .then(r=>r.json()).then(d=>{
-      if(d.ok){['nm-m','nm-c','nm-v','nm-r'].forEach(id=>document.getElementById(id).value='');showToast('Model added \u2713');}
-      else showToast('Error: '+d.error);
-    }).catch(()=>showToast('Network error'));
-}
-function removeModel(i){
-  const sorted=[...modelTiers].sort((a,b)=>calcTier(a.weeklyVol,a.defectRate,a.criticality)-calcTier(b.weeklyVol,b.defectRate,b.criticality));
-  const target=sorted[i];
-  if(!target||!target._id)return;
-  showConfirm('Remove this model?','This cannot be undone.',()=>{
-    if(!currentUser){showToast('Not logged in');return;}
-    fetch('/api/yield',{method:'POST',headers:{'Content-Type':'application/json','X-User-Email':currentUser.email},
-      body:JSON.stringify({action:'removeModelTier',id:target._id})})
-      .then(r=>r.json()).then(d=>{
-        if(d.ok)showToast('Removed');else showToast('Error: '+d.error);
-      }).catch(()=>showToast('Network error'));
-  },'Remove \uD83D\uDDD1\uFE0F');
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1083,7 +1023,7 @@ function importProd(){
 // NAVIGATION & FILTERS
 // (Tab switching itself now goes through the main app's switchView() in
 // ui.js, which calls populateFilters()/renderYield() etc. per view — see
-// the yield/time/tiers/library/report cases added there.)
+// the yield/time/library/report cases added there.)
 // ═══════════════════════════════════════════════════════
 
 function tog(id){const el=document.getElementById(id);el.style.display=el.style.display==='none'?'block':'none';}
@@ -1121,10 +1061,10 @@ function populateRptFilter(){
 
 // ═══════════════════════════════════════════════════════
 // INIT
-// (No local storage — rawDef/prodVol/modelTiers are populated by the
-// smt_defects/smt_prodvol/smt_modeltiers Firebase listeners in ui.js's
-// initListeners(), the same pattern as customers/models/complaints.
-// Rendering happens on view-switch and on each Firebase update, not here.)
+// (No local storage — rawDef/prodVol are populated by the smt_defects/
+// smt_prodvol Firebase listeners in ui.js's initListeners(), the same
+// pattern equipment.js uses for smt_equipment. Rendering happens on
+// view-switch and on each Firebase update, not here.)
 // ═══════════════════════════════════════════════════════
 window.addEventListener('resize',()=>{
   if(currentView==='yield')renderYield();

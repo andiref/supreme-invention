@@ -1,9 +1,7 @@
 // ─── STATE ──────────────────────────────────────────────────────────
         var currentUser = null;
-        var customers = {};
-        var models = {};
-        var complaints = {};
-        var currentView = 'customers';
+        var equipment = {};
+        var currentView = 'equipment';
         var toastTimer;
         var confirmCallback = null;
 
@@ -89,22 +87,8 @@
             return 'Shift 3 (11PM-7AM)';
         }
 
-        // ─── CUSTOMER / MODEL LOOKUPS ───────────────────────────────────────
-        function customerArray() {
-            return Object.keys(customers).map(function(id) { return Object.assign({}, customers[id], { _id: id }); });
-        }
-        function modelArray() {
-            return Object.keys(models).map(function(id) { return Object.assign({}, models[id], { _id: id }); });
-        }
-        function modelsForCustomer(customerId) {
-            return modelArray().filter(function(m) { return m.customerId === customerId; });
-        }
-        function customerName(id) {
-            return (id && customers[id]) ? customers[id].name : '';
-        }
-        function modelCode(id) {
-            return (id && models[id]) ? models[id].code : '';
-        }
+        // (Customer/Model catalog lookups removed along with the
+        // Customers/Complaints tabs — equipment.js doesn't need them.)
 
         function fmtDate(ts) {
             if (!ts) return '';
@@ -140,12 +124,9 @@
         // Note: there is no client-side `usersRef` — user accounts go through
         // /api/users (functions/api/users.js). Firebase rules deny direct
         // client read/write on `/users` entirely.
-        var customersRef = db.ref('smt_customers');
-        var modelsRef = db.ref('smt_models');
-        var complaintsRef = db.ref('smt_complaints');
+        var equipmentRef = db.ref('smt_equipment');
         var defectsRef = db.ref('smt_defects');
         var prodVolRef = db.ref('smt_prodvol');
-        var modelTiersRef = db.ref('smt_modeltiers');
 
         // (No "does a user exist yet" check needed — there's exactly one
         // owner, verified server-side against OWNER_EMAIL on every login.)
@@ -195,7 +176,7 @@
                     initApp();
                     appInitialized = true;
                 }
-                switchView('customers');
+                switchView('equipment');
                 renderAll();
             } catch(err) {
                 console.error('❌ loginSuccess error:', err.message, err.stack);
