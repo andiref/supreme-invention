@@ -1,17 +1,15 @@
 // ============================================
 // yield.js — Yield/DPPM analytics storage
-// Replaces the original tool's localStorage with Firebase, same
-// no-role-gating pattern as customers.js/complaints.js (solo-engineer app).
+// Same no-role-gating pattern as the rest of the API (solo-engineer app).
 //
 // Paths:
-//   smt_defects/{id}     — one row per pasted defect record
-//   smt_prodvol/{id}     — one row per week+customer+model production volume
-//   smt_modeltiers/{id}  — RCA-priority tier scoring config per model
+//   smt_defects/{id}  — one row per pasted defect record
+//   smt_prodvol/{id}  — one row per week+customer+model production volume
 // ============================================
 
 import {
     jsonResponse, errorResponse, handleOptions,
-    sanitize, sanitizeDate, sanitizeKey, getToken, fbGet, fbPush, fbUpdate, fbDelete, requireOwner
+    sanitize, sanitizeDate, getToken, fbGet, fbPush, fbUpdate, requireOwner
 } from './_shared.js';
 
 export default async function handler(req, res) {
@@ -100,29 +98,6 @@ export default async function handler(req, res) {
                 ...creates.map(c => fbPush(env, token, 'smt_prodvol', c))
             ]);
             return jsonResponse(res, { ok: true, updated: Object.keys(updates).length, created: creates.length });
-        }
-
-        // ── ADD MODEL TIER ────────────────────────────────────────────────
-        if (action === 'addModelTier') {
-            const model = sanitize(body.model || '', 100);
-            const customer = sanitize(body.customer || '', 100);
-            const weeklyVol = parseFloat(body.weeklyVol) || 0;
-            const defectRate = parseFloat(body.defectRate) || 0;
-            const criticality = ['Low', 'Medium', 'High'].includes(body.criticality) ? body.criticality : 'Low';
-            if (!model || !customer) return errorResponse(res, 'Model and Customer required');
-
-            const result = await fbPush(env, token, 'smt_modeltiers', {
-                model, customer, weeklyVol, defectRate, criticality, created: now, createdBy: email
-            });
-            return jsonResponse(res, { ok: true, id: result.name });
-        }
-
-        // ── REMOVE MODEL TIER ─────────────────────────────────────────────
-        if (action === 'removeModelTier') {
-            const id = sanitizeKey(body.id || '', 40);
-            if (!id) return errorResponse(res, 'Missing id');
-            await fbDelete(env, token, `smt_modeltiers/${id}`);
-            return jsonResponse(res, { ok: true });
         }
 
         // ── ONE-TIME REPAIR: fix defect dates corrupted by the old sanitize()
