@@ -34,11 +34,9 @@
                 <div class="s-shift" id="sidebar-date-label"></div>
             </div>
             <div id="sidebar-nav">
-                <button class="snav-btn active" data-target="btn-customers">🏭 Customers</button>
-                <button class="snav-btn" data-target="btn-complaints">📣 Complaints</button>
+                <button class="snav-btn active" data-target="btn-equipment">🔧 Equipment</button>
                 <button class="snav-btn" data-target="btn-yield">📊 Yield</button>
                 <button class="snav-btn" data-target="btn-time">⏱ Time</button>
-                <button class="snav-btn" data-target="btn-tiers">🎯 Tiers</button>
                 <button class="snav-btn" data-target="btn-library">📖 Library</button>
                 <button class="snav-btn" data-target="btn-report">📧 Report</button>
             </div>
@@ -94,57 +92,29 @@
         </div>
 
         <div id="nav">
-            <button class="nav-btn active" id="btn-customers">🏭 Customers</button>
-            <button class="nav-btn" id="btn-complaints">📣 Complaints</button>
+            <button class="nav-btn active" id="btn-equipment">🔧 Equipment</button>
             <button class="nav-btn" id="btn-yield">📊 Yield</button>
             <button class="nav-btn" id="btn-time">⏱ Time</button>
-            <button class="nav-btn" id="btn-tiers">🎯 Tiers</button>
             <button class="nav-btn" id="btn-library">📖 Library</button>
             <button class="nav-btn" id="btn-report">📧 Report</button>
         </div>
 
         <div id="main">
-            <!-- Customers View -->
-            <div id="customers-view">
+            <!-- Equipment View -->
+            <div id="equipment-view">
                 <div class="form-card">
-                    <div class="form-title">🏭 Add Customer</div>
-                    <div class="form-group" style="margin-bottom:0"><label>Customer Name</label><input id="cu-name" type="text" placeholder="e.g. Acme Corp" /></div>
-                    <button class="submit-btn" id="cu-add-btn">➕ Add Customer</button>
-                </div>
-                <div class="form-card" style="margin-top:10px">
-                    <div class="form-title">🏷️ Add Model</div>
+                    <div class="form-title">🔧 Add Part Follow-Up</div>
                     <div class="form-row">
-                        <div class="form-group" style="margin-bottom:0"><label>Customer</label><select id="cu-model-customer"><option value="">Select customer…</option></select></div>
-                        <div class="form-group" style="margin-bottom:0"><label>Model Code</label><input id="cu-model-code" type="text" placeholder="e.g. NS-4400" /></div>
+                        <div class="form-group" style="margin-bottom:0"><label>Part Name *</label><input id="eq-part" type="text" placeholder="e.g. Feeder Sensor Board" /></div>
+                        <div class="form-group" style="margin-bottom:0"><label>Equipment/Machine *</label><input id="eq-machine" type="text" placeholder="e.g. Line 2 - Mounter #3" /></div>
                     </div>
-                    <button class="submit-btn" id="cu-model-add-btn">➕ Add Model</button>
+                    <div class="form-group"><label>Priority</label><select id="eq-priority"><option>Low</option><option selected>Medium</option><option>High</option></select></div>
+                    <div class="form-group"><label>Notes</label><textarea id="eq-notes" placeholder="e.g. Waiting on vendor quote, lead time ~2 weeks"></textarea></div>
+                    <button class="submit-btn" id="eq-add-btn">➕ Add Part</button>
                 </div>
                 <div style="margin-top:16px">
-                    <div class="summary-title" style="padding:0 4px 8px">🏭 Customers</div>
-                    <div id="customers-list"></div>
-                </div>
-            </div>
-
-            <!-- Complaints View -->
-            <div id="complaints-view" style="display:none">
-                <div class="form-card">
-                    <div class="form-title">📣 Log Complaint</div>
-                    <div class="form-row">
-                        <div class="form-group" style="margin-bottom:0"><label>Customer</label><select id="cp-customer"><option value="">Select…</option></select></div>
-                        <div class="form-group" style="margin-bottom:0"><label>Model</label><select id="cp-model"><option value="">Select customer first</option></select></div>
-                    </div>
-                    <div class="form-group"><label>Finding *</label><textarea id="cp-finding" placeholder="What was found? e.g. R50 Non Wetting"></textarea></div>
-                    <div class="form-group"><label>Location</label><input type="text" id="cp-location" placeholder="e.g. Top side, near J1 connector" /></div>
-                    <div class="form-row">
-                        <div class="form-group" style="margin-bottom:0"><label>Root Cause — Occurrence</label><textarea id="cp-rc-occurrence" placeholder="Why did this happen?"></textarea></div>
-                        <div class="form-group" style="margin-bottom:0"><label>Root Cause — Escapee</label><textarea id="cp-rc-escapee" placeholder="Why wasn't it caught before shipping?"></textarea></div>
-                    </div>
-                    <div class="form-group"><label>Action</label><textarea id="cp-action" placeholder="What corrective action was taken?"></textarea></div>
-                    <button class="submit-btn" id="cp-submit-btn" disabled>Log Complaint →</button>
-                </div>
-                <div style="margin-top:16px">
-                    <div class="summary-title" style="padding:0 4px 8px">📣 Complaints</div>
-                    <div id="complaints-list"></div>
+                    <div class="summary-title" style="padding:0 4px 8px">🔧 Parts to Follow Up</div>
+                    <div id="equipment-list"></div>
                 </div>
             </div>
 
@@ -303,31 +273,6 @@
 </div>
 
 
-<div id="tab-tiers" style="display:none">
-  <div class="kpi-row" id="tier-kpi"></div>
-  <div class="dk" style="font-size:10px;color:#94a3b8;line-height:2;">
-    Score=Vol(≥5000→3,≥3000→2,else 1)+Rate(≥3%→3,≥1.5%→2,else 1)+Crit(High→3,Med→2,Low→1)<br>
-    <span style="color:#ef4444;">■ T1:7-9 Weekly RCA</span> &nbsp;<span style="color:#f59e0b;">■ T2:4-6 Monthly</span> &nbsp;<span style="color:#22c55e;">■ T3:3 Monitor</span>
-  </div>
-  <div class="card">
-    <div class="ct">➕ ADD MODEL</div>
-    <div class="fw">
-      <div class="fl"><div class="fl-lbl">Model</div><input id="nm-m" placeholder="MODEL-AA1"/></div>
-      <div class="fl"><div class="fl-lbl">Customer</div><input id="nm-c" placeholder="CUST-A"/></div>
-      <div class="fl"><div class="fl-lbl">Weekly Vol</div><input id="nm-v" type="number" placeholder="1000"/></div>
-      <div class="fl"><div class="fl-lbl">Defect Rate %</div><input id="nm-r" type="number" step="0.1" placeholder="1.5"/></div>
-      <div class="fl"><div class="fl-lbl">Criticality</div><select id="nm-cr"><option>Low</option><option>Medium</option><option>High</option></select></div>
-      <button class="btn bg" onclick="addModel()">ADD</button>
-    </div>
-  </div>
-  <div class="card">
-    <div class="ct" id="tier-title">ALL MODELS</div>
-    <div class="tbl-wrap"><table>
-      <thead><tr><th>Tier</th><th>Customer</th><th>Model</th><th class="num">Vol</th><th class="num">Rate</th><th>Criticality</th><th>Frequency</th><th></th></tr></thead>
-      <tbody id="tier-body"></tbody>
-    </table></div>
-  </div>
-</div>
 
 
 <div id="tab-library" style="display:none">
@@ -386,7 +331,7 @@
     <script src="js/firebase-init.js"></script>
     <script src="js/auth.js"></script>
     <script src="js/ui.js"></script>
-    <script src="js/customers.js"></script>
+    <script src="js/equipment.js"></script>
     <script src="js/yield.js"></script>
 </body>
 </html>
