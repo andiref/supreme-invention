@@ -1023,7 +1023,7 @@ function handleProdFile(input){
   readFileAsRows(file).then(raw=>{
     const parsed=raw.map(p=>{
       if(p.length<5)return null;
-      const[week,customer,model,side,totalInspected]=p;
+      const[week,model,side,customer,totalInspected]=p;
       if(!week||!model||!side)return null;
       const ns=side.toUpperCase().replace('BOTTOM','BOT');
       if(!['TOP','BOT'].includes(ns))return null;
@@ -1032,7 +1032,7 @@ function handleProdFile(input){
     const rows=parsed.filter(Boolean);
     const skipped=parsed.length-rows.length;
     if(!rows.length){
-      errEl.textContent='No valid rows found in '+file.name+'. Format: Week|Customer|Model|Side|TotalInspected';
+      errEl.textContent='No valid rows found in '+file.name+'. Format: Week|Model|Side|Customer|TotalInspected';
       return;
     }
     pendingProdRows=rows;
