@@ -293,7 +293,9 @@
   <div class="card" style="background:#1e3a5f;border-color:#3b82f6;margin-bottom:14px;">
     <div class="ct" style="color:#93c5fd;">📧 EMAIL REPORT — generate PNG to paste into email</div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
-      <div class="fl"><div class="fl-lbl">REPORT WEEK</div><input id="rpt-week" placeholder="2026-W17" style="width:130px;"/></div>
+      <div class="fl"><div class="fl-lbl">FROM WEEK</div><select id="rpt-week-from" onchange="clampRptWeekRange('from')" style="width:auto;"></select></div>
+      <div class="fl"><div class="fl-lbl">TO WEEK</div><select id="rpt-week-to" onchange="clampRptWeekRange('to')" style="width:auto;"></select></div>
+      <div style="font-size:9px;color:#64748b;align-self:center;padding-bottom:8px;">max 11 weeks</div>
       <div class="fl"><div class="fl-lbl">PREPARED BY</div><input id="rpt-author" placeholder="Your name" style="width:150px;"/></div>
       <div class="fl"><div class="fl-lbl">CUSTOMER</div><select id="rpt-cust" style="width:auto;"></select></div>
       <button class="btn bb" style="padding:8px 18px;font-size:12px;" onclick="generateReport()">📸 GENERATE &amp; DOWNLOAD</button>
