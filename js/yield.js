@@ -700,11 +700,11 @@ function generateReport(){
   const wr=filtRaw.filter(d=>d.week===lw);
   const wdf={};wr.forEach(d=>{wdf[d.defect]=(wdf[d.defect]||0)+1;});
   const t3=Object.entries(wdf).sort((a,b)=>b[1]-a[1]).slice(0,3);
-  function topOf(def,key){const m={};wr.filter(d=>d.defect===def).forEach(d=>{m[d[key]]=(m[d[key]]||0)+1;});const s=Object.entries(m).sort((a,b)=>b[1]-a[1]);if(!s.length)return'-';const name=String(s[0][0]);const tname=name.length>13?name.slice(0,12)+'…':name;return tname+' ('+s[0][1]+')';}
+  function topOf(def,key,maxLen){const m={};wr.filter(d=>d.defect===def).forEach(d=>{m[d[key]]=(m[d[key]]||0)+1;});const s=Object.entries(m).sort((a,b)=>b[1]-a[1]);if(!s.length)return'-';const name=String(s[0][0]);const ml=maxLen||13;const tname=name.length>ml?name.slice(0,ml-1)+'…':name;return tname+' ('+s[0][1]+')';}
 
   // Canvas — dark theme
   const W=1100, PAD=32;
-  const HDR=90, KPI=120, CHART=260, TOP3=t3.length?150:0, FTR=44;
+  const HDR=90, KPI=120, CHART=260, TOP3=t3.length?195:0, FTR=44;
   const TOTAL=HDR+KPI+CHART*2+TOP3+FTR+PAD*6;
 
   const cv=document.createElement('canvas');cv.width=W;cv.height=TOTAL;
@@ -718,7 +718,7 @@ function generateReport(){
   ctx.strokeStyle='#000000';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(0,HDR);ctx.lineTo(W,HDR);ctx.stroke();
   ctx.fillStyle='#000000';ctx.font='bold 24px Courier New';ctx.textAlign='left';ctx.fillText('SMT YIELD & DPPM TREND REPORT',PAD,38);
   ctx.fillStyle='#333333';ctx.font='bold 16px Courier New';ctx.fillText('Customer: '+custLabel,PAD,61);
-  ctx.fillStyle='#444444';ctx.font='bold 13px Courier New';ctx.fillText('Week: '+weekLabel+'   |   By: '+author+'   |   '+now,PAD,80);
+  ctx.fillStyle='#444444';ctx.font='bold 13px Courier New';ctx.fillText('Week: '+weekLabel,PAD,80);
   ctx.fillStyle='#444444';ctx.font='bold 13px Courier New';ctx.textAlign='right';
   ctx.fillText('Yield target ≥'+TY+'%  |  DPPM limit ≤'+fmt(TD),W-PAD,80);
 
@@ -834,16 +834,31 @@ function generateReport(){
     const rankFill=['rgba(0,0,0,0.07)','rgba(0,0,0,0.05)','rgba(0,0,0,0.03)'];
     t3.forEach(([def,cnt],i)=>{
       const bx=PAD+14+i*(sw2+10);
-      ctx.fillStyle=rankFill[i];rrect(ctx,bx,y+30,sw2,TOP3-42,5);ctx.fill();
-      ctx.strokeStyle='rgba(0,0,0,0.25)';ctx.lineWidth=1;rrect(ctx,bx,y+30,sw2,TOP3-42,5);ctx.stroke();
-      ctx.fillStyle=rankShade[i];ctx.font='bold 14px Courier New';ctx.textAlign='center';
-      ctx.fillText('#'+(i+1)+'  '+(def.length>22?def.slice(0,21)+'…':def),bx+sw2/2,y+52);
-      ctx.fillStyle=rankShade[i];ctx.font='bold 22px Courier New';
-      ctx.fillText(cnt+' defects',bx+sw2/2,y+79);
-      ctx.fillStyle='#444444';ctx.font='bold 11px Courier New';
-      ctx.fillText('Most Contributing Model: '+topOf(def,'model'),bx+sw2/2,y+98);
-      ctx.fillStyle='#444444';ctx.font='bold 11px Courier New';
-      ctx.fillText('Most Contributing Comp: '+topOf(def,'comp'),bx+sw2/2,y+115);
+      const boxY=y+30, boxH=TOP3-42;
+      ctx.fillStyle=rankFill[i];rrect(ctx,bx,boxY,sw2,boxH,5);ctx.fill();
+      ctx.strokeStyle='rgba(0,0,0,0.25)';ctx.lineWidth=1;rrect(ctx,bx,boxY,sw2,boxH,5);ctx.stroke();
+
+      // rank + defect name — compact header, just enough to identify the defect
+      ctx.fillStyle=rankShade[i];ctx.font='bold 13px Courier New';ctx.textAlign='center';
+      ctx.fillText('#'+(i+1)+'  '+(def.length>24?def.slice(0,23)+'…':def),bx+sw2/2,boxY+19);
+      ctx.fillStyle=rankShade[i];ctx.font='bold 19px Courier New';
+      ctx.fillText(cnt+' defects',bx+sw2/2,boxY+42);
+
+      ctx.strokeStyle='rgba(0,0,0,0.15)';ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(bx+16,boxY+53);ctx.lineTo(bx+sw2-16,boxY+53);ctx.stroke();
+
+      // most contributing model — given the extra space and a larger type
+      // size so it reads as the focal point of the card, not a footnote
+      ctx.fillStyle='#666666';ctx.font='bold 10px Courier New';ctx.textAlign='center';
+      ctx.fillText('MOST CONTRIBUTING MODEL',bx+sw2/2,boxY+71);
+      ctx.fillStyle='#000000';ctx.font='bold 16px Courier New';
+      ctx.fillText(topOf(def,'model',20),bx+sw2/2,boxY+92);
+
+      // most contributing component — same treatment
+      ctx.fillStyle='#666666';ctx.font='bold 10px Courier New';
+      ctx.fillText('MOST CONTRIBUTING COMPONENT',bx+sw2/2,boxY+112);
+      ctx.fillStyle='#000000';ctx.font='bold 16px Courier New';
+      ctx.fillText(topOf(def,'comp',20),bx+sw2/2,boxY+133);
     });
     y+=TOP3+PAD;
   }
