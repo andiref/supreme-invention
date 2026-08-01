@@ -2,6 +2,7 @@
 // CONSTANTS
 // ═══════════════════════════════════════════════════════
 const TY=99.5, TD=5000;
+const RPT_MAX_WEEKS=11; // report trend range cap — keeps the charts/cards readable
 const SHIFTS=[
   {name:"Morning",   label:"Morning (07-15)",   color:"#3b82f6"},
   {name:"Afternoon", label:"Afternoon (15-23)", color:"#f59e0b"},
@@ -666,15 +667,60 @@ function renderReport(){
 // ═══════════════════════════════════════════════════════
 // EMAIL REPORT GENERATOR — dark theme matching the app
 // ═══════════════════════════════════════════════════════
+// Resolves a from/to week-range selection against the real list of
+// available weeks: swaps a reversed range, snaps missing/invalid values
+// to the ends of the data, and clips spans wider than RPT_MAX_WEEKS —
+// keeping the end nearest `anchor` fixed and pulling the other end in.
+function resolveWeekRange(allWeeksSorted,fromWk,toWk,anchor){
+  if(!allWeeksSorted.length)return{from:'',to:'',weeks:[]};
+  let i0=allWeeksSorted.indexOf(fromWk);if(i0===-1)i0=0;
+  let i1=allWeeksSorted.indexOf(toWk);if(i1===-1)i1=allWeeksSorted.length-1;
+  if(i0>i1){if(anchor==='from')i1=i0;else i0=i1;}
+  if(i1-i0+1>RPT_MAX_WEEKS){
+    if(anchor==='from')i1=Math.min(allWeeksSorted.length-1,i0+RPT_MAX_WEEKS-1);
+    else i0=Math.max(0,i1-RPT_MAX_WEEKS+1);
+  }
+  return{from:allWeeksSorted[i0],to:allWeeksSorted[i1],weeks:allWeeksSorted.slice(i0,i1+1)};
+}
+
+// Live onchange handler for the report's FROM/TO week selects — keeps the
+// pair valid and within the RPT_MAX_WEEKS cap as soon as the user picks,
+// rather than only catching it at generate-time.
+function clampRptWeekRange(changed){
+  const weeks=[...new Set(rawDef.map(d=>d.week))].sort();
+  const fromEl=document.getElementById('rpt-week-from');
+  const toEl=document.getElementById('rpt-week-to');
+  if(!fromEl||!toEl||!weeks.length)return;
+  const before=fromEl.value+'|'+toEl.value;
+  const r=resolveWeekRange(weeks,fromEl.value,toEl.value,changed);
+  fromEl.value=r.from;toEl.value=r.to;
+  if(before!==r.from+'|'+r.to)showToast('Report range is limited to '+RPT_MAX_WEEKS+' weeks — adjusted.');
+}
+
 function generateReport(){
   const allM=calcMetrics(rawDef,prodVol);
   const rCust=document.getElementById('rpt-cust')?.value||'ALL';
-  const filtM=rCust==='ALL'?allM:allM.filter(m=>m.customer===rCust);
-  const filtRaw=rCust==='ALL'?rawDef:rawDef.filter(d=>d.customer===rCust);
-  const wkF=wkSummary(filtM);
-  if(!wkF.length){showToast('No data. Import production volume first.');return;}
+  const filtMAll=rCust==='ALL'?allM:allM.filter(m=>m.customer===rCust);
+  const filtRawAll=rCust==='ALL'?rawDef:rawDef.filter(d=>d.customer===rCust);
+  const wkFAll=wkSummary(filtMAll);
+  if(!wkFAll.length){showToast('No data. Import production volume first.');return;}
 
-  const weekLabel=document.getElementById('rpt-week')?.value||(wkF.length?wkF[wkF.length-1].week:'—');
+  // resolve the selected FROM/TO week range (defensive: re-validates and
+  // re-clips to RPT_MAX_WEEKS even if the selects' onchange hasn't run yet,
+  // e.g. on the very first render)
+  const allWeeks=[...new Set(rawDef.map(d=>d.week))].sort();
+  const defaultFrom=allWeeks[Math.max(0,allWeeks.length-RPT_MAX_WEEKS)];
+  const defaultTo=allWeeks[allWeeks.length-1];
+  const rngFromSel=document.getElementById('rpt-week-from')?.value;
+  const rngToSel=document.getElementById('rpt-week-to')?.value;
+  const rng=resolveWeekRange(allWeeks,rngFromSel||defaultFrom,rngToSel||defaultTo,'to');
+
+  const filtM=filtMAll.filter(m=>m.week>=rng.from&&m.week<=rng.to);
+  const filtRaw=filtRawAll.filter(d=>d.week>=rng.from&&d.week<=rng.to);
+  const wkF=wkSummary(filtM);
+  if(!wkF.length){showToast('No data in the selected week range.');return;}
+
+  const weekLabel=rng.from===rng.to?rng.from:(rng.from+' – '+rng.to);
   const author=document.getElementById('rpt-author')?.value||'SMT Process Engineer';
   const now=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
   const custLabel=rCust==='ALL'?'All Customers':rCust;
@@ -695,8 +741,10 @@ function generateReport(){
   const yVals=wkF.map(w=>w.yieldPct);
   const dVals=wkF.map(w=>w.dppm);
 
-  // top 3 with model+component
-  const lw=[...new Set(filtRaw.map(d=>d.week))].sort().pop()||'';
+  // top 3 with model+component — reference the END of the selected range
+  // (not always the absolute latest week in the data) so the defect
+  // breakdown stays consistent with whichever weeks the report covers
+  const lw=rng.to||'';
   const wr=filtRaw.filter(d=>d.week===lw);
   const wdf={};wr.forEach(d=>{wdf[d.defect]=(wdf[d.defect]||0)+1;});
   const t3=Object.entries(wdf).sort((a,b)=>b[1]-a[1]).slice(0,3);
@@ -718,7 +766,7 @@ function generateReport(){
   ctx.strokeStyle='#000000';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(0,HDR);ctx.lineTo(W,HDR);ctx.stroke();
   ctx.fillStyle='#000000';ctx.font='bold 24px Courier New';ctx.textAlign='left';ctx.fillText('SMT YIELD & DPPM TREND REPORT',PAD,38);
   ctx.fillStyle='#333333';ctx.font='bold 16px Courier New';ctx.fillText('Customer: '+custLabel,PAD,61);
-  ctx.fillStyle='#444444';ctx.font='bold 13px Courier New';ctx.fillText('Week: '+weekLabel,PAD,80);
+  ctx.fillStyle='#444444';ctx.font='bold 13px Courier New';ctx.fillText((rng.from===rng.to?'Week: ':'Weeks: ')+weekLabel,PAD,80);
   ctx.fillStyle='#444444';ctx.font='bold 13px Courier New';ctx.textAlign='right';
   ctx.fillText('Yield target ≥'+TY+'%  |  DPPM limit ≤'+fmt(TD),W-PAD,80);
 
@@ -1076,8 +1124,25 @@ function populateTimeFilters(){
 
 function populateRptFilter(){
   const custs=['ALL',...new Set(rawDef.map(d=>d.customer))].sort();
-  const el=document.getElementById('rpt-cust');if(!el)return;
-  const cur=el.value;el.innerHTML=custs.map(o=>`<option${o===cur?' selected':''}>${o}</option>`).join('');
+  const custEl=document.getElementById('rpt-cust');
+  if(custEl){
+    const cur=custEl.value;custEl.innerHTML=custs.map(o=>`<option${o===cur?' selected':''}>${o}</option>`).join('');
+  }
+
+  const weeks=[...new Set(rawDef.map(d=>d.week))].sort();
+  const fromEl=document.getElementById('rpt-week-from');
+  const toEl=document.getElementById('rpt-week-to');
+  if(!fromEl||!toEl||!weeks.length)return;
+
+  // keep the current selection if it's still valid; otherwise default to
+  // the most recent RPT_MAX_WEEKS-week window
+  const validFrom=weeks.includes(fromEl.value)?fromEl.value:weeks[Math.max(0,weeks.length-RPT_MAX_WEEKS)];
+  const validTo=weeks.includes(toEl.value)?toEl.value:weeks[weeks.length-1];
+  const r=resolveWeekRange(weeks,validFrom,validTo,'to');
+
+  [[fromEl,r.from],[toEl,r.to]].forEach(([el,val])=>{
+    el.innerHTML=weeks.map(w=>`<option${w===val?' selected':''}>${w}</option>`).join('');
+  });
 }
 
 // ═══════════════════════════════════════════════════════
