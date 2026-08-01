@@ -1042,6 +1042,47 @@ function handleProdFile(input){
   }).catch(err=>{errEl.textContent='Error: '+err.message;});
 }
 
+// Client-side batch sizes — kept comfortably under the server's hard caps
+// (5000 for defects, 2000 for production volume; see api/yield.js) so large
+// historical backfills (many weeks at once) don't get rejected outright,
+// and so each request fires fewer concurrent Firebase writes server-side.
+const DEF_BATCH_SIZE=2000;
+const PROD_BATCH_SIZE=1000;
+
+// Sends `rows` to the given /api/yield action in sequential batches of at
+// most `batchSize` rows. Resolves with the aggregated {count, duplicates}
+// once every batch has been sent. If a batch fails, already-sent batches
+// stay imported (server-side duplicate detection makes re-running the same
+// file afterwards safe) — the rejected error carries how far it got so the
+// caller can report that.
+async function importInBatches(action,rows,batchSize,onProgress){
+  let totalCount=0,totalDuplicates=0;
+  const totalBatches=Math.max(1,Math.ceil(rows.length/batchSize));
+  for(let i=0;i<rows.length;i+=batchSize){
+    const batchNum=Math.floor(i/batchSize)+1;
+    const batch=rows.slice(i,i+batchSize);
+    onProgress?.(i,rows.length,batchNum,totalBatches);
+    let d;
+    try{
+      const res=await fetch('/api/yield',{method:'POST',headers:{'Content-Type':'application/json','X-User-Email':currentUser.email},
+        body:JSON.stringify({action,rows:batch})});
+      d=await res.json();
+    }catch{
+      const err=new Error('Network error.');
+      err.batchNum=batchNum;err.totalBatches=totalBatches;err.importedSoFar=totalCount;err.duplicatesSoFar=totalDuplicates;
+      throw err;
+    }
+    if(!d.ok){
+      const err=new Error(d.error||'Import failed');
+      err.batchNum=batchNum;err.totalBatches=totalBatches;err.importedSoFar=totalCount;err.duplicatesSoFar=totalDuplicates;
+      throw err;
+    }
+    totalCount+=d.count;totalDuplicates+=d.duplicates||0;
+  }
+  onProgress?.(rows.length,rows.length,totalBatches,totalBatches);
+  return{count:totalCount,duplicates:totalDuplicates};
+}
+
 function importDef(){
   const errEl=document.getElementById('def-err');
   const btn=document.getElementById('def-import-btn');
@@ -1049,23 +1090,32 @@ function importDef(){
   if(!currentUser){errEl.style.color='';errEl.textContent='Not logged in.';return;}
   btn.disabled=true;
   errEl.style.color='';
-  errEl.textContent='Importing '+pendingDefRows.length+' rows\u2026';
-  fetch('/api/yield',{method:'POST',headers:{'Content-Type':'application/json','X-User-Email':currentUser.email},
-    body:JSON.stringify({action:'importDefects',rows:pendingDefRows})})
-    .then(r=>r.json()).then(d=>{
-      if(d.ok){
-        document.getElementById('def-file').value='';
-        pendingDefRows=null;
-        errEl.textContent='';
-        tog('pd');
-        if(d.count===0&&d.duplicates>0){
-          showToast('No new rows — all '+d.duplicates+' already in the system \u2713');
-        }else{
-          const dupMsg=d.duplicates?(' ('+d.duplicates+' duplicate'+(d.duplicates===1?'':'s')+' skipped)'):'';
-          showToast('Imported '+d.count+' defect rows \u2713'+dupMsg);
-        }
-      } else { btn.disabled=false; errEl.textContent='Error: '+d.error; }
-    }).catch(()=>{btn.disabled=false;errEl.textContent='Network error.';});
+  const rows=pendingDefRows;
+  const totalBatches=Math.ceil(rows.length/DEF_BATCH_SIZE);
+  errEl.textContent=totalBatches>1?('Importing '+rows.length.toLocaleString()+' rows in '+totalBatches+' batches\u2026'):('Importing '+rows.length+' rows\u2026');
+  importInBatches('importDefects',rows,DEF_BATCH_SIZE,(done,total,batchNum,tb)=>{
+    if(tb>1)errEl.textContent='Importing batch '+batchNum+'/'+tb+' \u2014 '+done.toLocaleString()+'/'+total.toLocaleString()+' rows sent\u2026';
+  }).then(({count,duplicates})=>{
+    document.getElementById('def-file').value='';
+    pendingDefRows=null;
+    errEl.textContent='';
+    tog('pd');
+    if(count===0&&duplicates>0){
+      showToast('No new rows — all '+duplicates+' already in the system \u2713');
+    }else{
+      const dupMsg=duplicates?(' ('+duplicates+' duplicate'+(duplicates===1?'':'s')+' skipped)'):'';
+      showToast('Imported '+count+' defect rows \u2713'+dupMsg);
+    }
+  }).catch(err=>{
+    btn.disabled=false;
+    let progress='';
+    if(err.batchNum){
+      const ok=err.batchNum-1;
+      const batchMsg=ok===0?'No batches completed yet':(ok===1?'Batch 1 of '+err.totalBatches+' succeeded':'Batches 1\u2013'+ok+' of '+err.totalBatches+' succeeded');
+      progress=' '+batchMsg+' ('+err.importedSoFar+' rows imported so far) — fix the issue and re-import the same file; already-imported rows will be skipped automatically.';
+    }
+    errEl.textContent='Error: '+err.message+progress;
+  });
 }
 
 function importProd(){
@@ -1075,17 +1125,26 @@ function importProd(){
   if(!currentUser){errEl.style.color='';errEl.textContent='Not logged in.';return;}
   btn.disabled=true;
   errEl.style.color='';
-  errEl.textContent='Importing\u2026';
-  fetch('/api/yield',{method:'POST',headers:{'Content-Type':'application/json','X-User-Email':currentUser.email},
-    body:JSON.stringify({action:'importProdVol',rows:pendingProdRows})})
-    .then(r=>r.json()).then(d=>{
-      if(d.ok){
-        document.getElementById('prod-file').value='';
-        pendingProdRows=null;
-        errEl.textContent='';
-        tog('pp');showToast('Production volume imported \u2713');
-      } else { btn.disabled=false; errEl.textContent='Error: '+d.error; }
-    }).catch(()=>{btn.disabled=false;errEl.textContent='Network error.';});
+  const rows=pendingProdRows;
+  const totalBatches=Math.ceil(rows.length/PROD_BATCH_SIZE);
+  errEl.textContent=totalBatches>1?('Importing '+rows.length.toLocaleString()+' rows in '+totalBatches+' batches\u2026'):'Importing\u2026';
+  importInBatches('importProdVol',rows,PROD_BATCH_SIZE,(done,total,batchNum,tb)=>{
+    if(tb>1)errEl.textContent='Importing batch '+batchNum+'/'+tb+' \u2014 '+done.toLocaleString()+'/'+total.toLocaleString()+' rows sent\u2026';
+  }).then(()=>{
+    document.getElementById('prod-file').value='';
+    pendingProdRows=null;
+    errEl.textContent='';
+    tog('pp');showToast('Production volume imported \u2713');
+  }).catch(err=>{
+    btn.disabled=false;
+    let progress='';
+    if(err.batchNum){
+      const ok=err.batchNum-1;
+      const batchMsg=ok===0?'No batches completed yet':(ok===1?'Batch 1 of '+err.totalBatches+' succeeded':'Batches 1\u2013'+ok+' of '+err.totalBatches+' succeeded');
+      progress=' '+batchMsg+' — fix the issue and re-import the same file; already-imported rows will be skipped automatically.';
+    }
+    errEl.textContent='Error: '+err.message+progress;
+  });
 }
 
 // ═══════════════════════════════════════════════════════
