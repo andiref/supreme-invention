@@ -1080,13 +1080,22 @@ function generateDigestReport(){
   const rng=resolveReportWeekRange();
   if(!rng){showToast('No data. Import production volume first.');return;}
 
-  const customers=[...new Set(rawDef.map(d=>d.customer))].sort();
+  const cbs=[...document.querySelectorAll('.digest-cust-cb')];
+  let customers;
+  if(cbs.length){
+    const checked=cbs.filter(cb=>cb.checked).map(cb=>cb.value);
+    if(!checked.length){showToast('Select at least one customer for the digest.');return;}
+    customers=checked;
+  }else{
+    customers=[...new Set(rawDef.map(d=>d.customer))].sort();
+  }
+
   const cards=[];
   customers.forEach(cust=>{
     const rd=computeCustomerReportData(cust,rng,allM,rawDef);
     if(rd)cards.push({cust,rd});
   });
-  if(!cards.length){showToast('No data in the selected week range.');return;}
+  if(!cards.length){showToast('No data for the selected customers in this week range.');return;}
 
   const weekLabel=rng.from===rng.to?rng.from:(rng.from+' – '+rng.to);
   const weekBadge=rng.to;
@@ -1389,6 +1398,21 @@ function populateRptFilter(){
     const cur=custEl.value;custEl.innerHTML=custs.map(o=>`<option${o===cur?' selected':''}>${o}</option>`).join('');
   }
 
+  // digest customer checkboxes — preserve whatever's already checked for
+  // customers still present; default any new/unseen customer to checked,
+  // so newly-imported customers show up in the digest without extra clicks
+  const pickerEl=document.getElementById('digest-cust-picker');
+  if(pickerEl){
+    const digestCusts=[...new Set(rawDef.map(d=>d.customer))].sort();
+    const prevChecked={};
+    pickerEl.querySelectorAll('.digest-cust-cb').forEach(cb=>{prevChecked[cb.value]=cb.checked;});
+    pickerEl.innerHTML=digestCusts.map(c=>{
+      const checked=(c in prevChecked)?prevChecked[c]:true;
+      const esc=c.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+      return `<label style="font-size:11px;color:#e2e8f0;display:flex;align-items:center;gap:5px;white-space:nowrap;"><input type="checkbox" class="digest-cust-cb" value="${esc}"${checked?' checked':''}/> ${esc}</label>`;
+    }).join('')||'<span style="font-size:11px;color:#64748b;">No customers yet — import defect data first.</span>';
+  }
+
   const weeks=[...new Set(rawDef.map(d=>d.week))].sort();
   const fromEl=document.getElementById('rpt-week-from');
   const toEl=document.getElementById('rpt-week-to');
@@ -1403,6 +1427,11 @@ function populateRptFilter(){
   [[fromEl,r.from],[toEl,r.to]].forEach(([el,val])=>{
     el.innerHTML=weeks.map(w=>`<option${w===val?' selected':''}>${w}</option>`).join('');
   });
+}
+
+// Select-all / select-none convenience actions for the digest customer picker
+function setDigestCustomers(checked){
+  document.querySelectorAll('.digest-cust-cb').forEach(cb=>{cb.checked=checked;});
 }
 
 // ═══════════════════════════════════════════════════════
