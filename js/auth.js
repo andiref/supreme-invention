@@ -1,7 +1,7 @@
 // ─── STATE ──────────────────────────────────────────────────────────
         var currentUser = null;
         var equipment = {};
-        var currentView = 'equipment';
+        var currentView = 'yield';
         var toastTimer;
         var confirmCallback = null;
 
@@ -176,7 +176,7 @@
                     initApp();
                     appInitialized = true;
                 }
-                switchView('equipment');
+                switchView('yield');
                 renderAll();
             } catch(err) {
                 console.error('❌ loginSuccess error:', err.message, err.stack);
