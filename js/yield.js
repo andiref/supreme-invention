@@ -955,8 +955,8 @@ function drawDigestMiniChart(ctx,ox,oy,ow,oh,vals,labels,target,targColor,isYiel
   if(!have.length){
     ctx.fillStyle='rgba(0,0,0,0.03)';rrect(ctx,ox,oy,ow,oh,5);ctx.fill();
     ctx.strokeStyle='rgba(0,0,0,0.15)';ctx.lineWidth=1;rrect(ctx,ox,oy,ow,oh,5);ctx.stroke();
-    ctx.fillStyle='#333333';ctx.font='bold 9px Courier New';ctx.textAlign='left';ctx.fillText(title,ox+8,oy+11);
-    ctx.fillStyle='#999999';ctx.font='9px Courier New';ctx.textAlign='center';ctx.fillText('No data',ox+ow/2,oy+oh/2+3);
+    ctx.fillStyle='#333333';ctx.font='bold 9px Arial';ctx.textAlign='left';ctx.fillText(title,ox+8,oy+11);
+    ctx.fillStyle='#999999';ctx.font='9px Arial';ctx.textAlign='center';ctx.fillText('No data',ox+ow/2,oy+oh/2+3);
     return;
   }
   const allV=[...have,target||0];
@@ -974,7 +974,7 @@ function drawDigestMiniChart(ctx,ox,oy,ow,oh,vals,labels,target,targColor,isYiel
     ctx.strokeStyle='rgba(0,0,0,0.1)';ctx.lineWidth=0.6;
     ctx.beginPath();ctx.moveTo(ox+PL,gy);ctx.lineTo(ox+PL+pw,gy);ctx.stroke();
     const v=minV+(maxV-minV)*i;
-    ctx.fillStyle='#666666';ctx.font='7px Courier New';ctx.textAlign='right';
+    ctx.fillStyle='#666666';ctx.font='7px Arial';ctx.textAlign='right';
     ctx.fillText(isYield?v.toFixed(2)+'%':Math.round(v).toLocaleString(),ox+PL-4,gy+3);
   });
 
@@ -996,15 +996,15 @@ function drawDigestMiniChart(ctx,ox,oy,ow,oh,vals,labels,target,targColor,isYiel
   // only label the most recent point, to stay legible at this size
   const lastIdx=vals.length-1;
   if(vals[lastIdx]!=null){
-    ctx.fillStyle='#000000';ctx.font='bold 9px Courier New';ctx.textAlign='center';
+    ctx.fillStyle='#000000';ctx.font='bold 9px Arial';ctx.textAlign='center';
     ctx.fillText(isYield?vals[lastIdx].toFixed(2)+'%':Math.round(vals[lastIdx]).toLocaleString(),xp(lastIdx),yp(vals[lastIdx])-6);
   }
 
-  ctx.fillStyle='#666666';ctx.font='7px Courier New';ctx.textAlign='center';
+  ctx.fillStyle='#666666';ctx.font='7px Arial';ctx.textAlign='center';
   const showEvery=labels.length>6?Math.ceil(labels.length/6):1;
   labels.forEach((l,i)=>{if(i%showEvery===0||i===labels.length-1)ctx.fillText(l,xp(i),oy+PT+ph+11);});
 
-  ctx.fillStyle='#333333';ctx.font='bold 9px Courier New';ctx.textAlign='left';
+  ctx.fillStyle='#333333';ctx.font='bold 9px Arial';ctx.textAlign='left';
   ctx.fillText(title,ox+8,oy+11);
 }
 
@@ -1017,38 +1017,38 @@ function drawDigestCard(ctx,x0,y0,w,h,custName,rd,color,weekBadge){
   ctx.fillStyle=color;rrect(ctx,x0,y0,5,h,2);ctx.fill();
 
   const col1X=x0+24,col1W=185;
-  const col2X=col1X+col1W+24,col2W=300;
+  const col2X=col1X+col1W+24,col2W=230;
   const col3X=col2X+col2W+24,col3W=(x0+w)-col3X-8;
 
   // ---- Column 1: identity + the two headline KPIs ----
   ctx.textAlign='left';
-  ctx.fillStyle='#888888';ctx.font='bold 9px Courier New';ctx.fillText('WEEKLY SMT REPORT',col1X,y0+22);
-  ctx.fillStyle='#000000';ctx.font='bold 18px Courier New';
+  ctx.fillStyle='#888888';ctx.font='bold 9px Arial';ctx.fillText('WEEKLY SMT REPORT',col1X,y0+22);
+  ctx.fillStyle='#000000';ctx.font='bold 18px Arial';
   ctx.fillText(custName.length>16?custName.slice(0,15)+'…':custName,col1X,y0+44);
-  ctx.fillStyle='#666666';ctx.font='bold 10px Courier New';ctx.fillText(weekBadge,col1X,y0+60);
+  ctx.fillStyle='#666666';ctx.font='bold 10px Arial';ctx.fillText(weekBadge,col1X,y0+60);
 
-  ctx.fillStyle='#888888';ctx.font='bold 9px Courier New';ctx.fillText('OVERALL YIELD',col1X,y0+106);
-  ctx.fillStyle='#000000';ctx.font='bold 21px Courier New';ctx.fillText(oy.toFixed(3)+'%',col1X,y0+128);
-  ctx.fillStyle='#888888';ctx.font='9px Courier New';ctx.fillText('Target: '+TY+'%',col1X,y0+142);
+  ctx.fillStyle='#888888';ctx.font='bold 9px Arial';ctx.fillText('OVERALL YIELD',col1X,y0+106);
+  ctx.fillStyle='#000000';ctx.font='bold 21px Arial';ctx.fillText(oy.toFixed(3)+'%',col1X,y0+128);
+  ctx.fillStyle='#888888';ctx.font='9px Arial';ctx.fillText('Target: '+TY+'%',col1X,y0+142);
 
-  ctx.fillStyle='#888888';ctx.font='bold 9px Courier New';ctx.fillText('DPPM',col1X,y0+172);
-  ctx.fillStyle='#000000';ctx.font='bold 21px Courier New';ctx.fillText(Math.round(od).toLocaleString(),col1X,y0+194);
-  ctx.fillStyle='#888888';ctx.font='9px Courier New';ctx.fillText('Limit: '+fmt(TD),col1X,y0+208);
+  ctx.fillStyle='#888888';ctx.font='bold 9px Arial';ctx.fillText('DPPM',col1X,y0+172);
+  ctx.fillStyle='#000000';ctx.font='bold 21px Arial';ctx.fillText(Math.round(od).toLocaleString(),col1X,y0+194);
+  ctx.fillStyle='#888888';ctx.font='9px Arial';ctx.fillText('Limit: '+fmt(TD),col1X,y0+208);
 
   // ---- Column 2: Top 3 defects — proportional bars so the size of #1
   // relative to #2/#3 is visible at a glance, not just three numbers ----
-  ctx.fillStyle='#888888';ctx.font='bold 9px Courier New';ctx.fillText('TOP 3 DEFECTS',col2X,y0+20);
+  ctx.fillStyle='#888888';ctx.font='bold 9px Arial';ctx.fillText('TOP 3 DEFECTS',col2X,y0+20);
   ctx.strokeStyle='rgba(0,0,0,0.15)';ctx.lineWidth=1;
   ctx.beginPath();ctx.moveTo(col2X,y0+26);ctx.lineTo(col2X+col2W,y0+26);ctx.stroke();
 
   if(!t3.length){
-    ctx.fillStyle='#999999';ctx.font='10px Courier New';ctx.textAlign='left';
+    ctx.fillStyle='#999999';ctx.font='10px Arial';ctx.textAlign='left';
     ctx.fillText('No defects recorded this period.',col2X,y0+50);
   }else{
     const maxCount=t3[0][1];
     let rowY=y0+46;
     t3.forEach(([def,cnt],i)=>{
-      ctx.fillStyle='#000000';ctx.font='bold 12px Courier New';ctx.textAlign='left';
+      ctx.fillStyle='#000000';ctx.font='bold 12px Arial';ctx.textAlign='left';
       ctx.fillText((i+1)+'. '+(def.length>20?def.slice(0,19)+'…':def),col2X,rowY);
       ctx.textAlign='right';ctx.fillText(String(cnt),col2X+col2W,rowY);
 
@@ -1057,8 +1057,8 @@ function drawDigestCard(ctx,x0,y0,w,h,custName,rd,color,weekBadge){
       const bw=Math.max(4,col2W*(cnt/maxCount));
       ctx.fillStyle=DIGEST_BAR_COLORS[i]||'#999999';rrect(ctx,col2X,barY,bw,barH,3);ctx.fill();
 
-      ctx.fillStyle='#777777';ctx.font='9px Courier New';ctx.textAlign='left';
-      ctx.fillText('Model: '+topOf(def,'model',14)+'  |  Comp: '+topOf(def,'comp',12),col2X,barY+22);
+      ctx.fillStyle='#777777';ctx.font='9px Arial';ctx.textAlign='left';
+      ctx.fillText('Model: '+topOf(def,'model',8)+'  |  Comp: '+topOf(def,'comp',6),col2X,barY+22);
       rowY+=52;
     });
   }
@@ -1083,8 +1083,7 @@ function generateDigestReport(){
   if(!cards.length){showToast('No data in the selected week range.');return;}
 
   const weekLabel=rng.from===rng.to?rng.from:(rng.from+' – '+rng.to);
-  const now=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
-  const weekBadge=rng.to+' | '+now;
+  const weekBadge=rng.to;
 
   const W=1100,PAD=32;
   const CARD_H=300,CARD_GAP=16;
@@ -1096,11 +1095,10 @@ function generateDigestReport(){
 
   // header
   ctx.strokeStyle='#000000';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(0,HDR);ctx.lineTo(W,HDR);ctx.stroke();
-  ctx.fillStyle='#000000';ctx.font='bold 22px Courier New';ctx.textAlign='left';
-  ctx.fillText('SMT WEEKLY CUSTOMER DIGEST',PAD,32);
-  ctx.fillStyle='#444444';ctx.font='bold 12px Courier New';
+  ctx.fillStyle='#000000';ctx.font='bold 22px Arial';ctx.textAlign='left';
+  ctx.fillText('SMT WEEKLY YIELD & DPPM TREND',PAD,32);
+  ctx.fillStyle='#444444';ctx.font='bold 12px Arial';
   ctx.fillText((rng.from===rng.to?'Week: ':'Weeks: ')+weekLabel+'   |   '+cards.length+' customer'+(cards.length===1?'':'s'),PAD,53);
-  ctx.textAlign='right';ctx.fillText('Generated '+now,W-PAD,53);
 
   let y=HDR+PAD;
   cards.forEach(({cust,rd},idx)=>{
@@ -1112,8 +1110,8 @@ function generateDigestReport(){
   // footer
   y=TOTAL-FTR+8;
   ctx.strokeStyle='rgba(0,0,0,0.3)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();
-  ctx.fillStyle='#444444';ctx.font='bold 11px Courier New';ctx.textAlign='center';
-  ctx.fillText('SMT Command Center  ·  '+now+'  ·  Confidential',W/2,y+20);
+  ctx.fillStyle='#444444';ctx.font='bold 11px Arial';ctx.textAlign='center';
+  ctx.fillText('SMT Command Center  ·  Confidential',W/2,y+20);
 
   const link=document.createElement('a');
   link.download='SMT_Digest_'+weekLabel.replace(/[^a-zA-Z0-9]/g,'-')+'.png';
