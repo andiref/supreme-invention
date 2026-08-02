@@ -697,33 +697,30 @@ function clampRptWeekRange(changed){
   if(before!==r.from+'|'+r.to)showToast('Report range is limited to '+RPT_MAX_WEEKS+' weeks — adjusted.');
 }
 
-function generateReport(){
-  const allM=calcMetrics(rawDef,prodVol);
-  const rCust=document.getElementById('rpt-cust')?.value||'ALL';
-  const filtMAll=rCust==='ALL'?allM:allM.filter(m=>m.customer===rCust);
-  const filtRawAll=rCust==='ALL'?rawDef:rawDef.filter(d=>d.customer===rCust);
-  const wkFAll=wkSummary(filtMAll);
-  if(!wkFAll.length){showToast('No data. Import production volume first.');return;}
-
-  // resolve the selected FROM/TO week range (defensive: re-validates and
-  // re-clips to RPT_MAX_WEEKS even if the selects' onchange hasn't run yet,
-  // e.g. on the very first render)
+// Resolves the report's FROM/TO week selection into a validated range.
+// Shared by the single-customer report and the multi-customer digest so
+// both always operate on the exact same window of weeks.
+function resolveReportWeekRange(){
   const allWeeks=[...new Set(rawDef.map(d=>d.week))].sort();
+  if(!allWeeks.length)return null;
   const defaultFrom=allWeeks[Math.max(0,allWeeks.length-RPT_MAX_WEEKS)];
   const defaultTo=allWeeks[allWeeks.length-1];
   const rngFromSel=document.getElementById('rpt-week-from')?.value;
   const rngToSel=document.getElementById('rpt-week-to')?.value;
-  const rng=resolveWeekRange(allWeeks,rngFromSel||defaultFrom,rngToSel||defaultTo,'to');
+  return resolveWeekRange(allWeeks,rngFromSel||defaultFrom,rngToSel||defaultTo,'to');
+}
 
+// Computes every metric / chart-data value needed to render one customer's
+// report section for the given resolved week range. Returns null if that
+// customer has no data in range. Shared by the single-customer PNG report
+// and the multi-customer email digest, so the two never drift apart.
+function computeCustomerReportData(rCust,rng,allM,rawAll){
+  const filtMAll=rCust==='ALL'?allM:allM.filter(m=>m.customer===rCust);
+  const filtRawAll=rCust==='ALL'?rawAll:rawAll.filter(d=>d.customer===rCust);
   const filtM=filtMAll.filter(m=>m.week>=rng.from&&m.week<=rng.to);
   const filtRaw=filtRawAll.filter(d=>d.week>=rng.from&&d.week<=rng.to);
   const wkF=wkSummary(filtM);
-  if(!wkF.length){showToast('No data in the selected week range.');return;}
-
-  const weekLabel=rng.from===rng.to?rng.from:(rng.from+' – '+rng.to);
-  const author=document.getElementById('rpt-author')?.value||'SMT Process Engineer';
-  const now=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
-  const custLabel=rCust==='ALL'?'All Customers':rCust;
+  if(!wkF.length)return null;
 
   const tp=filtM.reduce((s,r)=>s+r.totalInsp,0);
   const tf=filtM.reduce((s,r)=>s+r.totalFailed,0);
@@ -749,6 +746,24 @@ function generateReport(){
   const wdf={};wr.forEach(d=>{wdf[d.defect]=(wdf[d.defect]||0)+1;});
   const t3=Object.entries(wdf).sort((a,b)=>b[1]-a[1]).slice(0,3);
   function topOf(def,key,maxLen){const m={};wr.filter(d=>d.defect===def).forEach(d=>{m[d[key]]=(m[d[key]]||0)+1;});const s=Object.entries(m).sort((a,b)=>b[1]-a[1]);if(!s.length)return'-';const name=String(s[0][0]);const ml=maxLen||13;const tname=name.length>ml?name.slice(0,ml-1)+'…':name;return tname+' ('+s[0][1]+')';}
+
+  return{tp,tf,ft,fb,it,ib,oy,ot,ob,od,labels,yVals,dVals,t3,topOf,lw,filtRawCount:filtRaw.length};
+}
+
+function generateReport(){
+  const allM=calcMetrics(rawDef,prodVol);
+  const rCust=document.getElementById('rpt-cust')?.value||'ALL';
+  const rng=resolveReportWeekRange();
+  if(!rng){showToast('No data. Import production volume first.');return;}
+  const rd=computeCustomerReportData(rCust,rng,allM,rawDef);
+  if(!rd){showToast('No data in the selected week range.');return;}
+  const{tp,tf,ft,fb,it,ib,oy,ot,ob,od,labels,yVals,dVals,t3,topOf,lw,filtRawCount}=rd;
+
+  const weekLabel=rng.from===rng.to?rng.from:(rng.from+' – '+rng.to);
+  const author=document.getElementById('rpt-author')?.value||'SMT Process Engineer';
+  const now=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+  const custLabel=rCust==='ALL'?'All Customers':rCust;
+
 
   // Canvas — dark theme
   const W=1100, PAD=32;
@@ -916,10 +931,192 @@ function generateReport(){
   ctx.fillStyle='#444444';ctx.font='bold 12px Courier New';ctx.textAlign='center';
   ctx.fillText('SMT Command Center  ·  '+now+'  ·  Confidential',W/2,y+18);
   ctx.fillStyle='#000000';ctx.font='bold 11px Courier New';
-  ctx.fillText('Yield ≥'+TY+'%  |  DPPM ≤'+fmt(TD)+'  |  '+filtRaw.length.toLocaleString()+' defect records',W/2,y+36);
+  ctx.fillText('Yield ≥'+TY+'%  |  DPPM ≤'+fmt(TD)+'  |  '+filtRawCount.toLocaleString()+' defect records',W/2,y+36);
 
   const link=document.createElement('a');
   link.download='SMT_'+custLabel.replace(/[^a-zA-Z0-9]/g,'-')+'_'+weekLabel.replace(/[^a-zA-Z0-9]/g,'-')+'.png';
+  link.href=cv.toDataURL('image/png');link.click();
+}
+
+// ═══════════════════════════════════════════════════════
+// MULTI-CUSTOMER EMAIL DIGEST — one compact card per customer
+// (identity/KPIs | Top-3 defects with proportional bars | mini trend
+// charts), stacked vertically into a single PNG sized for one email.
+// Built on the same computeCustomerReportData()/resolveReportWeekRange()
+// used by the single-customer report above, so the numbers always match.
+// ═══════════════════════════════════════════════════════
+const DIGEST_COLORS=CC; // reuse the app's existing color palette, one per customer, cycling if there are more customers than colors
+const DIGEST_BAR_COLORS=['#dc2626','#f59e0b','#eab308']; // rank 1/2/3 — red, orange, yellow, matches the mockup
+
+function drawDigestMiniChart(ctx,ox,oy,ow,oh,vals,labels,target,targColor,isYield,title){
+  const PL=44,PR=8,PT=16,PB=16;
+  const pw=ow-PL-PR,ph=oh-PT-PB;
+  const have=vals.filter(v=>v!=null);
+  if(!have.length){
+    ctx.fillStyle='rgba(0,0,0,0.03)';rrect(ctx,ox,oy,ow,oh,5);ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,0.15)';ctx.lineWidth=1;rrect(ctx,ox,oy,ow,oh,5);ctx.stroke();
+    ctx.fillStyle='#333333';ctx.font='bold 9px Courier New';ctx.textAlign='left';ctx.fillText(title,ox+8,oy+11);
+    ctx.fillStyle='#999999';ctx.font='9px Courier New';ctx.textAlign='center';ctx.fillText('No data',ox+ow/2,oy+oh/2+3);
+    return;
+  }
+  const allV=[...have,target||0];
+  const maxV=Math.max(...allV)*(isYield?1.003:1.1);
+  const minV=Math.min(...allV)*(isYield?0.997:0);
+  const xp=i=>ox+PL+(labels.length<2?pw/2:i/(labels.length-1)*pw);
+  const yp=v=>oy+PT+ph-(v-minV)/(maxV-minV||1)*ph;
+
+  ctx.fillStyle='rgba(0,0,0,0.03)';rrect(ctx,ox,oy,ow,oh,5);ctx.fill();
+  ctx.strokeStyle='rgba(0,0,0,0.15)';ctx.lineWidth=1;rrect(ctx,ox,oy,ow,oh,5);ctx.stroke();
+
+  // top/bottom gridlines only — a 5-line grid is too cluttered at this size
+  [0,1].forEach(i=>{
+    const gy=oy+PT+ph*(1-i);
+    ctx.strokeStyle='rgba(0,0,0,0.1)';ctx.lineWidth=0.6;
+    ctx.beginPath();ctx.moveTo(ox+PL,gy);ctx.lineTo(ox+PL+pw,gy);ctx.stroke();
+    const v=minV+(maxV-minV)*i;
+    ctx.fillStyle='#666666';ctx.font='7px Courier New';ctx.textAlign='right';
+    ctx.fillText(isYield?v.toFixed(2)+'%':Math.round(v).toLocaleString(),ox+PL-4,gy+3);
+  });
+
+  if(target>=minV&&target<=maxV){
+    const ty=yp(target);
+    ctx.strokeStyle=targColor;ctx.lineWidth=1;ctx.setLineDash([4,3]);
+    ctx.beginPath();ctx.moveTo(ox+PL,ty);ctx.lineTo(ox+PL+pw,ty);ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  ctx.strokeStyle='#000000';ctx.lineWidth=1.8;ctx.beginPath();
+  vals.forEach((v,i)=>{if(v==null)return;i===0?ctx.moveTo(xp(i),yp(v)):ctx.lineTo(xp(i),yp(v));});
+  ctx.stroke();
+  vals.forEach((v,i)=>{
+    if(v==null)return;
+    ctx.beginPath();ctx.arc(xp(i),yp(v),2.5,0,Math.PI*2);ctx.fillStyle='#000000';ctx.fill();
+  });
+
+  // only label the most recent point, to stay legible at this size
+  const lastIdx=vals.length-1;
+  if(vals[lastIdx]!=null){
+    ctx.fillStyle='#000000';ctx.font='bold 9px Courier New';ctx.textAlign='center';
+    ctx.fillText(isYield?vals[lastIdx].toFixed(2)+'%':Math.round(vals[lastIdx]).toLocaleString(),xp(lastIdx),yp(vals[lastIdx])-6);
+  }
+
+  ctx.fillStyle='#666666';ctx.font='7px Courier New';ctx.textAlign='center';
+  const showEvery=labels.length>6?Math.ceil(labels.length/6):1;
+  labels.forEach((l,i)=>{if(i%showEvery===0||i===labels.length-1)ctx.fillText(l,xp(i),oy+PT+ph+11);});
+
+  ctx.fillStyle='#333333';ctx.font='bold 9px Courier New';ctx.textAlign='left';
+  ctx.fillText(title,ox+8,oy+11);
+}
+
+function drawDigestCard(ctx,x0,y0,w,h,custName,rd,color,weekBadge){
+  const{oy,od,t3,topOf,labels,yVals,dVals}=rd;
+
+  // card border + left accent bar (customer color, for fast visual scanning
+  // down a long multi-customer digest)
+  ctx.strokeStyle='rgba(0,0,0,0.12)';ctx.lineWidth=1;rrect(ctx,x0,y0,w,h,6);ctx.stroke();
+  ctx.fillStyle=color;rrect(ctx,x0,y0,5,h,2);ctx.fill();
+
+  const col1X=x0+24,col1W=185;
+  const col2X=col1X+col1W+24,col2W=300;
+  const col3X=col2X+col2W+24,col3W=(x0+w)-col3X-8;
+
+  // ---- Column 1: identity + the two headline KPIs ----
+  ctx.textAlign='left';
+  ctx.fillStyle='#888888';ctx.font='bold 9px Courier New';ctx.fillText('WEEKLY SMT REPORT',col1X,y0+22);
+  ctx.fillStyle='#000000';ctx.font='bold 18px Courier New';
+  ctx.fillText(custName.length>16?custName.slice(0,15)+'…':custName,col1X,y0+44);
+  ctx.fillStyle='#666666';ctx.font='bold 10px Courier New';ctx.fillText(weekBadge,col1X,y0+60);
+
+  ctx.fillStyle='#888888';ctx.font='bold 9px Courier New';ctx.fillText('OVERALL YIELD',col1X,y0+106);
+  ctx.fillStyle='#000000';ctx.font='bold 21px Courier New';ctx.fillText(oy.toFixed(3)+'%',col1X,y0+128);
+  ctx.fillStyle='#888888';ctx.font='9px Courier New';ctx.fillText('Target: '+TY+'%',col1X,y0+142);
+
+  ctx.fillStyle='#888888';ctx.font='bold 9px Courier New';ctx.fillText('DPPM',col1X,y0+172);
+  ctx.fillStyle='#000000';ctx.font='bold 21px Courier New';ctx.fillText(Math.round(od).toLocaleString(),col1X,y0+194);
+  ctx.fillStyle='#888888';ctx.font='9px Courier New';ctx.fillText('Limit: '+fmt(TD),col1X,y0+208);
+
+  // ---- Column 2: Top 3 defects — proportional bars so the size of #1
+  // relative to #2/#3 is visible at a glance, not just three numbers ----
+  ctx.fillStyle='#888888';ctx.font='bold 9px Courier New';ctx.fillText('TOP 3 DEFECTS',col2X,y0+20);
+  ctx.strokeStyle='rgba(0,0,0,0.15)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(col2X,y0+26);ctx.lineTo(col2X+col2W,y0+26);ctx.stroke();
+
+  if(!t3.length){
+    ctx.fillStyle='#999999';ctx.font='10px Courier New';ctx.textAlign='left';
+    ctx.fillText('No defects recorded this period.',col2X,y0+50);
+  }else{
+    const maxCount=t3[0][1];
+    let rowY=y0+46;
+    t3.forEach(([def,cnt],i)=>{
+      ctx.fillStyle='#000000';ctx.font='bold 12px Courier New';ctx.textAlign='left';
+      ctx.fillText((i+1)+'. '+(def.length>20?def.slice(0,19)+'…':def),col2X,rowY);
+      ctx.textAlign='right';ctx.fillText(String(cnt),col2X+col2W,rowY);
+
+      const barY=rowY+6,barH=8;
+      ctx.fillStyle='rgba(0,0,0,0.08)';rrect(ctx,col2X,barY,col2W,barH,3);ctx.fill();
+      const bw=Math.max(4,col2W*(cnt/maxCount));
+      ctx.fillStyle=DIGEST_BAR_COLORS[i]||'#999999';rrect(ctx,col2X,barY,bw,barH,3);ctx.fill();
+
+      ctx.fillStyle='#777777';ctx.font='9px Courier New';ctx.textAlign='left';
+      ctx.fillText('Model: '+topOf(def,'model',14)+'  |  Comp: '+topOf(def,'comp',12),col2X,barY+22);
+      rowY+=52;
+    });
+  }
+
+  // ---- Column 3: mini Yield + DPPM trend charts ----
+  const mcH=(h-24)/2-4;
+  drawDigestMiniChart(ctx,col3X,y0+8,col3W,mcH,yVals,labels,TY,'#16a34a',true,'Yield Trend');
+  drawDigestMiniChart(ctx,col3X,y0+8+mcH+8,col3W,mcH,dVals,labels,TD,'#dc2626',false,'DPPM Trend');
+}
+
+function generateDigestReport(){
+  const allM=calcMetrics(rawDef,prodVol);
+  const rng=resolveReportWeekRange();
+  if(!rng){showToast('No data. Import production volume first.');return;}
+
+  const customers=[...new Set(rawDef.map(d=>d.customer))].sort();
+  const cards=[];
+  customers.forEach(cust=>{
+    const rd=computeCustomerReportData(cust,rng,allM,rawDef);
+    if(rd)cards.push({cust,rd});
+  });
+  if(!cards.length){showToast('No data in the selected week range.');return;}
+
+  const weekLabel=rng.from===rng.to?rng.from:(rng.from+' – '+rng.to);
+  const now=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+  const weekBadge=rng.to+' | '+now;
+
+  const W=1100,PAD=32;
+  const CARD_H=300,CARD_GAP=16;
+  const HDR=64,FTR=44;
+  const TOTAL=HDR+cards.length*(CARD_H+CARD_GAP)-CARD_GAP+FTR+PAD*2;
+
+  const cv=document.createElement('canvas');cv.width=W;cv.height=TOTAL;
+  const ctx=cv.getContext('2d');
+
+  // header
+  ctx.strokeStyle='#000000';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(0,HDR);ctx.lineTo(W,HDR);ctx.stroke();
+  ctx.fillStyle='#000000';ctx.font='bold 22px Courier New';ctx.textAlign='left';
+  ctx.fillText('SMT WEEKLY CUSTOMER DIGEST',PAD,32);
+  ctx.fillStyle='#444444';ctx.font='bold 12px Courier New';
+  ctx.fillText((rng.from===rng.to?'Week: ':'Weeks: ')+weekLabel+'   |   '+cards.length+' customer'+(cards.length===1?'':'s'),PAD,53);
+  ctx.textAlign='right';ctx.fillText('Generated '+now,W-PAD,53);
+
+  let y=HDR+PAD;
+  cards.forEach(({cust,rd},idx)=>{
+    const color=DIGEST_COLORS[idx%DIGEST_COLORS.length];
+    drawDigestCard(ctx,PAD,y,W-PAD*2,CARD_H,cust,rd,color,weekBadge);
+    y+=CARD_H+CARD_GAP;
+  });
+
+  // footer
+  y=TOTAL-FTR+8;
+  ctx.strokeStyle='rgba(0,0,0,0.3)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();
+  ctx.fillStyle='#444444';ctx.font='bold 11px Courier New';ctx.textAlign='center';
+  ctx.fillText('SMT Command Center  ·  '+now+'  ·  Confidential',W/2,y+20);
+
+  const link=document.createElement('a');
+  link.download='SMT_Digest_'+weekLabel.replace(/[^a-zA-Z0-9]/g,'-')+'.png';
   link.href=cv.toDataURL('image/png');link.click();
 }
 
