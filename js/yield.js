@@ -1057,9 +1057,15 @@ function drawDigestCard(ctx,x0,y0,w,h,custName,rd,color,weekBadge){
       const bw=Math.max(4,col2W*(cnt/maxCount));
       ctx.fillStyle=DIGEST_BAR_COLORS[i]||'#999999';rrect(ctx,col2X,barY,bw,barH,3);ctx.fill();
 
-      ctx.fillStyle='#777777';ctx.font='9px Arial';ctx.textAlign='left';
-      ctx.fillText('Model: '+topOf(def,'model',8)+'  |  Comp: '+topOf(def,'comp',6),col2X,barY+22);
-      rowY+=52;
+      // Top contributing model/component — bold and on their own lines so
+      // they're actually legible, using the room previously left empty
+      // below the bar.
+      ctx.textAlign='left';
+      ctx.fillStyle='#555555';ctx.font='bold 10px Arial';ctx.fillText('TOP Contr. Model:',col2X,barY+26);
+      ctx.fillStyle='#000000';ctx.font='bold 10px Arial';ctx.fillText(topOf(def,'model',12),col2X+94,barY+26);
+      ctx.fillStyle='#555555';ctx.font='bold 10px Arial';ctx.fillText('TOP Contr. Comp:',col2X,barY+40);
+      ctx.fillStyle='#000000';ctx.font='bold 10px Arial';ctx.fillText(topOf(def,'comp',12),col2X+94,barY+40);
+      rowY+=64;
     });
   }
 
