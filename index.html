@@ -300,8 +300,14 @@
       <div class="fl"><div class="fl-lbl">CUSTOMER</div><select id="rpt-cust" style="width:auto;"></select></div>
       <button class="btn bb" style="padding:8px 18px;font-size:12px;" onclick="generateReport()">📸 GENERATE &amp; DOWNLOAD</button>
     </div>
-    <div style="border-top:1px solid rgba(147,197,253,0.25);margin:12px 0 10px;padding-top:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-      <div style="font-size:11px;color:#93c5fd;">📮 Or generate one PNG covering <b>every customer</b>, stacked — sized for a single email digest. Uses the same week range above.</div>
+    <div style="border-top:1px solid rgba(147,197,253,0.25);margin:12px 0 10px;padding-top:10px;">
+      <div style="font-size:11px;color:#93c5fd;margin-bottom:8px;">📮 Or generate one PNG covering selected customers, stacked — sized for a single email digest. Uses the same week range above.</div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
+        <div class="fl-lbl" style="margin:0;">CUSTOMERS TO INCLUDE</div>
+        <a href="#" onclick="setDigestCustomers(true);return false;" style="font-size:10px;color:#93c5fd;">Select all</a>
+        <a href="#" onclick="setDigestCustomers(false);return false;" style="font-size:10px;color:#93c5fd;">Select none</a>
+      </div>
+      <div id="digest-cust-picker" style="max-height:120px;overflow-y:auto;background:rgba(0,0,0,0.15);border-radius:6px;padding:8px 12px;margin-bottom:10px;display:flex;flex-wrap:wrap;gap:6px 18px;"></div>
       <button class="btn bb" style="padding:8px 18px;font-size:12px;" onclick="generateDigestReport()">📧 GENERATE CUSTOMER DIGEST</button>
     </div>
   </div>
