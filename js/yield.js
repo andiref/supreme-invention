@@ -1028,7 +1028,7 @@ function drawDigestCard(ctx,x0,y0,w,h,custName,rd,color,weekBadge){
   ctx.fillStyle='#666666';ctx.font='bold 10px Arial';ctx.fillText(weekBadge,col1X,y0+60);
 
   ctx.fillStyle='#888888';ctx.font='bold 9px Arial';ctx.fillText('OVERALL YIELD',col1X,y0+106);
-  ctx.fillStyle='#000000';ctx.font='bold 21px Arial';ctx.fillText(oy.toFixed(3)+'%',col1X,y0+128);
+  ctx.fillStyle='#000000';ctx.font='bold 21px Arial';ctx.fillText(oy.toFixed(2)+'%',col1X,y0+128);
   ctx.fillStyle='#888888';ctx.font='9px Arial';ctx.fillText('Target: '+TY+'%',col1X,y0+142);
 
   ctx.fillStyle='#888888';ctx.font='bold 9px Arial';ctx.fillText('DPPM',col1X,y0+172);
