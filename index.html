@@ -297,7 +297,7 @@
       <div class="fl"><div class="fl-lbl">TO WEEK</div><select id="rpt-week-to" onchange="clampRptWeekRange('to')" style="width:auto;"></select></div>
       <div style="font-size:9px;color:#64748b;align-self:center;padding-bottom:8px;">max 11 weeks</div>
       <div class="fl"><div class="fl-lbl">PREPARED BY</div><input id="rpt-author" placeholder="Your name" style="width:150px;"/></div>
-      <div class="fl"><div class="fl-lbl">CUSTOMER</div><select id="rpt-cust" style="width:auto;"></select></div>
+      <div class="fl"><div class="fl-lbl">CUSTOMER</div><select id="rpt-cust" onchange="renderReport()" style="width:auto;"></select></div>
       <button class="btn bb" style="padding:8px 18px;font-size:12px;" onclick="generateReport()">📸 GENERATE &amp; DOWNLOAD</button>
     </div>
     <div style="border-top:1px solid rgba(147,197,253,0.25);margin:12px 0 10px;padding-top:10px;">
@@ -310,6 +310,9 @@
       <div id="digest-cust-picker" style="max-height:120px;overflow-y:auto;background:rgba(0,0,0,0.15);border-radius:6px;padding:8px 12px;margin-bottom:10px;display:flex;flex-wrap:wrap;gap:6px 18px;"></div>
       <button class="btn bb" style="padding:8px 18px;font-size:12px;" onclick="generateDigestReport()">📧 GENERATE CUSTOMER DIGEST</button>
     </div>
+  </div>
+  <div style="display:flex;justify-content:flex-end;margin-bottom:2px;">
+    <button class="btn bg" style="padding:8px 18px;font-size:12px;" onclick="exportCapaExcel()">📊 EXPORT CAPA TO EXCEL</button>
   </div>
   <div id="report-content"></div>
 </div>
