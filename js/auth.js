@@ -1,6 +1,7 @@
 // ─── STATE ──────────────────────────────────────────────────────────
         var currentUser = null;
         var equipment = {};
+        var capaData = {}; // smt_capa — CAPA report entries, keyed by customer+defect (see capaKey() in yield.js)
         var currentView = 'yield';
         var toastTimer;
         var confirmCallback = null;
@@ -127,6 +128,7 @@
         var equipmentRef = db.ref('smt_equipment');
         var defectsRef = db.ref('smt_defects');
         var prodVolRef = db.ref('smt_prodvol');
+        var capaRef = db.ref('smt_capa');
 
         // (No "does a user exist yet" check needed — there's exactly one
         // owner, verified server-side against OWNER_EMAIL on every login.)

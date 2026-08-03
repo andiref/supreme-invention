@@ -604,6 +604,261 @@ function showLibDetail(d){
 }
 
 // ═══════════════════════════════════════════════════════
+// CAPA TRACKER — per customer, top-3-defect root-cause/corrective-action log
+// One entry per (customer, defect), keyed via capaKey() below. Entries are
+// persistent: created on first save, then upserted every time that same
+// defect resurfaces for that customer — so filling it in once and updating
+// its Monitoring status as you follow up is the normal flow, not re-entry
+// from scratch each report. synced live via capaRef (see auth.js/ui.js).
+// ═══════════════════════════════════════════════════════
+const CAPA_STATUSES=['Open','Monitoring','Effective','Closed'];
+function capaStatusColor(s){return {'Open':'#ef4444','Monitoring':'#f59e0b','Effective':'#14b8a6','Closed':'#22c55e'}[s]||'#64748b';}
+
+// Mirrors sanitizeKey() in api/_shared.js exactly — MUST stay in sync so a
+// record saved server-side is always found again under the same key.
+function capaSanitizeKey(str,maxLen){return String(str||'').replace(/[.#$[\]/]/g,'').trim().slice(0,maxLen);}
+function capaKey(customer,defect){return capaSanitizeKey(customer,60)+'__'+capaSanitizeKey(defect,80);}
+
+// Which CAPA card (if any) currently has its fields open for editing.
+// Null = nothing being edited. Only one at a time, same as equipment.js.
+let editingCapaKey=null;
+
+// For a given customer's raw rows, maps week -> that week's own top-3
+// defect names. Computed once per customer and reused per-defect below,
+// rather than re-scanning all weeks for every defect ("chronic" check).
+function buildWeeklyTop3Map(custRaw){
+  const weeks=[...new Set(custRaw.map(d=>d.week))];
+  const map={};
+  weeks.forEach(w=>{
+    const m={};
+    custRaw.filter(d=>d.week===w).forEach(d=>{m[d.defect]=(m[d.defect]||0)+1;});
+    map[w]=Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,3).map(e=>e[0]);
+  });
+  return map;
+}
+function chronicWeeksFor(weeklyTop3Map,def){return Object.values(weeklyTop3Map).filter(arr=>arr.includes(def)).length;}
+
+// Builds the card list for one customer: this period's top-3 (ranked,
+// colored) PLUS any previously-saved CAPA entries for that customer that
+// are still open (not marked Closed) but have since dropped out of the
+// current top-3 — so a defect never silently disappears from the tracker
+// just because it wasn't the worst one this particular week.
+function getCustomerCapaCards(cust,rng,allM){
+  const cd=computeCustomerReportData(cust,rng,allM,rawDef);
+  const t3=cd?cd.t3:[];
+  const cards=t3.map(([def,cnt],i)=>({defect:def,count:cnt,rank:i+1,key:capaKey(cust,def)}));
+  const seen=new Set(cards.map(c=>c.defect));
+  Object.keys(capaData).forEach(k=>{
+    const rec=capaData[k];
+    if(!rec||rec.customer!==cust)return;
+    if(seen.has(rec.defect))return;
+    if(rec.monitoring==='Closed')return;
+    cards.push({defect:rec.defect,count:null,rank:null,key:k});
+    seen.add(rec.defect);
+  });
+  return cards;
+}
+
+function renderCapaCard(cust,card,weeklyTop3Map){
+  const rec=capaData[card.key]||{};
+  const lib=LIB.find(l=>l.type===card.defect);
+  const isEditing=editingCapaKey===card.key;
+  const rankColors=['#ef4444','#f59e0b','#22c55e'];
+  const bc=card.rank?rankColors[card.rank-1]:'#64748b';
+  const chronic=chronicWeeksFor(weeklyTop3Map,card.defect);
+  const mon=rec.monitoring||'Open';
+  const monSelect=(cls)=>`<select class="${cls}" data-customer="${esc(cust)}" data-defect="${esc(card.defect)}" style="width:auto;font-size:10px;background:${capaStatusColor(mon)}20;border:1px solid ${capaStatusColor(mon)}40;color:${capaStatusColor(mon)};">${CAPA_STATUSES.map(s=>`<option${s===mon?' selected':''}>${s}</option>`).join('')}</select>`;
+
+  const headerRight=`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+      ${card.rank?`<span style="font-size:18px;font-weight:700;color:${bc};">${card.count} defects</span>`:badge('carried forward','#64748b')}
+      ${chronic>=3?badge('🚨 '+chronic+' wks in Top 3','#ef4444'):''}
+      ${isEditing?'':monSelect('capa-mon-quick')}
+    </div>`;
+
+  let body;
+  if(isEditing){
+    body=`
+      ${lib?`<div style="font-size:10px;background:#060a12;border:1px solid #1e293b;border-radius:4px;padding:7px 11px;margin-bottom:10px;color:#94a3b8;">
+        <span style="color:#3b82f6;font-weight:700;">TEMPLATE RC:</span> ${esc(lib.whys[4].replace(/^RC:\s*/,''))} <a href="#" class="capa-tmpl-rc-btn" style="color:#3b82f6;">↪ use</a><br/>
+        <span style="color:#22c55e;font-weight:700;">TEMPLATE CA:</span> ${lib.actions.slice(0,2).map(a=>'→ '+esc(a)).join(' ')} <a href="#" class="capa-tmpl-ca-btn" style="color:#22c55e;">↪ use</a>
+      </div>`:''}
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <div class="fl" style="flex:2;min-width:220px;"><div class="fl-lbl">ROOT CAUSE</div><textarea rows="2" class="capa-rc" placeholder="Enter root cause...">${esc(rec.rootCause||'')}</textarea></div>
+        <div class="fl" style="flex:2;min-width:220px;"><div class="fl-lbl">CORRECTIVE ACTION</div><textarea rows="2" class="capa-ca" placeholder="Enter corrective action...">${esc(rec.correctiveAction||'')}</textarea></div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;">
+        <div class="fl" style="max-width:160px;"><div class="fl-lbl">DUE DATE</div><input type="date" class="capa-due" value="${esc(rec.dueDate||'')}"/></div>
+        <div class="fl" style="max-width:200px;"><div class="fl-lbl">PIC</div><input type="text" class="capa-pic" placeholder="Person in charge" value="${esc(rec.pic||'')}"/></div>
+        <div class="fl" style="max-width:160px;"><div class="fl-lbl">MONITORING</div><select class="capa-mon">${CAPA_STATUSES.map(s=>`<option${s===mon?' selected':''}>${s}</option>`).join('')}</select></div>
+      </div>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn bb capa-save-btn">💾 Save</button>
+        <button class="btn bx capa-cancel-btn">✕ Cancel</button>
+        ${rec.updated?`<button class="btn br capa-delete-btn" style="margin-left:auto;">🗑 Clear entry</button>`:''}
+      </div>`;
+  }else{
+    body=`
+      ${rec.rootCause?`<div style="font-size:11px;color:#e2e8f0;margin-top:6px;">🔍 <b>RC:</b> ${esc(rec.rootCause)}</div>`:`<div style="font-size:11px;color:#64748b;margin-top:6px;">No root cause documented yet.</div>`}
+      ${rec.correctiveAction?`<div style="font-size:11px;color:#e2e8f0;margin-top:3px;">✅ <b>CA:</b> ${esc(rec.correctiveAction)}</div>`:''}
+      <div style="font-size:10px;color:#94a3b8;margin-top:6px;">📅 Due: ${esc(rec.dueDate||'—')} &nbsp;·&nbsp; 👤 PIC: ${esc(rec.pic||'—')}${rec.updated?` &nbsp;·&nbsp; 🕒 Updated ${new Date(rec.updated).toLocaleDateString()}`:''}</div>
+      <button class="btn bx capa-edit-toggle-btn" style="margin-top:10px;font-size:10px;padding:6px 12px;">✏️ Fill / Edit</button>`;
+  }
+
+  return `<div class="card" style="border-left:3px solid ${bc};" data-capa-key="${card.key}" data-customer="${esc(cust)}" data-defect="${esc(card.defect)}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
+      <span style="font-weight:700;font-size:13px;">${lib?.icon||'🔧'} ${card.rank?'#'+card.rank+' ':''}${esc(card.defect)}</span>
+      ${headerRight}
+    </div>
+    ${body}
+  </div>`;
+}
+
+function renderCustomerCapaSection(cust,rng,allM){
+  const cards=getCustomerCapaCards(cust,rng,allM);
+  if(!cards.length)return'';
+  const custRaw=rawDef.filter(d=>d.customer===cust);
+  const weeklyTop3Map=buildWeeklyTop3Map(custRaw);
+  const cd=computeCustomerReportData(cust,rng,allM,rawDef);
+  return `<div class="dk">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
+      <span style="font-weight:700;font-size:13px;color:#93c5fd;">🏭 ${esc(cust)}</span>
+      <span style="font-size:10px;color:#64748b;">${cd?cd.filtRawCount:0} defect record(s) in range</span>
+    </div>
+    ${cards.map(c=>renderCapaCard(cust,c,weeklyTop3Map)).join('')}
+  </div>`;
+}
+
+function renderCapaTracker(rng,allM,rCust){
+  const custList=rCust==='ALL'?[...new Set(rawDef.map(d=>d.customer))].sort():[rCust];
+  const sections=custList.map(c=>renderCustomerCapaSection(c,rng,allM)).filter(Boolean).join('');
+  if(!sections)return`<div class="card" style="text-align:center;padding:40px;color:#64748b;">
+      <div style="font-size:32px;margin-bottom:10px;">🗂️</div>
+      No defects to track for the selected customer/week range.
+    </div>`;
+  return sections;
+}
+
+// Attaches all the CAPA card interactions after report-content's innerHTML
+// is (re)written — same delegated-listeners-after-render pattern used by
+// renderEquipment() in equipment.js.
+function wireCapaHandlers(){
+  document.querySelectorAll('.capa-edit-toggle-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{editingCapaKey=btn.closest('[data-capa-key]').getAttribute('data-capa-key');renderReport();});
+  });
+  document.querySelectorAll('.capa-cancel-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{editingCapaKey=null;renderReport();});
+  });
+  document.querySelectorAll('.capa-tmpl-rc-btn').forEach(btn=>{
+    btn.addEventListener('click',e=>{
+      e.preventDefault();
+      const card=btn.closest('[data-capa-key]');
+      const lib=LIB.find(l=>l.type===card.getAttribute('data-defect'));
+      const el=card.querySelector('.capa-rc');
+      if(lib&&el)el.value=lib.whys[4].replace(/^RC:\s*/,'');
+    });
+  });
+  document.querySelectorAll('.capa-tmpl-ca-btn').forEach(btn=>{
+    btn.addEventListener('click',e=>{
+      e.preventDefault();
+      const card=btn.closest('[data-capa-key]');
+      const lib=LIB.find(l=>l.type===card.getAttribute('data-defect'));
+      const el=card.querySelector('.capa-ca');
+      if(lib&&el)el.value=lib.actions.join('; ');
+    });
+  });
+  document.querySelectorAll('.capa-save-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const card=btn.closest('[data-capa-key]');
+      const customer=card.getAttribute('data-customer');
+      const defect=card.getAttribute('data-defect');
+      const rootCause=card.querySelector('.capa-rc').value.trim();
+      const correctiveAction=card.querySelector('.capa-ca').value.trim();
+      const dueDate=card.querySelector('.capa-due').value;
+      const pic=card.querySelector('.capa-pic').value.trim();
+      const monitoring=card.querySelector('.capa-mon').value;
+      if(!currentUser){showToast('Not logged in');return;}
+      btn.disabled=true;btn.textContent='Saving…';
+      fetch('/api/capa',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-User-Email':currentUser.email},
+        body:JSON.stringify({action:'save',customer,defect,rootCause,correctiveAction,dueDate,pic,monitoring})
+      }).then(r=>r.json()).then(d=>{
+        if(d.ok){editingCapaKey=null;showToast('CAPA saved ✓');renderReport();}
+        else{btn.disabled=false;btn.textContent='💾 Save';showToast('Error: '+d.error);}
+      }).catch(()=>{btn.disabled=false;btn.textContent='💾 Save';showToast('Network error');});
+    });
+  });
+  document.querySelectorAll('.capa-delete-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const card=btn.closest('[data-capa-key]');
+      const customer=card.getAttribute('data-customer');
+      const defect=card.getAttribute('data-defect');
+      showConfirm('Clear this CAPA entry?','This removes the root cause, corrective action, and monitoring status logged for this defect. This cannot be undone.',()=>{
+        if(!currentUser){showToast('Not logged in');return;}
+        fetch('/api/capa',{
+          method:'POST',
+          headers:{'Content-Type':'application/json','X-User-Email':currentUser.email},
+          body:JSON.stringify({action:'delete',customer,defect})
+        }).then(r=>r.json()).then(d=>{
+          if(d.ok){editingCapaKey=null;showToast('Cleared');renderReport();}
+          else showToast('Error: '+d.error);
+        }).catch(()=>showToast('Network error'));
+      },'Clear 🗑️');
+    });
+  });
+  document.querySelectorAll('.capa-mon-quick').forEach(sel=>{
+    sel.addEventListener('change',()=>{
+      const customer=sel.getAttribute('data-customer');
+      const defect=sel.getAttribute('data-defect');
+      if(!currentUser){showToast('Not logged in');return;}
+      fetch('/api/capa',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-User-Email':currentUser.email},
+        body:JSON.stringify({action:'save',customer,defect,monitoring:sel.value})
+      }).then(r=>r.json()).then(d=>{if(d.ok)showToast('Status updated ✓');else showToast('Error: '+d.error);})
+      .catch(()=>showToast('Network error'));
+    });
+  });
+}
+
+// Exports the CAPA tracker exactly as currently filtered (customer + week
+// range selected above) to a downloadable .xlsx via SheetJS.
+function exportCapaExcel(){
+  if(typeof XLSX==='undefined'){showToast('Excel library not loaded');return;}
+  const allM=calcMetrics(rawDef,prodVol);
+  const rng=resolveReportWeekRange();
+  if(!rng){showToast('No data to export yet');return;}
+  const rCust=document.getElementById('rpt-cust')?.value||'ALL';
+  const custList=rCust==='ALL'?[...new Set(rawDef.map(d=>d.customer))].sort():[rCust];
+  const rows=[];
+  custList.forEach(cust=>{
+    getCustomerCapaCards(cust,rng,allM).forEach(c=>{
+      const rec=capaData[c.key]||{};
+      rows.push({
+        'Customer':cust,
+        'Rank':c.rank||'Carried forward',
+        'Defect':c.defect,
+        'Occurrences (in range)':c.count===null?'':c.count,
+        'Root Cause':rec.rootCause||'',
+        'Corrective Action':rec.correctiveAction||'',
+        'Due Date':rec.dueDate||'',
+        'PIC':rec.pic||'',
+        'Monitoring':rec.monitoring||'Open',
+        'Last Updated':rec.updated?new Date(rec.updated).toLocaleString():'',
+        'Updated By':rec.updatedBy||''
+      });
+    });
+  });
+  if(!rows.length){showToast('Nothing to export for the current filters');return;}
+  const ws=XLSX.utils.json_to_sheet(rows);
+  ws['!cols']=[{wch:16},{wch:16},{wch:24},{wch:14},{wch:34},{wch:34},{wch:12},{wch:16},{wch:12},{wch:18},{wch:16}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'CAPA Report');
+  XLSX.writeFile(wb,'CAPA_Report_'+(rng.from||'')+'_to_'+(rng.to||'')+'.xlsx');
+  showToast('Excel file downloaded ✓');
+}
+
+// ═══════════════════════════════════════════════════════
 // RENDER: WEEKLY REPORT TAB
 // ═══════════════════════════════════════════════════════
 function renderReport(){
@@ -616,13 +871,12 @@ function renderReport(){
   const td=wM.reduce((s,r)=>s+r.totalDefects,0);
   const wy=tp?(tp-tf)/tp*100:0;
   const wd=tp?tf/tp*1e6:0;
-  const wD={};rawDef.filter(d=>d.week===lw).forEach(d=>{wD[d.defect]=(wD[d.defect]||0)+1;});
-  const t3=Object.entries(wD).sort((a,b)=>b[1]-a[1]).slice(0,3);
   const wRaw=rawDef.filter(d=>d.week===lw);
   const ss={Morning:0,Afternoon:0,Night:0};wRaw.forEach(d=>ss[d.shift]++);
   const ws=Object.entries(ss).sort((a,b)=>b[1]-a[1])[0];
-  const allWks=[...new Set(rawDef.map(d=>d.week))].sort();
-  function w3(def){return allWks.filter(w=>{const m={};rawDef.filter(d=>d.week===w).forEach(d=>{m[d.defect]=(m[d.defect]||0)+1;});return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,3).map(e=>e[0]).includes(def);}).length;}
+
+  const rng=resolveReportWeekRange();
+  const rCust=document.getElementById('rpt-cust')?.value||'ALL';
 
   document.getElementById('report-content').innerHTML=`
     <div class="dk">
@@ -642,26 +896,13 @@ function renderReport(){
         ${ws?`<div style="background:#ef444410;border:1px solid #ef444450;border-radius:6px;padding:8px 14px;font-size:11px;color:#ef4444;font-weight:700;align-self:center;">🚨 Worst: ${ws[0]} (${ws[1]})</div>`:''}
       </div>
     </div>
-    ${t3.map(([def,cnt],i)=>{
-      const lib=LIB.find(l=>l.type===def);
-      const bc=['#ef4444','#f59e0b','#22c55e'][i];
-      return`<div class="card" style="border-left:3px solid ${bc};">
-        <div style="display:flex;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
-          <span style="font-weight:700;font-size:13px;">${lib?.icon||'🔧'} #${i+1} ${def}</span>
-          <span style="font-size:20px;font-weight:700;color:${bc};">${cnt} defects</span>
-        </div>
-        ${lib?`<div style="font-size:10px;background:#060a12;border:1px solid #1e293b;border-radius:4px;padding:7px 11px;margin-bottom:10px;color:#94a3b8;">
-          <span style="color:#3b82f6;font-weight:700;">TEMPLATE RC: </span>${lib.whys[4]}</div>`:''}
-        <div style="font-size:9px;color:#64748b;margin-bottom:4px;">ACTUAL ROOT CAUSE:</div>
-        <textarea rows="2" style="font-size:10px;" placeholder="Enter root cause..."></textarea>
-        ${lib?`<div style="margin-top:8px;font-size:10px;color:#22c55e;">${lib.actions.slice(0,2).map(a=>`<div>→ ${a}</div>`).join('')}</div>`:''}
-      </div>`;
-    }).join('')}
-    <div class="card">
-      <div class="ct">⚠️ ESCALATION CHECK — ≥3 weeks in Top 3 → escalate to manager</div>
-      ${t3.map(([def])=>{const cnt=w3(def);return`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #1e293b;font-size:11px;flex-wrap:wrap;gap:8px;">
-        <span>${def}</span><span style="font-weight:700;color:${cnt>=3?'#ef4444':'#22c55e'};">${cnt} week(s) in Top 3 ${cnt>=3?'🚨 ESCALATE':'✅ OK'}</span></div>`;}).join('')}
-    </div>`;
+    <div class="dk" style="border-color:#1e3a5f;">
+      <div style="font-size:12px;font-weight:700;color:#3b82f6;">🗂️ CAPA TRACKER — ${rCust==='ALL'?'All customers':esc(rCust)}${rng?` · Top 3 defects (${rng.from} → ${rng.to})`:''}</div>
+      <div style="font-size:10px;color:#64748b;margin-top:4px;">Root Cause · Corrective Action · Due Date · PIC · Monitoring — one entry per customer+defect, carries forward until marked Closed. Change CUSTOMER/FROM/TO above to filter.</div>
+    </div>
+    ${rng?renderCapaTracker(rng,allM,rCust):'<div class="card" style="text-align:center;padding:40px;color:#64748b;">Import defect data first (Yield tab) to build the CAPA tracker.</div>'}`;
+
+  wireCapaHandlers();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -695,6 +936,7 @@ function clampRptWeekRange(changed){
   const r=resolveWeekRange(weeks,fromEl.value,toEl.value,changed);
   fromEl.value=r.from;toEl.value=r.to;
   if(before!==r.from+'|'+r.to)showToast('Report range is limited to '+RPT_MAX_WEEKS+' weeks — adjusted.');
+  renderReport();
 }
 
 // Resolves the report's FROM/TO week selection into a validated range.

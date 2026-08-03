@@ -97,6 +97,10 @@
                 });
                 if (currentView === 'yield') { populateFilters(); renderYield(); }
             });
+            safeOnValue(capaRef, function(snap) {
+                capaData = snap.val() || {};
+                if (currentView === 'report') renderReport();
+            });
         }
 
         // ─── SHOW CONFIRM ────────────────────────────────────────────────────
