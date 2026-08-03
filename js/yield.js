@@ -978,7 +978,39 @@ function computeCustomerReportData(rCust,rng,allM,rawAll){
   const t3=Object.entries(wdf).sort((a,b)=>b[1]-a[1]).slice(0,3);
   function topOf(def,key,maxLen){const m={};wr.filter(d=>d.defect===def).forEach(d=>{m[d[key]]=(m[d[key]]||0)+1;});const s=Object.entries(m).sort((a,b)=>b[1]-a[1]);if(!s.length)return'-';const name=String(s[0][0]);const ml=maxLen||13;const tname=name.length>ml?name.slice(0,ml-1)+'…':name;return tname+' ('+s[0][1]+')';}
 
-  return{tp,tf,ft,fb,it,ib,oy,ot,ob,od,labels,yVals,dVals,t3,topOf,lw,filtRawCount:filtRaw.length};
+  // ---- Digest-only figures ----
+  // The customer digest needs two things decoupled from the FROM/TO range
+  // picked above (that range only drives the CAPA tracker / full report):
+  //   1) headline yield & DPPM for the single latest week (lw), same idea
+  //      as the top-3 defects above — a snapshot, not an average.
+  //   2) a trend series spanning the last RPT_MAX_WEEKS weeks of data
+  //      ending at lw, regardless of how narrow/wide FROM/TO is.
+  // Both are built from filtMAll/filtRawAll (unclipped by rng.from) so a
+  // narrowed FROM week never truncates the digest's snapshot or trend.
+  const wLatest=filtMAll.filter(m=>m.week===lw);
+  const latestTp=wLatest.reduce((s,r)=>s+r.totalInsp,0);
+  const latestTf=wLatest.reduce((s,r)=>s+r.totalFailed,0);
+  const latestFt=wLatest.reduce((s,r)=>s+r.failedTOP,0);
+  const latestFb=wLatest.reduce((s,r)=>s+r.failedBOT,0);
+  const latestIt=wLatest.reduce((s,r)=>s+r.inspTOP,0);
+  const latestIb=wLatest.reduce((s,r)=>s+r.inspBOT,0);
+  const latestOy=latestTp?(latestTp-latestTf)/latestTp*100:0;
+  const latestOt=latestIt?(latestIt-latestFt)/latestIt*100:null;
+  const latestOb=latestIb?(latestIb-latestFb)/latestIb*100:null;
+  const latestOd=latestTp?latestTf/latestTp*1e6:0;
+
+  const custWeeksSorted=[...new Set(filtMAll.map(m=>m.week))].sort();
+  let toIdx=custWeeksSorted.indexOf(lw);
+  if(toIdx===-1)toIdx=custWeeksSorted.length-1;
+  const trendWeeks=toIdx===-1?[]:custWeeksSorted.slice(Math.max(0,toIdx-RPT_MAX_WEEKS+1),toIdx+1);
+  const trendWeekSet=new Set(trendWeeks);
+  const wkT=wkSummary(filtMAll.filter(m=>trendWeekSet.has(m.week)));
+  const trendLabels=wkT.map(w=>{const m=w.week.match(/W(\d+)$/);return m?'WW'+m[1]:w.week;});
+  const trendYVals=wkT.map(w=>w.yieldPct);
+  const trendDVals=wkT.map(w=>w.dppm);
+
+  return{tp,tf,ft,fb,it,ib,oy,ot,ob,od,labels,yVals,dVals,t3,topOf,lw,filtRawCount:filtRaw.length,
+    latestTp,latestTf,latestOy,latestOt,latestOb,latestOd,trendLabels,trendYVals,trendDVals};
 }
 
 function generateReport(){
@@ -1240,7 +1272,12 @@ function drawDigestMiniChart(ctx,ox,oy,ow,oh,vals,labels,target,targColor,isYiel
 }
 
 function drawDigestCard(ctx,x0,y0,w,h,custName,rd,color,weekBadge){
-  const{oy,od,t3,topOf,labels,yVals,dVals}=rd;
+  // Headline KPIs + top-3 reflect the single latest week of the report;
+  // the mini trend charts always span the last RPT_MAX_WEEKS(11) weeks —
+  // see computeCustomerReportData's "Digest-only figures" for how these
+  // are decoupled from the FROM/TO range picker.
+  const{latestOy:oy,latestOd:od,latestTp,t3,topOf,trendLabels:labels,trendYVals:yVals,trendDVals:dVals}=rd;
+  const hasLatest=latestTp>0; // guards against showing a misleading 0%/0 when this customer simply has no records for the latest week
 
   // card border + left accent bar (customer color, for fast visual scanning
   // down a long multi-customer digest)
@@ -1259,12 +1296,12 @@ function drawDigestCard(ctx,x0,y0,w,h,custName,rd,color,weekBadge){
   ctx.fillStyle='#666666';ctx.font='bold 10px Arial';ctx.fillText(weekBadge,col1X,y0+60);
 
   ctx.fillStyle='#888888';ctx.font='bold 9px Arial';ctx.fillText('OVERALL YIELD',col1X,y0+106);
-  ctx.fillStyle='#000000';ctx.font='bold 21px Arial';ctx.fillText(oy.toFixed(2)+'%',col1X,y0+128);
-  ctx.fillStyle='#888888';ctx.font='9px Arial';ctx.fillText('Target: '+TY+'%',col1X,y0+142);
+  ctx.fillStyle='#000000';ctx.font='bold 21px Arial';ctx.fillText(hasLatest?oy.toFixed(2)+'%':'—',col1X,y0+128);
+  ctx.fillStyle='#888888';ctx.font='9px Arial';ctx.fillText(hasLatest?'Target: '+TY+'%':'No data this week',col1X,y0+142);
 
   ctx.fillStyle='#888888';ctx.font='bold 9px Arial';ctx.fillText('DPPM',col1X,y0+172);
-  ctx.fillStyle='#000000';ctx.font='bold 21px Arial';ctx.fillText(Math.round(od).toLocaleString(),col1X,y0+194);
-  ctx.fillStyle='#888888';ctx.font='9px Arial';ctx.fillText('Limit: '+fmt(TD),col1X,y0+208);
+  ctx.fillStyle='#000000';ctx.font='bold 21px Arial';ctx.fillText(hasLatest?Math.round(od).toLocaleString():'—',col1X,y0+194);
+  ctx.fillStyle='#888888';ctx.font='9px Arial';ctx.fillText(hasLatest?'Limit: '+fmt(TD):'',col1X,y0+208);
 
   // ---- Column 2: Top 3 defects — proportional bars so the size of #1
   // relative to #2/#3 is visible at a glance, not just three numbers ----
@@ -1328,7 +1365,11 @@ function generateDigestReport(){
   });
   if(!cards.length){showToast('No data for the selected customers in this week range.');return;}
 
-  const weekLabel=rng.from===rng.to?rng.from:(rng.from+' – '+rng.to);
+  // The digest snapshot (KPIs/top-3) is always the single latest week in
+  // range (rng.to); the FROM week only controls the CAPA tracker elsewhere
+  // on the tab, so it's left out of this header to avoid implying the
+  // digest itself is averaged over that whole span.
+  const weekLabel=rng.to;
   const weekBadge=rng.to;
 
   const W=1100,PAD=32;
@@ -1344,7 +1385,7 @@ function generateDigestReport(){
   ctx.fillStyle='#000000';ctx.font='bold 22px Arial';ctx.textAlign='left';
   ctx.fillText('SMT WEEKLY YIELD & DPPM TREND',PAD,32);
   ctx.fillStyle='#444444';ctx.font='bold 12px Arial';
-  ctx.fillText((rng.from===rng.to?'Week: ':'Weeks: ')+weekLabel+'   |   '+cards.length+' customer'+(cards.length===1?'':'s'),PAD,53);
+  ctx.fillText('Week: '+weekLabel+'  ·  Trend: last '+RPT_MAX_WEEKS+' weeks   |   '+cards.length+' customer'+(cards.length===1?'':'s'),PAD,53);
 
   let y=HDR+PAD;
   cards.forEach(({cust,rd},idx)=>{
