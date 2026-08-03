@@ -139,7 +139,23 @@ function normKey(week,customer,model){
   return n(week)+'|'+n(customer)+'|'+n(model);
 }
 
+// calcMetrics() does an O(distinct week/customer/model combos × rows) scan
+// (a .filter() over the full defect list for every combo) — fine as an
+// occasional cost, but renderReport() now re-runs far more often than it
+// used to (every CAPA save, status change, or filter tweak), and it was
+// recomputing this from scratch every single time even though rawDef/
+// prodVol usually haven't changed between those re-renders. Cache by
+// reference identity: rawDef/prodVol are only ever reassigned wholesale
+// (never mutated in place) when the Firebase listeners get fresh data —
+// see ui.js — so "same references in, same result out" always holds.
+let _calcMetricsCache=null;
 function calcMetrics(dr,pr){
+  if(_calcMetricsCache&&_calcMetricsCache.dr===dr&&_calcMetricsCache.pr===pr)return _calcMetricsCache.result;
+  const result=calcMetricsRaw(dr,pr);
+  _calcMetricsCache={dr,pr,result};
+  return result;
+}
+function calcMetricsRaw(dr,pr){
   const pvByKey=new Map();
   pr.forEach(p=>{
     const k=normKey(p.week,p.customer,p.model);
@@ -643,8 +659,9 @@ function chronicWeeksFor(weeklyTop3Map,def){return Object.values(weeklyTop3Map).
 // are still open (not marked Closed) but have since dropped out of the
 // current top-3 — so a defect never silently disappears from the tracker
 // just because it wasn't the worst one this particular week.
-function getCustomerCapaCards(cust,rng,allM){
-  const cd=computeCustomerReportData(cust,rng,allM,rawDef);
+// Takes the already-computed computeCustomerReportData() result (`cd`) so
+// callers that also need it (filtRawCount, etc.) don't compute it twice.
+function getCustomerCapaCards(cd,cust){
   const t3=cd?cd.t3:[];
   const cards=t3.map(([def,cnt],i)=>({defect:def,count:cnt,rank:i+1,key:capaKey(cust,def)}));
   const seen=new Set(cards.map(c=>c.defect));
@@ -714,11 +731,16 @@ function renderCapaCard(cust,card,weeklyTop3Map){
 }
 
 function renderCustomerCapaSection(cust,rng,allM){
-  const cards=getCustomerCapaCards(cust,rng,allM);
-  if(!cards.length)return'';
-  const custRaw=rawDef.filter(d=>d.customer===cust);
-  const weeklyTop3Map=buildWeeklyTop3Map(custRaw);
   const cd=computeCustomerReportData(cust,rng,allM,rawDef);
+  const cards=getCustomerCapaCards(cd,cust);
+  if(!cards.length)return'';
+  // Scoped to the selected report window (≤RPT_MAX_WEEKS weeks), not the
+  // customer's entire history — history-wide scans here get slower and
+  // slower as more weeks of data pile up, since they'd redo this for every
+  // customer on every render. The "chronic" badge now reflects how often a
+  // defect was Top-3 within the window you're currently looking at.
+  const custRaw=rawDef.filter(d=>d.customer===cust&&d.week>=rng.from&&d.week<=rng.to);
+  const weeklyTop3Map=buildWeeklyTop3Map(custRaw);
   return `<div class="dk">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
       <span style="font-weight:700;font-size:13px;color:#93c5fd;">🏭 ${esc(cust)}</span>
@@ -832,7 +854,8 @@ function exportCapaExcel(){
   const custList=rCust==='ALL'?[...new Set(rawDef.map(d=>d.customer))].sort():[rCust];
   const rows=[];
   custList.forEach(cust=>{
-    getCustomerCapaCards(cust,rng,allM).forEach(c=>{
+    const cd=computeCustomerReportData(cust,rng,allM,rawDef);
+    getCustomerCapaCards(cd,cust).forEach(c=>{
       const rec=capaData[c.key]||{};
       rows.push({
         'Customer':cust,
