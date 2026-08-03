@@ -460,22 +460,6 @@ function renderYield(){
     }
   },50);
 
-  // Breakdown table
-  document.getElementById('tbl-body').innerHTML=filt.length?filt.map((r,i)=>{
-    const ytc=r.yieldTOP!=null?(r.yieldTOP>=TY?'#22c55e':'#ef4444'):'#64748b';
-    const ybc=r.yieldBOT!=null?(r.yieldBOT>=TY?'#22c55e':'#ef4444'):'#64748b';
-    const yoc=r.yieldOk?'#22c55e':'#ef4444';
-    const dc=r.dppmOk?'#22c55e':'#ef4444';
-    return`<tr><td>${r.week}</td><td>${r.customer}</td><td><b>${r.model}</b></td>
-      <td class="num">${fmt(r.inspTOP)}</td><td class="num">${fmt(r.inspBOT)}</td>
-      <td class="num" style="color:#f59e0b;">${r.failedTOP}</td><td class="num" style="color:#a78bfa;">${r.failedBOT}</td>
-      <td class="num" style="color:${ytc};font-weight:700;">${r.yieldTOP!=null?r.yieldTOP.toFixed(3)+'%':'—'}</td>
-      <td class="num" style="color:${ybc};font-weight:700;">${r.yieldBOT!=null?r.yieldBOT.toFixed(3)+'%':'—'}</td>
-      <td class="num" style="color:${yoc};font-weight:700;">${r.yieldOverall.toFixed(3)}%</td>
-      <td class="num" style="color:${dc};font-weight:700;">${Math.round(r.dppm).toLocaleString()}</td>
-      <td>${pdot(r.yieldOk&&r.dppmOk)}</td></tr>`;
-  }).join(''):'<tr><td colspan="12" style="text-align:center;color:#64748b;padding:14px;">No rows to show.</td></tr>';
-
   // Pareto
   const fd=rawDef.filter(d=>(f.week==='ALL'||d.week===f.week)&&(f.cust==='ALL'||d.customer===f.cust)&&(f.model==='ALL'||d.model===f.model));
   const pm={};fd.forEach(d=>{pm[d.defect]=(pm[d.defect]||0)+1;});
@@ -498,24 +482,6 @@ function renderYield(){
       <td>${sstr}</td></tr>`;
   }).join('');
 
-  // Side breakdown
-  const sk=new Set(fd.map(d=>`${d.customer}|${d.model}|${d.side}`));
-  const sr=[];
-  sk.forEach(k=>{
-    const[customer,model,side]=k.split('|');
-    const rows=fd.filter(d=>d.customer===customer&&d.model===model&&d.side===side);
-    const fail=new Set(rows.map(d=>`${d.sn}|${d.side}`)).size;
-    const dm={};rows.forEach(d=>{dm[d.defect]=(dm[d.defect]||0)+1;});
-    const top=Object.entries(dm).sort((a,b)=>b[1]-a[1])[0];
-    sr.push({side,customer,model,total:rows.length,fail,topDef:top?top[0]+' ('+top[1]+')':'—'});
-  });
-  sr.sort((a,b)=>a.model.localeCompare(b.model)||a.side.localeCompare(b.side));
-  document.getElementById('tbl-side').innerHTML=sr.map((r,i)=>`<tr>
-    <td>${badge(r.side,r.side==='TOP'?'#22c55e':'#a78bfa')}</td>
-    <td>${r.customer}</td><td><b>${r.model}</b></td>
-    <td class="num" style="color:#a78bfa;">${r.total}</td>
-    <td class="num" style="color:#f59e0b;font-weight:700;">${r.fail}</td>
-    <td style="color:#94a3b8;font-size:10px;">${r.topDef}</td></tr>`).join('');
 }
 
 // ═══════════════════════════════════════════════════════
