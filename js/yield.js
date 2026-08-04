@@ -976,7 +976,7 @@ function computeCustomerReportData(rCust,rng,allM,rawAll){
   const wr=filtRaw.filter(d=>d.week===lw);
   const wdf={};wr.forEach(d=>{wdf[d.defect]=(wdf[d.defect]||0)+1;});
   const t3=Object.entries(wdf).sort((a,b)=>b[1]-a[1]).slice(0,3);
-  function topOf(def,key,maxLen){const m={};wr.filter(d=>d.defect===def).forEach(d=>{m[d[key]]=(m[d[key]]||0)+1;});const s=Object.entries(m).sort((a,b)=>b[1]-a[1]);if(!s.length)return'-';const name=String(s[0][0]);const ml=maxLen||13;const tname=name.length>ml?name.slice(0,ml-1)+'…':name;return tname+' ('+s[0][1]+')';}
+  function topOf(def,key,maxLen,mctx,maxPx){const m={};wr.filter(d=>d.defect===def).forEach(d=>{m[d[key]]=(m[d[key]]||0)+1;});const s=Object.entries(m).sort((a,b)=>b[1]-a[1]);if(!s.length)return'-';const name=String(s[0][0]);const suffix=' ('+s[0][1]+')';if(mctx&&maxPx){let tname=name;while(tname.length>1&&mctx.measureText(tname+'…'+suffix).width>maxPx){tname=tname.slice(0,-1);}return(tname.length<name.length?tname+'…':tname)+suffix;}const ml=maxLen||13;const tname=name.length>ml?name.slice(0,ml-1)+'…':name;return tname+suffix;}
 
   // ---- Digest-only figures ----
   // The customer digest needs two things decoupled from the FROM/TO range
@@ -1349,12 +1349,15 @@ function drawDigestCard(ctx,x0,y0,w,h,custName,rd,color,weekBadge){
 
       // Top contributing model/component — bold and on their own lines so
       // they're actually legible, using the room previously left empty
-      // below the bar.
+      // below the bar. Truncated to the actual pixel width available
+      // (rather than a fixed character count) so long model/component
+      // names use all the room the column has instead of cutting off early.
+      const contribValX=col2X+94,contribValW=col2X+col2W-contribValX-2;
       ctx.textAlign='left';
       ctx.fillStyle='#555555';ctx.font='bold 10px Arial';ctx.fillText('TOP Contr. Model:',col2X,barY+26);
-      ctx.fillStyle='#000000';ctx.font='bold 10px Arial';ctx.fillText(topOf(def,'model',12),col2X+94,barY+26);
+      ctx.fillStyle='#000000';ctx.font='bold 10px Arial';ctx.fillText(topOf(def,'model',null,ctx,contribValW),contribValX,barY+26);
       ctx.fillStyle='#555555';ctx.font='bold 10px Arial';ctx.fillText('TOP Contr. Comp:',col2X,barY+40);
-      ctx.fillStyle='#000000';ctx.font='bold 10px Arial';ctx.fillText(topOf(def,'comp',12),col2X+94,barY+40);
+      ctx.fillStyle='#000000';ctx.font='bold 10px Arial';ctx.fillText(topOf(def,'comp',null,ctx,contribValW),contribValX,barY+40);
       rowY+=64;
     });
   }
