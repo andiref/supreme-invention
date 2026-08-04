@@ -85,7 +85,7 @@
                     var r = raw[id];
                     return mkRow(r.dtStr, r.customer, r.model, r.sn, r.side, r.comp, r.defect);
                 }).filter(Boolean);
-                if (currentView === 'yield') { populateFilters(); renderYield(); }
+                if (currentView === 'yield') { populateFilters(); renderYield(); loadRecentImports(); }
                 if (currentView === 'time') { populateTimeFilters(); renderTime(); }
                 if (currentView === 'report') { populateRptFilter(); renderReport(); }
             });
@@ -180,7 +180,7 @@
             document.getElementById('tab-report').style.display = v === 'report' ? 'block' : 'none';
 
             if (v === 'equipment') renderEquipment();
-            if (v === 'yield') { populateFilters(); renderYield(); }
+            if (v === 'yield') { populateFilters(); renderYield(); loadRecentImports(); }
             if (v === 'time') { populateTimeFilters(); renderTime(); }
             if (v === 'library') renderLib();
             if (v === 'report') { populateRptFilter(); renderReport(); }
