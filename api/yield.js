@@ -129,6 +129,16 @@ export default async function handler(req, res) {
             const updates = {};   // id -> patch
             const creates = [];   // new records to push
 
+            // Case/whitespace-insensitive match key — MUST stay in sync with
+            // normKey() in js/yield.js, which is what calcMetricsRaw() uses
+            // to join this data against smt_defects. Matching case-sensitively
+            // here let two rows like "CustA" and "custa" get stored as separate
+            // Firebase records that calcMetricsRaw's normalized join then
+            // collapsed into one key anyway — silently dropping whichever
+            // record lost that collision instead of merging into it.
+            const wkKey = (week, customer, model) =>
+                [week, customer, model].map(s => String(s || '').trim().toLowerCase()).join('|');
+
             // Every touched record is tagged with lastImportId (+ which
             // field(s) this specific import changed, and their pre-change
             // values) so "Undo" can revert exactly what this import did —
@@ -136,7 +146,8 @@ export default async function handler(req, res) {
             // brand-new record (createdByImportId matches) is deleted
             // outright on undo instead of "reverted".
             clean.forEach(r => {
-                const match = existingArr.find(p => p.week === r.week && p.customer === r.customer && p.model === r.model);
+                const rKey = wkKey(r.week, r.customer, r.model);
+                const match = existingArr.find(p => wkKey(p.week, p.customer, p.model) === rKey);
                 const field = r.side === 'TOP' ? 'inspTOP' : 'inspBOT';
                 const prevField = field === 'inspTOP' ? 'prevInspTOP' : 'prevInspBOT';
                 if (match) {
@@ -146,7 +157,7 @@ export default async function handler(req, res) {
                     if (!patch.lastImportFields.includes(field)) patch.lastImportFields.push(field);
                     updates[match._id] = patch;
                 } else {
-                    const pending = creates.find(c => c.week === r.week && c.customer === r.customer && c.model === r.model);
+                    const pending = creates.find(c => wkKey(c.week, c.customer, c.model) === rKey);
                     if (pending) pending[field] = r.count;
                     else creates.push({ week: r.week, customer: r.customer, model: r.model, inspTOP: 0, inspBOT: 0, [field]: r.count, created: now, createdByImportId: importId, lastImportId: importId });
                 }
