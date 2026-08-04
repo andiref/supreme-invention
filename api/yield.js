@@ -9,7 +9,7 @@
 
 import {
     jsonResponse, errorResponse, handleOptions,
-    sanitize, sanitizeDate, getToken, fbGet, fbPush, fbUpdate, requireOwner
+    sanitize, sanitizeDate, sanitizeKey, getToken, fbGet, fbPush, fbSet, fbUpdate, fbDelete, requireOwner
 } from './_shared.js';
 
 export default async function handler(req, res) {
@@ -30,6 +30,18 @@ export default async function handler(req, res) {
 
         const action = body.action;
         const now = Date.now();
+
+        // Every importDefects/importProdVol request from one user-initiated
+        // import (i.e. one click of the IMPORT button) carries the same
+        // client-generated importId, even when the client splits a large
+        // file into several sequential batch requests — see
+        // importInBatches() in yield.js. That importId is what "Undo last
+        // import" targets: every row/record touched by an import is tagged
+        // with it, and smt_imports/{importId} accumulates a running summary
+        // across all of that import's batches so the UI can show one entry
+        // ("214 rows imported") instead of one per batch.
+        const importId = sanitizeKey(body.importId || ('auto_' + now), 64);
+        const fileName = sanitize(body.fileName || '', 150);
 
         // ── IMPORT DEFECT ROWS ────────────────────────────────────────────
         // body.rows: [{dtStr, customer, model, sn, side, comp, defect}, ...]
@@ -68,11 +80,28 @@ export default async function handler(req, res) {
                 const s = sig(r);
                 if (seen.has(s)) { duplicates++; continue; }
                 seen.add(s); // also catches duplicates repeated within this same file
-                toImport.push({ ...r, loggedBy: email, created: now });
+                toImport.push({ ...r, loggedBy: email, created: now, importId });
             }
 
             if (toImport.length) await Promise.all(toImport.map(r => fbPush(env, token, 'smt_defects', r)));
-            return jsonResponse(res, { ok: true, count: toImport.length, duplicates });
+
+            // Accumulate this batch into the shared import-log entry (read-modify-write
+            // is safe here because the client sends batches for one import sequentially,
+            // never in parallel — see importInBatches()).
+            if (toImport.length || duplicates) {
+                const prevLog = (await fbGet(env, token, `smt_imports/${importId}`)) || {};
+                await fbSet(env, token, `smt_imports/${importId}`, {
+                    type: 'defects',
+                    fileName: fileName || prevLog.fileName || '',
+                    rowCount: (prevLog.rowCount || 0) + toImport.length,
+                    duplicates: (prevLog.duplicates || 0) + duplicates,
+                    loggedBy: email,
+                    created: prevLog.created || now,
+                    undone: false
+                });
+            }
+
+            return jsonResponse(res, { ok: true, count: toImport.length, duplicates, importId });
         }
 
         // ── IMPORT PRODUCTION VOLUME ─────────────────────────────────────
@@ -100,15 +129,26 @@ export default async function handler(req, res) {
             const updates = {};   // id -> patch
             const creates = [];   // new records to push
 
+            // Every touched record is tagged with lastImportId (+ which
+            // field(s) this specific import changed, and their pre-change
+            // values) so "Undo" can revert exactly what this import did —
+            // but only if nothing has touched the record again since. A
+            // brand-new record (createdByImportId matches) is deleted
+            // outright on undo instead of "reverted".
             clean.forEach(r => {
                 const match = existingArr.find(p => p.week === r.week && p.customer === r.customer && p.model === r.model);
                 const field = r.side === 'TOP' ? 'inspTOP' : 'inspBOT';
+                const prevField = field === 'inspTOP' ? 'prevInspTOP' : 'prevInspBOT';
                 if (match) {
-                    updates[match._id] = { ...(updates[match._id] || {}), [field]: r.count };
+                    const patch = updates[match._id] || { lastImportId: importId, lastImportFields: [], updated: now };
+                    patch[field] = r.count;
+                    patch[prevField] = match[field] || 0;
+                    if (!patch.lastImportFields.includes(field)) patch.lastImportFields.push(field);
+                    updates[match._id] = patch;
                 } else {
                     const pending = creates.find(c => c.week === r.week && c.customer === r.customer && c.model === r.model);
                     if (pending) pending[field] = r.count;
-                    else creates.push({ week: r.week, customer: r.customer, model: r.model, inspTOP: 0, inspBOT: 0, [field]: r.count, created: now });
+                    else creates.push({ week: r.week, customer: r.customer, model: r.model, inspTOP: 0, inspBOT: 0, [field]: r.count, created: now, createdByImportId: importId, lastImportId: importId });
                 }
             });
 
@@ -116,7 +156,90 @@ export default async function handler(req, res) {
                 ...Object.keys(updates).map(id => fbUpdate(env, token, `smt_prodvol/${id}`, updates[id])),
                 ...creates.map(c => fbPush(env, token, 'smt_prodvol', c))
             ]);
-            return jsonResponse(res, { ok: true, updated: Object.keys(updates).length, created: creates.length });
+
+            if (creates.length || Object.keys(updates).length) {
+                const prevLog = (await fbGet(env, token, `smt_imports/${importId}`)) || {};
+                await fbSet(env, token, `smt_imports/${importId}`, {
+                    type: 'prodvol',
+                    fileName: fileName || prevLog.fileName || '',
+                    createdCount: (prevLog.createdCount || 0) + creates.length,
+                    updatedCount: (prevLog.updatedCount || 0) + Object.keys(updates).length,
+                    loggedBy: email,
+                    created: prevLog.created || now,
+                    undone: false
+                });
+            }
+
+            return jsonResponse(res, { ok: true, updated: Object.keys(updates).length, created: creates.length, importId });
+        }
+
+        // ── LIST RECENT IMPORTS ──────────────────────────────────────────
+        // Powers the "Recent Imports" panel — most recent first, capped so
+        // the payload stays small even after months of use.
+        if (action === 'listImports') {
+            const all = (await fbGet(env, token, 'smt_imports')) || {};
+            const list = Object.keys(all)
+                .map(id => ({ importId: id, ...all[id] }))
+                .sort((a, b) => (b.created || 0) - (a.created || 0))
+                .slice(0, 25);
+            return jsonResponse(res, { ok: true, imports: list });
+        }
+
+        // ── UNDO AN IMPORT ────────────────────────────────────────────────
+        // Defects are always append-only, so undoing one is just deleting
+        // every row tagged with that importId — always safe, regardless of
+        // how much has happened since.
+        //
+        // Production volume merges into existing week+customer+model
+        // records, so undo is per-record: a record this import *created*
+        // is deleted outright; a record it merely *updated* has just the
+        // field(s) that import touched reverted to their pre-import values
+        // — but ONLY if lastImportId still matches, i.e. nothing has
+        // written to that record again since. Records a later import has
+        // since touched are left alone and reported back as skipped,
+        // rather than risk clobbering newer legitimate data.
+        if (action === 'undoImport') {
+            const targetId = sanitizeKey(body.importId || '', 64);
+            if (!targetId) return errorResponse(res, 'Missing importId');
+            const log = await fbGet(env, token, `smt_imports/${targetId}`);
+            if (!log) return errorResponse(res, 'Import not found — it may be older than what this app keeps, or already cleared.');
+            if (log.undone) return errorResponse(res, 'This import was already undone.');
+
+            if (log.type === 'defects') {
+                const all = (await fbGet(env, token, 'smt_defects')) || {};
+                const toDelete = Object.keys(all).filter(id => all[id].importId === targetId);
+                await Promise.all(toDelete.map(id => fbDelete(env, token, `smt_defects/${id}`)));
+                await fbUpdate(env, token, `smt_imports/${targetId}`, { undone: true, undoneAt: now });
+                return jsonResponse(res, { ok: true, deleted: toDelete.length, reverted: 0, skipped: 0 });
+            }
+
+            if (log.type === 'prodvol') {
+                const all = (await fbGet(env, token, 'smt_prodvol')) || {};
+                const dels = [], reverts = [];
+                let skipped = 0;
+                Object.keys(all).forEach(id => {
+                    const rec = all[id];
+                    if (rec.lastImportId !== targetId) return; // never touched by this import, or touched again since
+                    if (rec.createdByImportId === targetId) { dels.push(id); return; }
+                    const fields = rec.lastImportFields || [];
+                    if (!fields.length) { skipped++; return; }
+                    const patch = {};
+                    fields.forEach(f => { patch[f] = f === 'inspTOP' ? (rec.prevInspTOP || 0) : (rec.prevInspBOT || 0); });
+                    // Clear the tracking fields so this record can't be double-undone
+                    // and doesn't keep pointing at an import that no longer applies.
+                    patch.lastImportId = null; patch.lastImportFields = null;
+                    patch.prevInspTOP = null; patch.prevInspBOT = null;
+                    reverts.push({ id, patch });
+                });
+                await Promise.all([
+                    ...dels.map(id => fbDelete(env, token, `smt_prodvol/${id}`)),
+                    ...reverts.map(({ id, patch }) => fbUpdate(env, token, `smt_prodvol/${id}`, patch))
+                ]);
+                await fbUpdate(env, token, `smt_imports/${targetId}`, { undone: true, undoneAt: now });
+                return jsonResponse(res, { ok: true, deleted: dels.length, reverted: reverts.length, skipped });
+            }
+
+            return errorResponse(res, 'Unknown import type');
         }
 
         // ── ONE-TIME REPAIR: fix defect dates corrupted by the old sanitize()
