@@ -1443,6 +1443,20 @@ function fmtDateTimeForImport(d){
   return p2(d.getMonth()+1)+'/'+p2(d.getDate())+'/'+d.getFullYear()+' '+p2(d.getHours())+':'+p2(d.getMinutes())+':'+p2(d.getSeconds());
 }
 
+// Short relative timestamp for the Recent Imports panel ("3m ago", "2h
+// ago"), falling back to the app's usual absolute fmtDate() (from auth.js)
+// once something is old enough that "Nd ago" stops being useful at a glance.
+function timeAgo(ts){
+  if(!ts)return'';
+  const s=Math.floor((Date.now()-ts)/1000);
+  if(s<5)return'just now';
+  if(s<60)return s+'s ago';
+  const m=Math.floor(s/60);if(m<60)return m+'m ago';
+  const h=Math.floor(m/60);if(h<24)return h+'h ago';
+  const d=Math.floor(h/24);if(d<7)return d+'d ago';
+  return fmtDate(ts);
+}
+
 function splitDelimited(txt){
   return txt.split('\n').filter(l=>l.trim()).map(l=>l.split(/[\t,]/).map(x=>x.trim().replace(/^"|"$/g,'')));
 }
@@ -1484,6 +1498,7 @@ function readFileAsRows(file){
 
 // Rows parsed from the last selected file, waiting for the Import button.
 let pendingDefRows=null, pendingProdRows=null;
+let pendingDefFileName='', pendingProdFileName='';
 
 function handleDefFile(input){
   const file=input.files[0];
@@ -1507,6 +1522,7 @@ function handleDefFile(input){
       return;
     }
     pendingDefRows=rows;
+    pendingDefFileName=file.name;
     btn.disabled=false;
     errEl.style.color='#22c55e';
     errEl.textContent='\u2713 '+rows.length+' rows ready to import'+(skipped?' ('+skipped+' rows skipped — header or invalid format)':'')+'.';
@@ -1536,6 +1552,7 @@ function handleProdFile(input){
       return;
     }
     pendingProdRows=rows;
+    pendingProdFileName=file.name;
     btn.disabled=false;
     errEl.style.color='#22c55e';
     errEl.textContent='\u2713 '+rows.length+' rows ready to import'+(skipped?' ('+skipped+' rows skipped — header or invalid format)':'')+'.';
@@ -1550,12 +1567,15 @@ const DEF_BATCH_SIZE=2000;
 const PROD_BATCH_SIZE=1000;
 
 // Sends `rows` to the given /api/yield action in sequential batches of at
-// most `batchSize` rows. Resolves with the aggregated {count, duplicates}
-// once every batch has been sent. If a batch fails, already-sent batches
-// stay imported (server-side duplicate detection makes re-running the same
-// file afterwards safe) — the rejected error carries how far it got so the
+// most `batchSize` rows. `extra` (e.g. {importId, fileName}) is merged into
+// every batch's request body so the server can tie all batches of one
+// user-initiated import together — see the "Recent Imports"/undo feature.
+// Resolves with the aggregated {count, duplicates} once every batch has
+// been sent. If a batch fails, already-sent batches stay imported
+// (server-side duplicate detection makes re-running the same file
+// afterwards safe) — the rejected error carries how far it got so the
 // caller can report that.
-async function importInBatches(action,rows,batchSize,onProgress){
+async function importInBatches(action,rows,batchSize,onProgress,extra){
   let totalCount=0,totalDuplicates=0;
   const totalBatches=Math.max(1,Math.ceil(rows.length/batchSize));
   for(let i=0;i<rows.length;i+=batchSize){
@@ -1565,7 +1585,7 @@ async function importInBatches(action,rows,batchSize,onProgress){
     let d;
     try{
       const res=await fetch('/api/yield',{method:'POST',headers:{'Content-Type':'application/json','X-User-Email':currentUser.email},
-        body:JSON.stringify({action,rows:batch})});
+        body:JSON.stringify({action,rows:batch,...extra})});
       d=await res.json();
     }catch{
       const err=new Error('Network error.');
@@ -1591,13 +1611,15 @@ function importDef(){
   btn.disabled=true;
   errEl.style.color='';
   const rows=pendingDefRows;
+  const importId=newImportId();
+  const fileName=pendingDefFileName;
   const totalBatches=Math.ceil(rows.length/DEF_BATCH_SIZE);
   errEl.textContent=totalBatches>1?('Importing '+rows.length.toLocaleString()+' rows in '+totalBatches+' batches\u2026'):('Importing '+rows.length+' rows\u2026');
   importInBatches('importDefects',rows,DEF_BATCH_SIZE,(done,total,batchNum,tb)=>{
     if(tb>1)errEl.textContent='Importing batch '+batchNum+'/'+tb+' \u2014 '+done.toLocaleString()+'/'+total.toLocaleString()+' rows sent\u2026';
-  }).then(({count,duplicates})=>{
+  },{importId,fileName}).then(({count,duplicates})=>{
     document.getElementById('def-file').value='';
-    pendingDefRows=null;
+    pendingDefRows=null;pendingDefFileName='';
     errEl.textContent='';
     tog('pd');
     if(count===0&&duplicates>0){
@@ -1606,6 +1628,7 @@ function importDef(){
       const dupMsg=duplicates?(' ('+duplicates+' duplicate'+(duplicates===1?'':'s')+' skipped)'):'';
       showToast('Imported '+count+' defect rows \u2713'+dupMsg);
     }
+    loadRecentImports();
   }).catch(err=>{
     btn.disabled=false;
     let progress='';
@@ -1626,15 +1649,18 @@ function importProd(){
   btn.disabled=true;
   errEl.style.color='';
   const rows=pendingProdRows;
+  const importId=newImportId();
+  const fileName=pendingProdFileName;
   const totalBatches=Math.ceil(rows.length/PROD_BATCH_SIZE);
   errEl.textContent=totalBatches>1?('Importing '+rows.length.toLocaleString()+' rows in '+totalBatches+' batches\u2026'):'Importing\u2026';
   importInBatches('importProdVol',rows,PROD_BATCH_SIZE,(done,total,batchNum,tb)=>{
     if(tb>1)errEl.textContent='Importing batch '+batchNum+'/'+tb+' \u2014 '+done.toLocaleString()+'/'+total.toLocaleString()+' rows sent\u2026';
-  }).then(()=>{
+  },{importId,fileName}).then(()=>{
     document.getElementById('prod-file').value='';
-    pendingProdRows=null;
+    pendingProdRows=null;pendingProdFileName='';
     errEl.textContent='';
     tog('pp');showToast('Production volume imported \u2713');
+    loadRecentImports();
   }).catch(err=>{
     btn.disabled=false;
     let progress='';
@@ -1645,6 +1671,83 @@ function importProd(){
     }
     errEl.textContent='Error: '+err.message+progress;
   });
+}
+
+// ═══════════════════════════════════════════════════════
+// RECENT IMPORTS — lets a bad import (wrong file, typo'd data) be undone
+// instead of permanently polluting the yield/DPPM numbers. See api/yield.js
+// for the server-side importId tagging + undo logic this panel drives.
+// ═══════════════════════════════════════════════════════
+
+function newImportId(){return'imp_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);}
+
+let recentImportsCache=[];
+
+function loadRecentImports(){
+  if(!currentUser)return;
+  fetch('/api/yield',{method:'POST',headers:{'Content-Type':'application/json','X-User-Email':currentUser.email},
+    body:JSON.stringify({action:'listImports'})})
+    .then(r=>r.json()).then(d=>{if(d.ok){recentImportsCache=d.imports;renderRecentImports();}})
+    .catch(()=>{});
+}
+
+function renderRecentImports(){
+  const el=document.getElementById('recent-imports-list');
+  if(!el)return;
+  // Batches that ended up with nothing new (e.g. a re-upload that was 100%
+  // duplicates) have nothing worth undoing, so they're left out — showing
+  // them would just be noise with a button that does nothing.
+  const list=recentImportsCache.filter(imp=>imp.undone||(imp.type==='defects'?imp.rowCount>0:((imp.createdCount||0)+(imp.updatedCount||0))>0));
+  if(!list.length){
+    el.innerHTML='<div style="color:#64748b;font-size:11px;padding:2px 0;">No imports yet — imported files will show up here so you can undo one if something goes in wrong.</div>';
+    return;
+  }
+  el.innerHTML=list.slice(0,10).map(imp=>{
+    const isDef=imp.type==='defects';
+    const icon=isDef?'\ud83d\udccb':'\ud83d\udcca';
+    const summary=isDef
+      ?imp.rowCount+' row'+(imp.rowCount===1?'':'s')+(imp.duplicates?' <span style="color:#64748b;">('+imp.duplicates+' duplicate'+(imp.duplicates===1?'':'s')+' skipped)</span>':'')
+      :(imp.createdCount||0)+' created, '+(imp.updatedCount||0)+' updated';
+    const fname=imp.fileName?'<b>'+esc(imp.fileName)+'</b> — ':'';
+    const when=timeAgo(imp.created);
+    const action=imp.undone
+      ?'<span style="color:#64748b;font-size:10px;white-space:nowrap;">Undone '+timeAgo(imp.undoneAt)+'</span>'
+      :'<button class="btn bx" style="padding:3px 10px;font-size:10px;white-space:nowrap;" onclick="undoImportClick(\''+imp.importId+'\')">\u21b6 Undo</button>';
+    return'<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(148,163,184,0.15);font-size:11px;'+(imp.undone?'opacity:0.55;':'')+'">'
+      +'<span>'+icon+'</span>'
+      +'<span style="flex:1;">'+fname+summary+' <span style="color:#64748b;">— '+when+'</span></span>'
+      +action
+      +'</div>';
+  }).join('');
+}
+
+function undoImportClick(importId){
+  const imp=recentImportsCache.find(i=>i.importId===importId);
+  if(!imp)return;
+  const isDef=imp.type==='defects';
+  const desc=isDef
+    ?'This deletes the '+imp.rowCount+' defect row'+(imp.rowCount===1?'':'s')+' this import added.'
+    :'This reverts the production volume counts this import created or changed — as long as nothing has overwritten them since.';
+  showConfirm('Undo this import?',desc+' This cannot be undone.',()=>{
+    if(!currentUser){showToast('Not logged in');return;}
+    fetch('/api/yield',{method:'POST',headers:{'Content-Type':'application/json','X-User-Email':currentUser.email},
+      body:JSON.stringify({action:'undoImport',importId})})
+      .then(r=>r.json()).then(d=>{
+        if(!d.ok){showToast('Error: '+d.error);return;}
+        if(isDef){
+          showToast('Undone — removed '+d.deleted+' row'+(d.deleted===1?'':'s')+' \u2713');
+        }else if(d.deleted+d.reverted===0){
+          showToast('Nothing to undo — this data was already changed by a later import.');
+        }else{
+          const skipMsg=d.skipped?' ('+d.skipped+' skipped — changed since)':'';
+          showToast('Undone — '+d.deleted+' record'+(d.deleted===1?'':'s')+' removed, '+d.reverted+' reverted \u2713'+skipMsg);
+        }
+        loadRecentImports();
+        // rawDef/prodVol are Firebase-live-synced, so the delete/revert above
+        // will already flow through and re-render the current view on its
+        // own once the listener in ui.js fires — no manual refresh needed.
+      }).catch(()=>showToast('Network error'));
+  },'Undo \u21b6');
 }
 
 // ═══════════════════════════════════════════════════════
