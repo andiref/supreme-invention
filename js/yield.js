@@ -1312,10 +1312,9 @@ function drawDigestCard(ctx,x0,y0,w,h,custName,rd,color,weekBadge){
 
   // ---- Column 1: identity + the two headline KPIs ----
   ctx.textAlign='left';
-  ctx.fillStyle='#888888';ctx.font='bold 9px Arial';ctx.fillText('WEEKLY SMT REPORT',col1X,y0+22);
   ctx.fillStyle='#000000';ctx.font='bold 18px Arial';
-  ctx.fillText(custName.length>16?custName.slice(0,15)+'…':custName,col1X,y0+44);
-  ctx.fillStyle='#666666';ctx.font='bold 10px Arial';ctx.fillText(weekBadge,col1X,y0+60);
+  ctx.fillText(custName.length>16?custName.slice(0,15)+'…':custName,col1X,y0+26);
+  ctx.fillStyle='#666666';ctx.font='bold 10px Arial';ctx.fillText(weekBadge,col1X,y0+42);
 
   ctx.fillStyle='#888888';ctx.font='bold 9px Arial';ctx.fillText('OVERALL YIELD',col1X,y0+106);
   ctx.fillStyle='#000000';ctx.font='bold 21px Arial';ctx.fillText(hasLatest?oy.toFixed(2)+'%':'—',col1X,y0+128);
@@ -1399,7 +1398,7 @@ function generateDigestReport(){
 
   const W=1100,PAD=32;
   const CARD_H=300,CARD_GAP=16;
-  const HDR=64,FTR=44;
+  const HDR=64,FTR=16;
   const TOTAL=HDR+cards.length*(CARD_H+CARD_GAP)-CARD_GAP+FTR+PAD*2;
 
   const cv=document.createElement('canvas');cv.width=W;cv.height=TOTAL;
@@ -1418,12 +1417,6 @@ function generateDigestReport(){
     drawDigestCard(ctx,PAD,y,W-PAD*2,CARD_H,cust,rd,color,weekBadge);
     y+=CARD_H+CARD_GAP;
   });
-
-  // footer
-  y=TOTAL-FTR+8;
-  ctx.strokeStyle='rgba(0,0,0,0.3)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();
-  ctx.fillStyle='#444444';ctx.font='bold 11px Arial';ctx.textAlign='center';
-  ctx.fillText('SMT Command Center  ·  Confidential',W/2,y+20);
 
   const link=document.createElement('a');
   link.download='SMT_Digest_'+weekLabel.replace(/[^a-zA-Z0-9]/g,'-')+'.png';
