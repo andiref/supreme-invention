@@ -1212,7 +1212,7 @@ const DIGEST_COLORS=CC; // reuse the app's existing color palette, one per custo
 const DIGEST_BAR_COLORS=['#dc2626','#f59e0b','#eab308']; // rank 1/2/3 — red, orange, yellow, matches the mockup
 
 function drawDigestMiniChart(ctx,ox,oy,ow,oh,vals,labels,target,targColor,isYield,title){
-  const PL=44,PR=8,PT=16,PB=16;
+  const PL=44,PR=8,PT=26,PB=16;
   const pw=ow-PL-PR,ph=oh-PT-PB;
   const have=vals.filter(v=>v!=null);
   if(!have.length){
@@ -1223,7 +1223,7 @@ function drawDigestMiniChart(ctx,ox,oy,ow,oh,vals,labels,target,targColor,isYiel
     return;
   }
   const allV=[...have,target||0];
-  const maxV=Math.max(...allV)*(isYield?1.003:1.1);
+  const maxV=isYield?100:Math.max(...allV)*1.1; // yield can never exceed 100%, so cap the axis there instead of auto-scaling to just above the data
   const minV=Math.min(...allV)*(isYield?0.997:0);
   const xp=i=>ox+PL+(labels.length<2?pw/2:i/(labels.length-1)*pw);
   const yp=v=>oy+PT+ph-(v-minV)/(maxV-minV||1)*ph;
@@ -1269,6 +1269,28 @@ function drawDigestMiniChart(ctx,ox,oy,ow,oh,vals,labels,target,targColor,isYiel
 
   ctx.fillStyle='#333333';ctx.font='bold 9px Arial';ctx.textAlign='left';
   ctx.fillText(title,ox+8,oy+11);
+
+  // legend, top-right of the same row as the title: "●— Yield   ---99.5% target"
+  const metricLabel=isYield?'Yield':'DPPM';
+  const targLabel=isYield?TY+'% target':fmt(TD)+' limit';
+  const legY=oy+11;
+  ctx.font='bold 8px Arial';
+  const targW=ctx.measureText(targLabel).width;
+  const metW=ctx.measureText(metricLabel).width;
+  let lx=ox+ow-8;
+  ctx.textAlign='right';ctx.fillStyle='#333333';
+  ctx.fillText(targLabel,lx,legY);
+  lx-=targW+6;
+  ctx.strokeStyle=targColor;ctx.lineWidth=1.3;ctx.setLineDash([3,2]);
+  ctx.beginPath();ctx.moveTo(lx-14,legY-3);ctx.lineTo(lx,legY-3);ctx.stroke();
+  ctx.setLineDash([]);
+  lx-=14+10;
+  ctx.fillStyle='#333333';ctx.fillText(metricLabel,lx,legY);
+  lx-=metW+8;
+  ctx.strokeStyle='#000000';ctx.lineWidth=1.6;
+  ctx.beginPath();ctx.moveTo(lx-16,legY-3);ctx.lineTo(lx,legY-3);ctx.stroke();
+  ctx.beginPath();ctx.arc(lx-8,legY-3,2,0,Math.PI*2);ctx.fillStyle='#000000';ctx.fill();
+  ctx.textAlign='left';
 }
 
 function drawDigestCard(ctx,x0,y0,w,h,custName,rd,color,weekBadge){
