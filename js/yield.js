@@ -156,10 +156,22 @@ function calcMetrics(dr,pr){
   return result;
 }
 function calcMetricsRaw(dr,pr){
+  // Two prodVol rows can normalize to the same key (e.g. "CustA" vs "custa"
+  // imported at different times) even though api/yield.js's importProdVol
+  // match is case-sensitive and would have stored them as separate Firebase
+  // records. Sum inspTOP/inspBOT across every row that maps to a given key
+  // instead of keeping only the first — otherwise the dropped row's
+  // inspected counts silently vanish from Yield/DPPM with no warning.
   const pvByKey=new Map();
   pr.forEach(p=>{
     const k=normKey(p.week,p.customer,p.model);
-    if(!pvByKey.has(k))pvByKey.set(k,p);
+    const acc=pvByKey.get(k);
+    if(acc){
+      acc.inspTOP=(acc.inspTOP||0)+(p.inspTOP||0);
+      acc.inspBOT=(acc.inspBOT||0)+(p.inspBOT||0);
+    }else{
+      pvByKey.set(k,{week:p.week,customer:p.customer,model:p.model,inspTOP:p.inspTOP||0,inspBOT:p.inspBOT||0});
+    }
   });
   // Display text (week/customer/model as shown in KPIs/table) is taken from
   // whichever Defect Data row first used this combo, since that's usually
