@@ -599,11 +599,18 @@ function showLibDetail(d){
 
 // ═══════════════════════════════════════════════════════
 // CAPA TRACKER — per customer, top-3-defect root-cause/corrective-action log
-// One entry per (customer, defect), keyed via capaKey() below. Entries are
-// persistent: created on first save, then upserted every time that same
-// defect resurfaces for that customer — so filling it in once and updating
-// its Monitoring status as you follow up is the normal flow, not re-entry
-// from scratch each report. synced live via capaRef (see auth.js/ui.js).
+// One CHAIN per (customer, defect, model, component) — i.e. Defect AND Model
+// AND Component together identify a chain, not defect alone. That matters:
+// if "Insufficient Solder" is #1 two weeks running but the top contributing
+// model shifts from Model A/U1 to Model B/U2, that's a different root cause
+// at a different location and must NOT merge into one history. Keyed via
+// capaKey() below. Entries are persistent: created on first save, then
+// upserted every time that exact defect+model+component combo resurfaces —
+// so filling it in once and updating its Monitoring status as you follow up
+// is the normal flow, not re-entry from scratch each report. If the same
+// combo goes quiet and later reappears, it naturally reopens the same chain
+// (same key) rather than starting a new one. synced live via capaRef (see
+// auth.js/ui.js).
 // ═══════════════════════════════════════════════════════
 const CAPA_STATUSES=['Open','Monitoring','Effective','Closed'];
 function capaStatusColor(s){return {'Open':'#ef4444','Monitoring':'#f59e0b','Effective':'#14b8a6','Closed':'#22c55e'}[s]||'#64748b';}
@@ -611,7 +618,14 @@ function capaStatusColor(s){return {'Open':'#ef4444','Monitoring':'#f59e0b','Eff
 // Mirrors sanitizeKey() in api/_shared.js exactly — MUST stay in sync so a
 // record saved server-side is always found again under the same key.
 function capaSanitizeKey(str,maxLen){return String(str||'').replace(/[.#$[\]/]/g,'').trim().slice(0,maxLen);}
-function capaKey(customer,defect){return capaSanitizeKey(customer,60)+'__'+capaSanitizeKey(defect,80);}
+function capaKey(customer,defect,model,comp){
+  return capaSanitizeKey(customer,60)+'__'+capaSanitizeKey(defect,80)+'__'+capaSanitizeKey(model,60)+'__'+capaSanitizeKey(comp,40);
+}
+// Display-only truncation (never used for the key/identity itself, and
+// never affects what gets saved to history — just keeps long model/ref
+// names from blowing out the card header).
+function truncate(s,n){s=String(s||'');return s.length>n?s.slice(0,n-1)+'…':s;}
+
 
 // Which CAPA card (if any) currently has its fields open for editing.
 // Null = nothing being edited. Only one at a time, same as equipment.js.
@@ -641,20 +655,25 @@ function chronicWeeksFor(weeklyTop3Map,def){return Object.values(weeklyTop3Map).
 // callers that also need it (filtRawCount, etc.) don't compute it twice.
 function getCustomerCapaCards(cd,cust){
   const t3=cd?cd.t3:[];
-  const cards=t3.map(([def,cnt],i)=>({defect:def,count:cnt,rank:i+1,key:capaKey(cust,def)}));
-  const seen=new Set(cards.map(c=>c.defect));
+  const cards=t3.map(([def,cnt],i)=>{
+    const model=cd?cd.topContributor(def,'model'):'';
+    const comp=cd?cd.topContributor(def,'comp'):'';
+    return {defect:def,count:cnt,rank:i+1,model,comp,key:capaKey(cust,def,model,comp)};
+  });
+  const seenKeys=new Set(cards.map(c=>c.key));
   Object.keys(capaData).forEach(k=>{
     const rec=capaData[k];
     if(!rec||rec.customer!==cust)return;
-    if(seen.has(rec.defect))return;
+    if(seenKeys.has(k))return;
     if(rec.monitoring==='Closed')return;
-    cards.push({defect:rec.defect,count:null,rank:null,key:k});
-    seen.add(rec.defect);
+    // Not in this week's Top 3, but still an open chain — pull its ACTUAL
+    // occurrence count for this exact defect+model+component this week
+    // (independent of Pareto rank) so it's caught with a real number
+    // rather than sitting blank until someone happens to re-open it.
+    const count=cd?cd.countFor(rec.defect,rec.model,rec.comp):null;
+    cards.push({defect:rec.defect,count,rank:null,model:rec.model||'',comp:rec.comp||'',key:k});
+    seenKeys.add(k);
   });
-  // Attach this week's top contributing model/reference to every card —
-  // topOf() already returns '-' gracefully if the defect had zero rows
-  // this week (e.g. a carried-forward defect that's gone quiet).
-  cards.forEach(c=>{c.model=cd?cd.topOf(c.defect,'model',24):'-';c.comp=cd?cd.topOf(c.defect,'comp',24):'-';});
   return cards;
 }
 
@@ -671,12 +690,22 @@ function renderCapaCard(cust,card,weeklyTop3Map,curWeek){
   const editMon=thisWeekEntry?(thisWeekEntry.monitoring||'Open'):mon;
   const monSelect=(cls)=>`<select class="${cls}" data-customer="${esc(cust)}" data-defect="${esc(card.defect)}" style="width:auto;font-size:10px;background:${capaStatusColor(mon)}20;border:1px solid ${capaStatusColor(mon)}40;color:${capaStatusColor(mon)};">${CAPA_STATUSES.map(s=>`<option${s===mon?' selected':''}>${s}</option>`).join('')}</select>`;
 
-  const modelTag=card.model&&card.model!=='-'?`<span style="font-size:10px;font-weight:400;color:#64748b;"> — ${esc(card.model)}${card.comp&&card.comp!=='-'?' / '+esc(card.comp):''}</span>`:'';
+  const modelTag=card.model?`<span style="font-size:10px;font-weight:400;color:#64748b;"> — ${esc(truncate(card.model,28))}${card.comp?' / '+esc(truncate(card.comp,16)):''}</span>`:'';
 
+  const notTop3Badge=card.count===0?badge('0 this wk ✅','#22c55e')
+    :card.count!=null?badge(card.count+' this wk · not Top 3','#f59e0b')
+    :badge('carried forward','#64748b');
+  // The status dropdown only saves when its VALUE changes — a week where
+  // nothing changed (still "Monitoring", nothing new) has no way to get
+  // added to history at all otherwise. This button always saves *something*
+  // for curWeek — this week's real rank/count under the current status —
+  // so every week can be caught into the chain, top-3 or not.
+  const logWeekBtn=(!card.rank&&curWeek)?`<button class="btn bx capa-log-week-btn" style="font-size:9px;padding:4px 9px;" title="Add this week to the chain even though nothing changed">📌 Log week</button>`:'';
   const headerRight=`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-      ${card.rank?`<span style="font-size:18px;font-weight:700;color:${bc};">${card.count} defects</span>`:badge('carried forward','#64748b')}
+      ${card.rank?`<span style="font-size:18px;font-weight:700;color:${bc};">${card.count} defects</span>`:notTop3Badge}
       ${chronic>=3?badge('🚨 '+chronic+' wks in Top 3','#ef4444'):''}
       ${isEditing?'':monSelect('capa-mon-quick')}
+      ${isEditing?'':logWeekBtn}
     </div>`;
 
   let body;
@@ -730,7 +759,7 @@ function renderCapaCard(cust,card,weeklyTop3Map,curWeek){
                 <a href="#" class="capa-hist-del-btn" data-week="${esc(w)}" style="color:#ef4444;margin-left:8px;">remove</a>
               </span>
             </div>
-            ${e.model&&e.model!=='-'?`<div style="color:#64748b;margin-top:2px;">${esc(e.model)}${e.comp&&e.comp!=='-'?' / '+esc(e.comp):''}</div>`:''}
+            ${e.model?`<div style="color:#64748b;margin-top:2px;">${esc(e.model)}${e.comp?' / '+esc(e.comp):''}</div>`:''}
             ${e.rootCause?`<div style="color:#e2e8f0;margin-top:3px;">🔍 ${esc(e.rootCause)}</div>`:''}
             ${e.correctiveAction?`<div style="color:#e2e8f0;margin-top:2px;">✅ ${esc(e.correctiveAction)}</div>`:''}
             <div style="color:#475569;margin-top:3px;">${e.dueDate?'📅 '+esc(e.dueDate)+' &nbsp;·&nbsp; ':''}${e.pic?'👤 '+esc(e.pic):''}${e.updated?' &nbsp;·&nbsp; 🕒 '+new Date(e.updated).toLocaleDateString():''}</div>
@@ -739,7 +768,7 @@ function renderCapaCard(cust,card,weeklyTop3Map,curWeek){
       </div>
     </details>`:'';
 
-  return `<div class="card" style="border-left:3px solid ${bc};" data-capa-key="${card.key}" data-customer="${esc(cust)}" data-defect="${esc(card.defect)}" data-week="${esc(curWeek||'')}" data-rank="${card.rank??''}" data-count="${card.count===null||card.count===undefined?'':card.count}" data-model="${esc(card.model&&card.model!=='-'?card.model:'')}" data-comp="${esc(card.comp&&card.comp!=='-'?card.comp:'')}">
+  return `<div class="card" style="border-left:3px solid ${bc};" data-capa-key="${card.key}" data-customer="${esc(cust)}" data-defect="${esc(card.defect)}" data-week="${esc(curWeek||'')}" data-rank="${card.rank??''}" data-count="${card.count===null||card.count===undefined?'':card.count}" data-model="${esc(card.model||'')}" data-comp="${esc(card.comp||'')}">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
       <span style="font-weight:700;font-size:13px;">${lib?.icon||'🔧'} ${card.rank?'#'+card.rank+' ':''}${esc(card.defect)}${modelTag}</span>
       ${headerRight}
@@ -844,12 +873,14 @@ function wireCapaHandlers(){
       const card=btn.closest('[data-capa-key]');
       const customer=card.getAttribute('data-customer');
       const defect=card.getAttribute('data-defect');
+      const model=card.getAttribute('data-model');
+      const comp=card.getAttribute('data-comp');
       showConfirm('Clear this entire CAPA chain?','This removes ALL weeks of root cause, corrective action, and monitoring history logged for this defect — not just the latest entry. This cannot be undone.',()=>{
         if(!currentUser){showToast('Not logged in');return;}
         fetch('/api/capa',{
           method:'POST',
           headers:{'Content-Type':'application/json','X-User-Email':currentUser.email},
-          body:JSON.stringify({action:'delete',customer,defect})
+          body:JSON.stringify({action:'delete',customer,defect,model,comp})
         }).then(r=>r.json()).then(d=>{
           if(d.ok){editingCapaKey=null;showToast('Cleared');renderReport();}
           else showToast('Error: '+d.error);
@@ -863,13 +894,15 @@ function wireCapaHandlers(){
       const card=a.closest('[data-capa-key]');
       const customer=card.getAttribute('data-customer');
       const defect=card.getAttribute('data-defect');
+      const model=card.getAttribute('data-model');
+      const comp=card.getAttribute('data-comp');
       const week=a.getAttribute('data-week');
       showConfirm('Remove this week\u2019s entry?','This deletes just the '+week+' row from this defect\u2019s history. Other weeks are untouched.',()=>{
         if(!currentUser){showToast('Not logged in');return;}
         fetch('/api/capa',{
           method:'POST',
           headers:{'Content-Type':'application/json','X-User-Email':currentUser.email},
-          body:JSON.stringify({action:'delete',customer,defect,week})
+          body:JSON.stringify({action:'delete',customer,defect,model,comp,week})
         }).then(r=>r.json()).then(d=>{
           if(d.ok){showToast('Removed');renderReport();}
           else showToast('Error: '+d.error);
@@ -901,6 +934,36 @@ function wireCapaHandlers(){
       .catch(()=>showToast('Network error'));
     });
   });
+  document.querySelectorAll('.capa-log-week-btn').forEach(btn=>{
+    btn.addEventListener('click',e=>{
+      e.preventDefault();
+      const card=btn.closest('[data-capa-key]');
+      const customer=card.getAttribute('data-customer');
+      const defect=card.getAttribute('data-defect');
+      const week=card.getAttribute('data-week');
+      const rank=card.getAttribute('data-rank');
+      const count=card.getAttribute('data-count');
+      const model=card.getAttribute('data-model');
+      const comp=card.getAttribute('data-comp');
+      // Carry forward whatever the status dropdown currently shows (its
+      // value already reflects the chain's latest status) so a plain "log
+      // week" doesn't reset an ongoing chain back to Open.
+      const monSel=card.querySelector('.capa-mon-quick');
+      if(!currentUser){showToast('Not logged in');return;}
+      if(!week){showToast('No active week to log');return;}
+      btn.disabled=true;btn.textContent='Logging…';
+      const payload={action:'save',customer,defect,week,rank:rank?Number(rank):null,count:count?Number(count):null,model,comp};
+      if(monSel)payload.monitoring=monSel.value;
+      fetch('/api/capa',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-User-Email':currentUser.email},
+        body:JSON.stringify(payload)
+      }).then(r=>r.json()).then(d=>{
+        if(d.ok){showToast('Week logged ✓ — added to chain');renderReport();}
+        else{showToast('Error: '+d.error);btn.disabled=false;btn.textContent='📌 Log week';}
+      }).catch(()=>{showToast('Network error');btn.disabled=false;btn.textContent='📌 Log week';});
+    });
+  });
 }
 
 // Exports the CAPA tracker exactly as currently filtered (customer + week
@@ -926,7 +989,7 @@ function exportCapaExcel(){
         rows.push({
           'Defect Chain ID':c.key,'Customer':cust,'Week':cd?cd.lw:'',
           'Pareto Rank':c.rank||'Not in Top 3','Defect':c.defect,
-          'Model':c.model&&c.model!=='-'?c.model:'','Ref/Component':c.comp&&c.comp!=='-'?c.comp:'',
+          'Model':c.model||'','Ref/Component':c.comp||'',
           'Count (that wk)':c.count===null?'':c.count,
           'Root Cause':'','Corrective Action':'','Due Date':'','Owner (PIC)':'',
           'Status':'Open','Weeks Tracked':0,'Last Updated':'','Updated By':''
@@ -998,7 +1061,7 @@ function renderReport(){
     </div>
     <div class="dk" style="border-color:#1e3a5f;">
       <div style="font-size:12px;font-weight:700;color:#3b82f6;">🗂️ CAPA TRACKER — ${rCust==='ALL'?'All customers':esc(rCust)}${rng?` · Top 3 defects (${rng.from} → ${rng.to})`:''}</div>
-      <div style="font-size:10px;color:#64748b;margin-top:4px;">Root Cause · Corrective Action · Due Date · PIC · Monitoring — each week you save gets its own dated row, linked under the same defect (📜 History) so you can see how the root cause/action evolved. Change CUSTOMER/FROM/TO above to filter.</div>
+      <div style="font-size:10px;color:#64748b;margin-top:4px;">Root Cause · Corrective Action · Due Date · PIC · Monitoring — each week you save gets its own dated row, linked under the same defect (📜 History) so you can see how the root cause/action evolved. Open chains keep showing up with their real weekly count even after they drop out of the Top 3, so nothing goes untracked just because it fell below the cutoff. Change CUSTOMER/FROM/TO above to filter.</div>
     </div>
     ${rng?renderCapaTracker(rng,allM,rCust):'<div class="card" style="text-align:center;padding:40px;color:#64748b;">Import defect data first (Yield tab) to build the CAPA tracker.</div>'}`;
 
@@ -1088,6 +1151,19 @@ function computeCustomerReportData(rCust,rng,allM,rawAll){
   const wdf={};wr.forEach(d=>{wdf[d.defect]=(wdf[d.defect]||0)+1;});
   const t3=Object.entries(wdf).sort((a,b)=>b[1]-a[1]).slice(0,3);
   function topOf(def,key,maxLen,mctx,maxPx){const m={};wr.filter(d=>d.defect===def).forEach(d=>{m[d[key]]=(m[d[key]]||0)+1;});const s=Object.entries(m).sort((a,b)=>b[1]-a[1]);if(!s.length)return'-';const name=String(s[0][0]);const suffix=' ('+s[0][1]+')';if(mctx&&maxPx){let tname=name;while(tname.length>1&&mctx.measureText(tname+'…'+suffix).width>maxPx){tname=tname.slice(0,-1);}return(tname.length<name.length?tname+'…':tname)+suffix;}const ml=maxLen||13;const tname=name.length>ml?name.slice(0,ml-1)+'…':name;return tname+suffix;}
+  // Same ranking as topOf() but returns the raw value only — no truncation,
+  // no " (count)" suffix. topOf() is for display; this is for identity
+  // (the CAPA chain key and what actually gets saved to history), where an
+  // appended count would make the "same" model/component hash to a
+  // different key every time its count changes week to week.
+  function topContributor(def,key){const m={};wr.filter(d=>d.defect===def).forEach(d=>{m[d[key]]=(m[d[key]]||0)+1;});const s=Object.entries(m).sort((a,b)=>b[1]-a[1]);return s.length?String(s[0][0]):'';}
+  // Actual occurrence count for one exact chain (defect+model+component)
+  // this week, independent of the Top-3 ranking. A chain can be wide open
+  // and still occurring below the Top-3 cutoff — this is how a "carried
+  // forward" card gets a real number instead of a blank, so it can still
+  // be caught and logged into its history even on a week it never makes
+  // the Pareto.
+  function countFor(def,model,comp){return wr.filter(d=>d.defect===def&&d.model===model&&d.comp===comp).length;}
 
   // ---- Digest-only figures ----
   // The customer digest needs two things decoupled from the FROM/TO range
@@ -1120,7 +1196,7 @@ function computeCustomerReportData(rCust,rng,allM,rawAll){
   const trendYVals=wkT.map(w=>w.yieldPct);
   const trendDVals=wkT.map(w=>w.dppm);
 
-  return{tp,tf,ft,fb,it,ib,oy,ot,ob,od,labels,yVals,dVals,t3,topOf,lw,filtRawCount:filtRaw.length,
+  return{tp,tf,ft,fb,it,ib,oy,ot,ob,od,labels,yVals,dVals,t3,topOf,topContributor,countFor,lw,filtRawCount:filtRaw.length,
     latestTp,latestTf,latestOy,latestOt,latestOb,latestOd,trendLabels,trendYVals,trendDVals};
 }
 
