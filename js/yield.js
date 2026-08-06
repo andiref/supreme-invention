@@ -651,18 +651,27 @@ function getCustomerCapaCards(cd,cust){
     cards.push({defect:rec.defect,count:null,rank:null,key:k});
     seen.add(rec.defect);
   });
+  // Attach this week's top contributing model/reference to every card —
+  // topOf() already returns '-' gracefully if the defect had zero rows
+  // this week (e.g. a carried-forward defect that's gone quiet).
+  cards.forEach(c=>{c.model=cd?cd.topOf(c.defect,'model',24):'-';c.comp=cd?cd.topOf(c.defect,'comp',24):'-';});
   return cards;
 }
 
-function renderCapaCard(cust,card,weeklyTop3Map){
+function renderCapaCard(cust,card,weeklyTop3Map,curWeek){
   const rec=capaData[card.key]||{};
+  const history=rec.history||{};
+  const thisWeekEntry=curWeek?(history[curWeek]||null):null;
   const lib=LIB.find(l=>l.type===card.defect);
   const isEditing=editingCapaKey===card.key;
   const rankColors=['#ef4444','#f59e0b','#22c55e'];
   const bc=card.rank?rankColors[card.rank-1]:'#64748b';
   const chronic=chronicWeeksFor(weeklyTop3Map,card.defect);
   const mon=rec.monitoring||'Open';
+  const editMon=thisWeekEntry?(thisWeekEntry.monitoring||'Open'):mon;
   const monSelect=(cls)=>`<select class="${cls}" data-customer="${esc(cust)}" data-defect="${esc(card.defect)}" style="width:auto;font-size:10px;background:${capaStatusColor(mon)}20;border:1px solid ${capaStatusColor(mon)}40;color:${capaStatusColor(mon)};">${CAPA_STATUSES.map(s=>`<option${s===mon?' selected':''}>${s}</option>`).join('')}</select>`;
+
+  const modelTag=card.model&&card.model!=='-'?`<span style="font-size:10px;font-weight:400;color:#64748b;"> — ${esc(card.model)}${card.comp&&card.comp!=='-'?' / '+esc(card.comp):''}</span>`:'';
 
   const headerRight=`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
       ${card.rank?`<span style="font-size:18px;font-weight:700;color:${bc};">${card.count} defects</span>`:badge('carried forward','#64748b')}
@@ -672,39 +681,71 @@ function renderCapaCard(cust,card,weeklyTop3Map){
 
   let body;
   if(isEditing){
+    const fs=thisWeekEntry||{};
     body=`
+      ${curWeek?`<div style="font-size:9px;color:#64748b;margin-bottom:6px;">✍️ Entry for <b style="color:#93c5fd;">${esc(curWeek)}</b>${thisWeekEntry?' — editing the entry already saved for this week':' — new row, this week doesn\u2019t have one yet'}</div>`:''}
       ${lib?`<div style="font-size:10px;background:#060a12;border:1px solid #1e293b;border-radius:4px;padding:7px 11px;margin-bottom:10px;color:#94a3b8;">
         <span style="color:#3b82f6;font-weight:700;">TEMPLATE RC:</span> ${esc(lib.whys[4].replace(/^RC:\s*/,''))} <a href="#" class="capa-tmpl-rc-btn" style="color:#3b82f6;">↪ use</a><br/>
         <span style="color:#22c55e;font-weight:700;">TEMPLATE CA:</span> ${lib.actions.slice(0,2).map(a=>'→ '+esc(a)).join(' ')} <a href="#" class="capa-tmpl-ca-btn" style="color:#22c55e;">↪ use</a>
       </div>`:''}
       <div style="display:flex;gap:10px;flex-wrap:wrap;">
-        <div class="fl" style="flex:2;min-width:220px;"><div class="fl-lbl">ROOT CAUSE</div><textarea rows="2" class="capa-rc" placeholder="Enter root cause...">${esc(rec.rootCause||'')}</textarea></div>
-        <div class="fl" style="flex:2;min-width:220px;"><div class="fl-lbl">CORRECTIVE ACTION</div><textarea rows="2" class="capa-ca" placeholder="Enter corrective action...">${esc(rec.correctiveAction||'')}</textarea></div>
+        <div class="fl" style="flex:2;min-width:220px;"><div class="fl-lbl">ROOT CAUSE</div><textarea rows="2" class="capa-rc" placeholder="Enter root cause...">${esc(fs.rootCause||'')}</textarea></div>
+        <div class="fl" style="flex:2;min-width:220px;"><div class="fl-lbl">CORRECTIVE ACTION</div><textarea rows="2" class="capa-ca" placeholder="Enter corrective action...">${esc(fs.correctiveAction||'')}</textarea></div>
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;">
-        <div class="fl" style="max-width:160px;"><div class="fl-lbl">DUE DATE</div><input type="date" class="capa-due" value="${esc(rec.dueDate||'')}"/></div>
-        <div class="fl" style="max-width:200px;"><div class="fl-lbl">PIC</div><input type="text" class="capa-pic" placeholder="Person in charge" value="${esc(rec.pic||'')}"/></div>
-        <div class="fl" style="max-width:160px;"><div class="fl-lbl">MONITORING</div><select class="capa-mon">${CAPA_STATUSES.map(s=>`<option${s===mon?' selected':''}>${s}</option>`).join('')}</select></div>
+        <div class="fl" style="max-width:160px;"><div class="fl-lbl">DUE DATE</div><input type="date" class="capa-due" value="${esc(fs.dueDate||'')}"/></div>
+        <div class="fl" style="max-width:200px;"><div class="fl-lbl">PIC</div><input type="text" class="capa-pic" placeholder="Person in charge" value="${esc(fs.pic||rec.pic||'')}"/></div>
+        <div class="fl" style="max-width:160px;"><div class="fl-lbl">MONITORING</div><select class="capa-mon">${CAPA_STATUSES.map(s=>`<option${s===editMon?' selected':''}>${s}</option>`).join('')}</select></div>
       </div>
       <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn bb capa-save-btn">💾 Save</button>
         <button class="btn bx capa-cancel-btn">✕ Cancel</button>
-        ${rec.updated?`<button class="btn br capa-delete-btn" style="margin-left:auto;">🗑 Clear entry</button>`:''}
+        ${rec.updated?`<button class="btn br capa-delete-btn" style="margin-left:auto;">🗑 Clear entire chain</button>`:''}
       </div>`;
   }else{
     body=`
       ${rec.rootCause?`<div style="font-size:11px;color:#e2e8f0;margin-top:6px;">🔍 <b>RC:</b> ${esc(rec.rootCause)}</div>`:`<div style="font-size:11px;color:#64748b;margin-top:6px;">No root cause documented yet.</div>`}
       ${rec.correctiveAction?`<div style="font-size:11px;color:#e2e8f0;margin-top:3px;">✅ <b>CA:</b> ${esc(rec.correctiveAction)}</div>`:''}
       <div style="font-size:10px;color:#94a3b8;margin-top:6px;">📅 Due: ${esc(rec.dueDate||'—')} &nbsp;·&nbsp; 👤 PIC: ${esc(rec.pic||'—')}${rec.updated?` &nbsp;·&nbsp; 🕒 Updated ${new Date(rec.updated).toLocaleDateString()}`:''}</div>
-      <button class="btn bx capa-edit-toggle-btn" style="margin-top:10px;font-size:10px;padding:6px 12px;">✏️ Fill / Edit</button>`;
+      <button class="btn bx capa-edit-toggle-btn" style="margin-top:10px;font-size:10px;padding:6px 12px;">✏️ Fill / Edit${curWeek?' ('+esc(curWeek)+')':''}</button>`;
   }
 
-  return `<div class="card" style="border-left:3px solid ${bc};" data-capa-key="${card.key}" data-customer="${esc(cust)}" data-defect="${esc(card.defect)}">
+  // Linked history — every week this defect got a save lives here under the
+  // same card (same customer+defect key), newest first. This is the
+  // "Defect Chain ID" idea from the spreadsheet version, built into the
+  // live tracker: one card = one chain, each entry below = one linked row.
+  const histWeeks=Object.keys(history).sort().reverse();
+  const histBlock=histWeeks.length?`
+    <details style="margin-top:10px;">
+      <summary style="cursor:pointer;font-size:10px;color:#3b82f6;font-weight:700;">📜 History (${histWeeks.length} entr${histWeeks.length>1?'ies':'y'}) — linked to this same defect</summary>
+      <div style="margin-top:6px;display:flex;flex-direction:column;gap:6px;">
+        ${histWeeks.map(w=>{
+          const e=history[w];
+          const label=e.week||'Before history tracking';
+          return `<div style="font-size:10px;background:#060a12;border:1px solid #1e293b;border-radius:4px;padding:6px 9px;">
+            <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+              <span style="font-weight:700;color:#93c5fd;">${esc(label)}${e.rank?' · #'+e.rank+' Top-3':(e.week?' · Not in Top 3':'')}${e.count!=null&&e.count!==''?' · '+e.count+' this wk':''}</span>
+              <span>
+                <span style="color:${capaStatusColor(e.monitoring||'Open')};font-weight:700;">${esc(e.monitoring||'Open')}</span>
+                <a href="#" class="capa-hist-del-btn" data-week="${esc(w)}" style="color:#ef4444;margin-left:8px;">remove</a>
+              </span>
+            </div>
+            ${e.model&&e.model!=='-'?`<div style="color:#64748b;margin-top:2px;">${esc(e.model)}${e.comp&&e.comp!=='-'?' / '+esc(e.comp):''}</div>`:''}
+            ${e.rootCause?`<div style="color:#e2e8f0;margin-top:3px;">🔍 ${esc(e.rootCause)}</div>`:''}
+            ${e.correctiveAction?`<div style="color:#e2e8f0;margin-top:2px;">✅ ${esc(e.correctiveAction)}</div>`:''}
+            <div style="color:#475569;margin-top:3px;">${e.dueDate?'📅 '+esc(e.dueDate)+' &nbsp;·&nbsp; ':''}${e.pic?'👤 '+esc(e.pic):''}${e.updated?' &nbsp;·&nbsp; 🕒 '+new Date(e.updated).toLocaleDateString():''}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </details>`:'';
+
+  return `<div class="card" style="border-left:3px solid ${bc};" data-capa-key="${card.key}" data-customer="${esc(cust)}" data-defect="${esc(card.defect)}" data-week="${esc(curWeek||'')}" data-rank="${card.rank??''}" data-count="${card.count===null||card.count===undefined?'':card.count}" data-model="${esc(card.model&&card.model!=='-'?card.model:'')}" data-comp="${esc(card.comp&&card.comp!=='-'?card.comp:'')}">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
-      <span style="font-weight:700;font-size:13px;">${lib?.icon||'🔧'} ${card.rank?'#'+card.rank+' ':''}${esc(card.defect)}</span>
+      <span style="font-weight:700;font-size:13px;">${lib?.icon||'🔧'} ${card.rank?'#'+card.rank+' ':''}${esc(card.defect)}${modelTag}</span>
       ${headerRight}
     </div>
     ${body}
+    ${histBlock}
   </div>`;
 }
 
@@ -724,7 +765,7 @@ function renderCustomerCapaSection(cust,rng,allM){
       <span style="font-weight:700;font-size:13px;color:#93c5fd;">🏭 ${esc(cust)}</span>
       <span style="font-size:10px;color:#64748b;">${cd?cd.filtRawCount:0} defect record(s) in range</span>
     </div>
-    ${cards.map(c=>renderCapaCard(cust,c,weeklyTop3Map)).join('')}
+    ${cards.map(c=>renderCapaCard(cust,c,weeklyTop3Map,cd?cd.lw:'')).join('')}
   </div>`;
 }
 
@@ -771,17 +812,27 @@ function wireCapaHandlers(){
       const card=btn.closest('[data-capa-key]');
       const customer=card.getAttribute('data-customer');
       const defect=card.getAttribute('data-defect');
+      const week=card.getAttribute('data-week');
+      const rank=card.getAttribute('data-rank');
+      const count=card.getAttribute('data-count');
+      const model=card.getAttribute('data-model');
+      const comp=card.getAttribute('data-comp');
       const rootCause=card.querySelector('.capa-rc').value.trim();
       const correctiveAction=card.querySelector('.capa-ca').value.trim();
       const dueDate=card.querySelector('.capa-due').value;
       const pic=card.querySelector('.capa-pic').value.trim();
       const monitoring=card.querySelector('.capa-mon').value;
       if(!currentUser){showToast('Not logged in');return;}
+      if(!week){showToast('No active week to save against — import this week\'s defect data first');return;}
       btn.disabled=true;btn.textContent='Saving…';
       fetch('/api/capa',{
         method:'POST',
         headers:{'Content-Type':'application/json','X-User-Email':currentUser.email},
-        body:JSON.stringify({action:'save',customer,defect,rootCause,correctiveAction,dueDate,pic,monitoring})
+        body:JSON.stringify({
+          action:'save',customer,defect,week,
+          rank:rank?Number(rank):null,count:count?Number(count):null,model,comp,
+          rootCause,correctiveAction,dueDate,pic,monitoring
+        })
       }).then(r=>r.json()).then(d=>{
         if(d.ok){editingCapaKey=null;showToast('CAPA saved ✓');renderReport();}
         else{btn.disabled=false;btn.textContent='💾 Save';showToast('Error: '+d.error);}
@@ -793,7 +844,7 @@ function wireCapaHandlers(){
       const card=btn.closest('[data-capa-key]');
       const customer=card.getAttribute('data-customer');
       const defect=card.getAttribute('data-defect');
-      showConfirm('Clear this CAPA entry?','This removes the root cause, corrective action, and monitoring status logged for this defect. This cannot be undone.',()=>{
+      showConfirm('Clear this entire CAPA chain?','This removes ALL weeks of root cause, corrective action, and monitoring history logged for this defect — not just the latest entry. This cannot be undone.',()=>{
         if(!currentUser){showToast('Not logged in');return;}
         fetch('/api/capa',{
           method:'POST',
@@ -806,15 +857,46 @@ function wireCapaHandlers(){
       },'Clear 🗑️');
     });
   });
+  document.querySelectorAll('.capa-hist-del-btn').forEach(a=>{
+    a.addEventListener('click',e=>{
+      e.preventDefault();
+      const card=a.closest('[data-capa-key]');
+      const customer=card.getAttribute('data-customer');
+      const defect=card.getAttribute('data-defect');
+      const week=a.getAttribute('data-week');
+      showConfirm('Remove this week\u2019s entry?','This deletes just the '+week+' row from this defect\u2019s history. Other weeks are untouched.',()=>{
+        if(!currentUser){showToast('Not logged in');return;}
+        fetch('/api/capa',{
+          method:'POST',
+          headers:{'Content-Type':'application/json','X-User-Email':currentUser.email},
+          body:JSON.stringify({action:'delete',customer,defect,week})
+        }).then(r=>r.json()).then(d=>{
+          if(d.ok){showToast('Removed');renderReport();}
+          else showToast('Error: '+d.error);
+        }).catch(()=>showToast('Network error'));
+      },'Remove 🗑️');
+    });
+  });
   document.querySelectorAll('.capa-mon-quick').forEach(sel=>{
     sel.addEventListener('change',()=>{
       const customer=sel.getAttribute('data-customer');
       const defect=sel.getAttribute('data-defect');
+      const card=sel.closest('[data-capa-key]');
+      const week=card?card.getAttribute('data-week'):'';
+      const rank=card?card.getAttribute('data-rank'):'';
+      const count=card?card.getAttribute('data-count'):'';
+      const model=card?card.getAttribute('data-model'):'';
+      const comp=card?card.getAttribute('data-comp'):'';
       if(!currentUser){showToast('Not logged in');return;}
+      if(!week){showToast('No active week to save against');return;}
       fetch('/api/capa',{
         method:'POST',
         headers:{'Content-Type':'application/json','X-User-Email':currentUser.email},
-        body:JSON.stringify({action:'save',customer,defect,monitoring:sel.value})
+        body:JSON.stringify({
+          action:'save',customer,defect,week,
+          rank:rank?Number(rank):null,count:count?Number(count):null,model,comp,
+          monitoring:sel.value
+        })
       }).then(r=>r.json()).then(d=>{if(d.ok)showToast('Status updated ✓');else showToast('Error: '+d.error);})
       .catch(()=>showToast('Network error'));
     });
@@ -835,28 +917,45 @@ function exportCapaExcel(){
     const cd=computeCustomerReportData(cust,rng,allM,rawDef);
     getCustomerCapaCards(cd,cust).forEach(c=>{
       const rec=capaData[c.key]||{};
-      rows.push({
-        'Customer':cust,
-        'Rank':c.rank||'Carried forward',
-        'Defect':c.defect,
-        'Occurrences (in range)':c.count===null?'':c.count,
-        'Root Cause':rec.rootCause||'',
-        'Corrective Action':rec.correctiveAction||'',
-        'Due Date':rec.dueDate||'',
-        'PIC':rec.pic||'',
-        'Monitoring':rec.monitoring||'Open',
-        'Last Updated':rec.updated?new Date(rec.updated).toLocaleString():'',
-        'Updated By':rec.updatedBy||''
+      const history=rec.history||{};
+      const weeks=Object.keys(history).sort();
+      if(!weeks.length){
+        // No saved history yet for this defect — still list it as an open
+        // row so nothing currently in the Top-3 silently disappears from
+        // the export just because no one has filled it in yet.
+        rows.push({
+          'Defect Chain ID':c.key,'Customer':cust,'Week':cd?cd.lw:'',
+          'Pareto Rank':c.rank||'Not in Top 3','Defect':c.defect,
+          'Model':c.model&&c.model!=='-'?c.model:'','Ref/Component':c.comp&&c.comp!=='-'?c.comp:'',
+          'Count (that wk)':c.count===null?'':c.count,
+          'Root Cause':'','Corrective Action':'','Due Date':'','Owner (PIC)':'',
+          'Status':'Open','Weeks Tracked':0,'Last Updated':'','Updated By':''
+        });
+        return;
+      }
+      weeks.forEach(w=>{
+        const e=history[w];
+        rows.push({
+          'Defect Chain ID':c.key,'Customer':cust,'Week':e.week||'(pre-history)',
+          'Pareto Rank':e.rank||'Not in Top 3','Defect':c.defect,
+          'Model':e.model||'','Ref/Component':e.comp||'',
+          'Count (that wk)':(e.count===null||e.count===undefined)?'':e.count,
+          'Root Cause':e.rootCause||'','Corrective Action':e.correctiveAction||'',
+          'Due Date':e.dueDate||'','Owner (PIC)':e.pic||'',
+          'Status':e.monitoring||'Open','Weeks Tracked':weeks.length,
+          'Last Updated':e.updated?new Date(e.updated).toLocaleString():'',
+          'Updated By':e.updatedBy||''
+        });
       });
     });
   });
   if(!rows.length){showToast('Nothing to export for the current filters');return;}
   const ws=XLSX.utils.json_to_sheet(rows);
-  ws['!cols']=[{wch:16},{wch:16},{wch:24},{wch:14},{wch:34},{wch:34},{wch:12},{wch:16},{wch:12},{wch:18},{wch:16}];
+  ws['!cols']=[{wch:26},{wch:14},{wch:10},{wch:12},{wch:20},{wch:14},{wch:12},{wch:12},{wch:30},{wch:30},{wch:12},{wch:16},{wch:12},{wch:14},{wch:18},{wch:16}];
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'CAPA Report');
   XLSX.writeFile(wb,'CAPA_Report_'+(rng.from||'')+'_to_'+(rng.to||'')+'.xlsx');
-  showToast('Excel file downloaded ✓');
+  showToast('Excel file downloaded ✓ — one row per linked weekly entry, grouped by Defect Chain ID');
 }
 
 // ═══════════════════════════════════════════════════════
@@ -899,7 +998,7 @@ function renderReport(){
     </div>
     <div class="dk" style="border-color:#1e3a5f;">
       <div style="font-size:12px;font-weight:700;color:#3b82f6;">🗂️ CAPA TRACKER — ${rCust==='ALL'?'All customers':esc(rCust)}${rng?` · Top 3 defects (${rng.from} → ${rng.to})`:''}</div>
-      <div style="font-size:10px;color:#64748b;margin-top:4px;">Root Cause · Corrective Action · Due Date · PIC · Monitoring — one entry per customer+defect, carries forward until marked Closed. Change CUSTOMER/FROM/TO above to filter.</div>
+      <div style="font-size:10px;color:#64748b;margin-top:4px;">Root Cause · Corrective Action · Due Date · PIC · Monitoring — each week you save gets its own dated row, linked under the same defect (📜 History) so you can see how the root cause/action evolved. Change CUSTOMER/FROM/TO above to filter.</div>
     </div>
     ${rng?renderCapaTracker(rng,allM,rCust):'<div class="card" style="text-align:center;padding:40px;color:#64748b;">Import defect data first (Yield tab) to build the CAPA tracker.</div>'}`;
 
