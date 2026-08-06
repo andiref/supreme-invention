@@ -1,14 +1,21 @@
 // ============================================
 // capa.js — CAPA report entries for the Report tab's defect tracker
 //
-// One RECORD per (customer, defect) pair, same deterministic key as before
-// — but the record no longer holds a single overwritten snapshot. It holds
-// a `history` map keyed by week ("2025-W01", …), one entry per week that
-// defect got a save. Saving a week that already has an entry updates it
-// in place; saving a NEW week adds a new entry next to the old ones. That
-// is what turns this into a followable chain (same customer+defect =
-// same record = same linked history) instead of a value that just gets
-// clobbered every time you touch it.
+// One RECORD per (customer, defect, model, component) — a CHAIN is that
+// whole combination, not defect alone. If "Insufficient Solder" is #1 two
+// weeks running but the top contributing model shifts from Model A/U1 to
+// Model B/U2, that's a different chain (different key), because the root
+// cause and fix live at that specific model+component, not at the defect
+// type in the abstract. If the exact same combo goes quiet and later
+// reappears, it naturally resumes the SAME chain (same key) instead of
+// starting a new one.
+//
+// The record no longer holds a single overwritten snapshot — it holds a
+// `history` map keyed by week ("2025-W01", …), one entry per week that
+// exact chain got a save. Saving a week that already has an entry updates
+// it in place; saving a NEW week adds a new entry next to the old ones.
+// That's what turns this into a followable chain instead of a value that
+// just gets clobbered every time you touch it.
 //
 // The record also keeps mirror fields (rootCause, correctiveAction,
 // dueDate, pic, monitoring, updated, updatedBy) at the top level, always
@@ -17,7 +24,8 @@
 // shape keeps working unchanged.
 //
 // Paths:
-//   smt_capa/{customerKey}__{defectKey} — one row per customer+defect CAPA
+//   smt_capa/{customerKey}__{defectKey}__{modelKey}__{compKey} — one row
+//     per customer+defect+model+component chain
 //     .history/{week} — one entry per week
 //
 // Same solo-engineer auth pattern as the rest of the API: no role gating,
@@ -33,11 +41,15 @@ const MONITORING_STATUSES = ['Open', 'Monitoring', 'Effective', 'Closed'];
 
 // Builds the same deterministic key the client uses to look records up
 // (see capaKey() in js/yield.js) — MUST stay in sync with that function.
-function capaKey(customer, defect) {
+// Defect AND Model AND Component together make the chain identity; two
+// saves only land on the same chain if all three (plus customer) match.
+function capaKey(customer, defect, model, comp) {
     const c = sanitizeKey(customer, 60);
     const d = sanitizeKey(defect, 80);
+    const m = sanitizeKey(model, 60);
+    const p = sanitizeKey(comp, 40);
     if (!c || !d) return '';
-    return `${c}__${d}`;
+    return `${c}__${d}__${m}__${p}`;
 }
 
 // Week labels are ISO "YYYY-Www" (zero-padded, see isoWeek() in yield.js),
@@ -84,6 +96,8 @@ export default async function handler(req, res) {
         if (action === 'save') {
             const customer = sanitize(body.customer || '', 150);
             const defect = sanitize(body.defect || '', 150);
+            const model = sanitize(body.model || '', 120);
+            const comp = sanitize(body.comp || '', 60);
             const week = sanitizeKey(body.week || '', 20);
             if (!customer) return errorResponse(res, 'Missing customer');
             if (!defect) return errorResponse(res, 'Missing defect');
@@ -92,7 +106,7 @@ export default async function handler(req, res) {
                 return errorResponse(res, 'Invalid monitoring status');
             }
 
-            const key = capaKey(customer, defect);
+            const key = capaKey(customer, defect, model, comp);
             if (!key) return errorResponse(res, 'Invalid customer/defect');
 
             const existing = (await fbGet(env, token, `smt_capa/${key}`)) || {};
@@ -147,7 +161,7 @@ export default async function handler(req, res) {
                 { created: Date.now() },
                 existing,
                 {
-                    customer, defect, history: newHistory,
+                    customer, defect, model, comp, history: newHistory,
                     // Mirror = latest week's entry. Kept at the top level so
                     // anything still reading the old flat shape (older
                     // dashboards, ad-hoc scripts, etc.) keeps working as-is.
@@ -170,9 +184,11 @@ export default async function handler(req, res) {
         if (action === 'delete') {
             const customer = sanitize(body.customer || '', 150);
             const defect = sanitize(body.defect || '', 150);
+            const model = sanitize(body.model || '', 120);
+            const comp = sanitize(body.comp || '', 60);
             if (!customer) return errorResponse(res, 'Missing customer');
             if (!defect) return errorResponse(res, 'Missing defect');
-            const key = capaKey(customer, defect);
+            const key = capaKey(customer, defect, model, comp);
             if (!key) return errorResponse(res, 'Invalid customer/defect');
 
             const week = body.week ? sanitizeKey(body.week, 20) : '';
