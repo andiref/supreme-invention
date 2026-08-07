@@ -302,7 +302,11 @@
       <button class="btn bb" style="padding:8px 18px;font-size:12px;" onclick="generateDigestReport()">📧 GENERATE CUSTOMER DIGEST</button>
     </div>
   </div>
-  <div style="display:flex;justify-content:flex-end;margin-bottom:2px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:2px;">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <div class="fl" style="margin:0;"><div class="fl-lbl">SEARCH CHAINS</div><input id="rpt-capa-search" type="text" placeholder="defect, model, ref, root cause…" oninput="renderReport()" style="width:220px;"/></div>
+      <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:#94a3b8;white-space:nowrap;"><input type="checkbox" id="rpt-capa-include-closed" onchange="renderReport()"/> Include closed chains</label>
+    </div>
     <button class="btn bg" style="padding:8px 18px;font-size:12px;" onclick="exportCapaExcel()">📊 EXPORT CAPA TO EXCEL</button>
   </div>
   <div id="report-content"></div>
