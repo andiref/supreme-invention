@@ -653,7 +653,7 @@ function chronicWeeksFor(weeklyTop3Map,def){return Object.values(weeklyTop3Map).
 // just because it wasn't the worst one this particular week.
 // Takes the already-computed computeCustomerReportData() result (`cd`) so
 // callers that also need it (filtRawCount, etc.) don't compute it twice.
-function getCustomerCapaCards(cd,cust){
+function getCustomerCapaCards(cd,cust,includeClosed){
   const t3=cd?cd.t3:[];
   const cards=t3.map(([def,cnt],i)=>{
     const model=cd?cd.topContributor(def,'model'):'';
@@ -665,7 +665,7 @@ function getCustomerCapaCards(cd,cust){
     const rec=capaData[k];
     if(!rec||rec.customer!==cust)return;
     if(seenKeys.has(k))return;
-    if(rec.monitoring==='Closed')return;
+    if(rec.monitoring==='Closed'&&!includeClosed)return;
     // Not in this week's Top 3, but still an open chain — pull its ACTUAL
     // occurrence count for this exact defect+model+component this week
     // (independent of Pareto rank) so it's caught with a real number
@@ -703,6 +703,7 @@ function renderCapaCard(cust,card,weeklyTop3Map,curWeek){
   const logWeekBtn=(!card.rank&&curWeek)?`<button class="btn bx capa-log-week-btn" style="font-size:9px;padding:4px 9px;" title="Add this week to the chain even though nothing changed">📌 Log week</button>`:'';
   const headerRight=`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
       ${card.rank?`<span style="font-size:18px;font-weight:700;color:${bc};">${card.count} defects</span>`:notTop3Badge}
+      ${mon==='Closed'?badge('🔒 Closed','#22c55e'):''}
       ${chronic>=3?badge('🚨 '+chronic+' wks in Top 3','#ef4444'):''}
       ${isEditing?'':monSelect('capa-mon-quick')}
       ${isEditing?'':logWeekBtn}
@@ -732,11 +733,15 @@ function renderCapaCard(cust,card,weeklyTop3Map,curWeek){
         ${rec.updated?`<button class="btn br capa-delete-btn" style="margin-left:auto;">🗑 Clear entire chain</button>`:''}
       </div>`;
   }else{
+    const hasHistory=Object.keys(history).length>0;
     body=`
       ${rec.rootCause?`<div style="font-size:11px;color:#e2e8f0;margin-top:6px;">🔍 <b>RC:</b> ${esc(rec.rootCause)}</div>`:`<div style="font-size:11px;color:#64748b;margin-top:6px;">No root cause documented yet.</div>`}
       ${rec.correctiveAction?`<div style="font-size:11px;color:#e2e8f0;margin-top:3px;">✅ <b>CA:</b> ${esc(rec.correctiveAction)}</div>`:''}
       <div style="font-size:10px;color:#94a3b8;margin-top:6px;">📅 Due: ${esc(rec.dueDate||'—')} &nbsp;·&nbsp; 👤 PIC: ${esc(rec.pic||'—')}${rec.updated?` &nbsp;·&nbsp; 🕒 Updated ${new Date(rec.updated).toLocaleDateString()}`:''}</div>
-      <button class="btn bx capa-edit-toggle-btn" style="margin-top:10px;font-size:10px;padding:6px 12px;">✏️ Fill / Edit${curWeek?' ('+esc(curWeek)+')':''}</button>`;
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn bx capa-edit-toggle-btn" style="font-size:10px;padding:6px 12px;">✏️ Fill / Edit${curWeek?' ('+esc(curWeek)+')':''}</button>
+        ${hasHistory?`<button class="btn bx capa-export-chain-btn" style="font-size:10px;padding:6px 12px;">⬇️ Export this chain</button>`:''}
+      </div>`;
   }
 
   // Linked history — every week this defect got a save lives here under the
@@ -778,9 +783,22 @@ function renderCapaCard(cust,card,weeklyTop3Map,curWeek){
   </div>`;
 }
 
-function renderCustomerCapaSection(cust,rng,allM){
+// True if a card's chain matches a free-text search — checks the
+// defect/model/component identity plus the record's latest root cause,
+// corrective action, and PIC, so e.g. "squeegee" finds a chain even if you
+// don't remember which model/ref it was on. query is already lowercased.
+function capaCardMatchesSearch(cust,card,query){
+  if(!query)return true;
+  const rec=capaData[card.key]||{};
+  const haystack=[cust,card.defect,card.model,card.comp,card.key,
+    rec.rootCause,rec.correctiveAction,rec.pic].filter(Boolean).join(' ').toLowerCase();
+  return haystack.includes(query);
+}
+
+function renderCustomerCapaSection(cust,rng,allM,searchQuery,includeClosed){
   const cd=computeCustomerReportData(cust,rng,allM,rawDef);
-  const cards=getCustomerCapaCards(cd,cust);
+  let cards=getCustomerCapaCards(cd,cust,includeClosed);
+  if(searchQuery)cards=cards.filter(c=>capaCardMatchesSearch(cust,c,searchQuery));
   if(!cards.length)return'';
   // Scoped to the selected report window (≤RPT_MAX_WEEKS weeks), not the
   // customer's entire history — history-wide scans here get slower and
@@ -798,13 +816,18 @@ function renderCustomerCapaSection(cust,rng,allM){
   </div>`;
 }
 
-function renderCapaTracker(rng,allM,rCust){
+function renderCapaTracker(rng,allM,rCust,searchQuery,includeClosed){
   const custList=rCust==='ALL'?[...new Set(rawDef.map(d=>d.customer))].sort():[rCust];
-  const sections=custList.map(c=>renderCustomerCapaSection(c,rng,allM)).filter(Boolean).join('');
-  if(!sections)return`<div class="card" style="text-align:center;padding:40px;color:#64748b;">
+  const sections=custList.map(c=>renderCustomerCapaSection(c,rng,allM,searchQuery,includeClosed)).filter(Boolean).join('');
+  if(!sections){
+    const msg=searchQuery
+      ?`No chains match "${esc(searchQuery)}"${includeClosed?'':' — try “Include closed chains” if you\u2019re looking for a resolved one.'}`
+      :'No defects to track for the selected customer/week range.';
+    return`<div class="card" style="text-align:center;padding:40px;color:#64748b;">
       <div style="font-size:32px;margin-bottom:10px;">🗂️</div>
-      No defects to track for the selected customer/week range.
+      ${msg}
     </div>`;
+  }
   return sections;
 }
 
@@ -964,61 +987,106 @@ function wireCapaHandlers(){
       }).catch(()=>{showToast('Network error');btn.disabled=false;btn.textContent='📌 Log week';});
     });
   });
+  document.querySelectorAll('.capa-export-chain-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const cardEl=btn.closest('[data-capa-key]');
+      const cust=cardEl.getAttribute('data-customer');
+      const defect=cardEl.getAttribute('data-defect');
+      const week=cardEl.getAttribute('data-week');
+      const rank=cardEl.getAttribute('data-rank');
+      const count=cardEl.getAttribute('data-count');
+      const model=cardEl.getAttribute('data-model');
+      const comp=cardEl.getAttribute('data-comp');
+      const key=cardEl.getAttribute('data-capa-key');
+      const card={key,defect,model,comp,rank:rank?Number(rank):null,count:count===''?null:Number(count)};
+      exportSingleCapaChain(cust,card,week);
+    });
+  });
 }
 
 // Exports the CAPA tracker exactly as currently filtered (customer + week
 // range selected above) to a downloadable .xlsx via SheetJS.
+// Builds the export rows for ONE card's chain — its full linked history, or
+// a single fallback row if nothing's been saved yet. Shared by the bulk
+// report export and the single-chain export so they can never drift apart.
+function capaChainRows(cust,card,curWeek){
+  const rec=capaData[card.key]||{};
+  const history=rec.history||{};
+  const weeks=Object.keys(history).sort();
+  if(!weeks.length){
+    // No saved history yet for this defect — still list it as an open row
+    // so nothing currently in the Top-3 silently disappears from a bulk
+    // export just because no one has filled it in yet.
+    return [{
+      'Defect Chain ID':card.key,'Customer':cust,'Week':curWeek||'',
+      'Pareto Rank':card.rank||'Not in Top 3','Defect':card.defect,
+      'Model':card.model||'','Ref/Component':card.comp||'',
+      'Count (that wk)':card.count===null||card.count===undefined?'':card.count,
+      'Root Cause':'','Corrective Action':'','Due Date':'','Owner (PIC)':'',
+      'Status':'Open','Weeks Tracked':0,'Last Updated':'','Updated By':''
+    }];
+  }
+  return weeks.map(w=>{
+    const e=history[w];
+    return {
+      'Defect Chain ID':card.key,'Customer':cust,'Week':e.week||'(pre-history)',
+      'Pareto Rank':e.rank||'Not in Top 3','Defect':card.defect,
+      'Model':e.model||'','Ref/Component':e.comp||'',
+      'Count (that wk)':(e.count===null||e.count===undefined)?'':e.count,
+      'Root Cause':e.rootCause||'','Corrective Action':e.correctiveAction||'',
+      'Due Date':e.dueDate||'','Owner (PIC)':e.pic||'',
+      'Status':e.monitoring||'Open','Weeks Tracked':weeks.length,
+      'Last Updated':e.updated?new Date(e.updated).toLocaleString():'',
+      'Updated By':e.updatedBy||''
+    };
+  });
+}
+
+function downloadCapaRows(rows,filename,sheetName){
+  const ws=XLSX.utils.json_to_sheet(rows);
+  ws['!cols']=[{wch:26},{wch:14},{wch:10},{wch:12},{wch:20},{wch:14},{wch:12},{wch:12},{wch:30},{wch:30},{wch:12},{wch:16},{wch:12},{wch:14},{wch:18},{wch:16}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,sheetName);
+  XLSX.writeFile(wb,filename);
+}
+
 function exportCapaExcel(){
   if(typeof XLSX==='undefined'){showToast('Excel library not loaded');return;}
   const allM=calcMetrics(rawDef,prodVol);
   const rng=resolveReportWeekRange();
   if(!rng){showToast('No data to export yet');return;}
   const rCust=document.getElementById('rpt-cust')?.value||'ALL';
+  const capaSearch=(document.getElementById('rpt-capa-search')?.value||'').trim().toLowerCase();
+  const capaIncludeClosed=document.getElementById('rpt-capa-include-closed')?.checked||false;
   const custList=rCust==='ALL'?[...new Set(rawDef.map(d=>d.customer))].sort():[rCust];
   const rows=[];
   custList.forEach(cust=>{
     const cd=computeCustomerReportData(cust,rng,allM,rawDef);
-    getCustomerCapaCards(cd,cust).forEach(c=>{
-      const rec=capaData[c.key]||{};
-      const history=rec.history||{};
-      const weeks=Object.keys(history).sort();
-      if(!weeks.length){
-        // No saved history yet for this defect — still list it as an open
-        // row so nothing currently in the Top-3 silently disappears from
-        // the export just because no one has filled it in yet.
-        rows.push({
-          'Defect Chain ID':c.key,'Customer':cust,'Week':cd?cd.lw:'',
-          'Pareto Rank':c.rank||'Not in Top 3','Defect':c.defect,
-          'Model':c.model||'','Ref/Component':c.comp||'',
-          'Count (that wk)':c.count===null?'':c.count,
-          'Root Cause':'','Corrective Action':'','Due Date':'','Owner (PIC)':'',
-          'Status':'Open','Weeks Tracked':0,'Last Updated':'','Updated By':''
-        });
-        return;
-      }
-      weeks.forEach(w=>{
-        const e=history[w];
-        rows.push({
-          'Defect Chain ID':c.key,'Customer':cust,'Week':e.week||'(pre-history)',
-          'Pareto Rank':e.rank||'Not in Top 3','Defect':c.defect,
-          'Model':e.model||'','Ref/Component':e.comp||'',
-          'Count (that wk)':(e.count===null||e.count===undefined)?'':e.count,
-          'Root Cause':e.rootCause||'','Corrective Action':e.correctiveAction||'',
-          'Due Date':e.dueDate||'','Owner (PIC)':e.pic||'',
-          'Status':e.monitoring||'Open','Weeks Tracked':weeks.length,
-          'Last Updated':e.updated?new Date(e.updated).toLocaleString():'',
-          'Updated By':e.updatedBy||''
-        });
-      });
+    let cards=getCustomerCapaCards(cd,cust,capaIncludeClosed);
+    if(capaSearch)cards=cards.filter(c=>capaCardMatchesSearch(cust,c,capaSearch));
+    cards.forEach(c=>{
+      rows.push(...capaChainRows(cust,c,cd?cd.lw:''));
     });
   });
   if(!rows.length){showToast('Nothing to export for the current filters');return;}
-  const ws=XLSX.utils.json_to_sheet(rows);
-  ws['!cols']=[{wch:26},{wch:14},{wch:10},{wch:12},{wch:20},{wch:14},{wch:12},{wch:12},{wch:30},{wch:30},{wch:12},{wch:16},{wch:12},{wch:14},{wch:18},{wch:16}];
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,'CAPA Report');
-  XLSX.writeFile(wb,'CAPA_Report_'+(rng.from||'')+'_to_'+(rng.to||'')+'.xlsx');
+  downloadCapaRows(rows,'CAPA_Report_'+(rng.from||'')+'_to_'+(rng.to||'')+'.xlsx','CAPA Report');
   showToast('Excel file downloaded ✓ — one row per linked weekly entry, grouped by Defect Chain ID');
+}
+
+// Exports ONE chain's full linked history on its own — same row shape as
+// the bulk report, just scoped to a single Defect Chain ID. For handing one
+// specific issue to an auditor/customer without the whole report.
+function exportSingleCapaChain(cust,card,curWeek){
+  if(typeof XLSX==='undefined'){showToast('Excel library not loaded');return;}
+  const rec=capaData[card.key]||{};
+  if(!rec.history||!Object.keys(rec.history).length){
+    showToast('No saved history yet for this chain — fill in a root cause first');
+    return;
+  }
+  const rows=capaChainRows(cust,card,curWeek);
+  const safeName=card.key.replace(/[^a-z0-9]+/gi,'_').replace(/^_+|_+$/g,'').slice(0,80);
+  downloadCapaRows(rows,'CAPA_Chain_'+safeName+'.xlsx','Chain History');
+  showToast('Chain exported ✓ ('+rows.length+' linked week'+(rows.length>1?'s':'')+')');
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1040,6 +1108,8 @@ function renderReport(){
 
   const rng=resolveReportWeekRange();
   const rCust=document.getElementById('rpt-cust')?.value||'ALL';
+  const capaSearch=(document.getElementById('rpt-capa-search')?.value||'').trim().toLowerCase();
+  const capaIncludeClosed=document.getElementById('rpt-capa-include-closed')?.checked||false;
 
   document.getElementById('report-content').innerHTML=`
     <div class="dk">
@@ -1060,10 +1130,10 @@ function renderReport(){
       </div>
     </div>
     <div class="dk" style="border-color:#1e3a5f;">
-      <div style="font-size:12px;font-weight:700;color:#3b82f6;">🗂️ CAPA TRACKER — ${rCust==='ALL'?'All customers':esc(rCust)}${rng?` · Top 3 defects (${rng.from} → ${rng.to})`:''}</div>
-      <div style="font-size:10px;color:#64748b;margin-top:4px;">Root Cause · Corrective Action · Due Date · PIC · Monitoring — each week you save gets its own dated row, linked under the same defect (📜 History) so you can see how the root cause/action evolved. Open chains keep showing up with their real weekly count even after they drop out of the Top 3, so nothing goes untracked just because it fell below the cutoff. Change CUSTOMER/FROM/TO above to filter.</div>
+      <div style="font-size:12px;font-weight:700;color:#3b82f6;">🗂️ CAPA TRACKER — ${rCust==='ALL'?'All customers':esc(rCust)}${rng?` · Top 3 defects (${rng.from} → ${rng.to})`:''}${capaSearch?` · searching “${esc(capaSearch)}”`:''}${capaIncludeClosed?' · incl. closed':''}</div>
+      <div style="font-size:10px;color:#64748b;margin-top:4px;">Root Cause · Corrective Action · Due Date · PIC · Monitoring — each week you save gets its own dated row, linked under the same defect (📜 History) so you can see how the root cause/action evolved. Open chains keep showing up with their real weekly count even after they drop out of the Top 3, so nothing goes untracked just because it fell below the cutoff. Use SEARCH CHAINS to find one directly, and “Include closed chains” to bring resolved ones back into view. Change CUSTOMER/FROM/TO above to filter.</div>
     </div>
-    ${rng?renderCapaTracker(rng,allM,rCust):'<div class="card" style="text-align:center;padding:40px;color:#64748b;">Import defect data first (Yield tab) to build the CAPA tracker.</div>'}`;
+    ${rng?renderCapaTracker(rng,allM,rCust,capaSearch,capaIncludeClosed):'<div class="card" style="text-align:center;padding:40px;color:#64748b;">Import defect data first (Yield tab) to build the CAPA tracker.</div>'}`;
 
   wireCapaHandlers();
 }
