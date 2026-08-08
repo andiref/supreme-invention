@@ -14,17 +14,17 @@ var EQ_STATUSES = ['Requested', 'Ordered', 'In Transit', 'Received', 'Installed'
 
 function eqStatusColor(status) {
     return {
-        'Requested': '#64748b',
-        'Ordered': '#3b82f6',
-        'In Transit': '#f59e0b',
-        'Received': '#a78bfa',
-        'Installed': '#22c55e',
-        'Cancelled': '#ef4444'
-    }[status] || '#64748b';
+        'Requested': '#555555',
+        'Ordered': '#2952A3',
+        'In Transit': '#CC6600',
+        'Received': '#8855AA',
+        'Installed': '#227733',
+        'Cancelled': '#B30000'
+    }[status] || '#555555';
 }
 
 function eqPriorityColor(priority) {
-    return { 'Low': '#22c55e', 'Medium': '#f59e0b', 'High': '#ef4444' }[priority] || '#f59e0b';
+    return { 'Low': '#227733', 'Medium': '#CC6600', 'High': '#B30000' }[priority] || '#CC6600';
 }
 
 function initEquipmentForms() {
@@ -133,7 +133,7 @@ function renderEquipment() {
                 '</div>';
         }
 
-        return '<div class="cu-card">' +
+        return '<div class="cu-card" data-priority="' + esc(eq.priority) + '">' +
             '<div class="cu-header" style="cursor:default">' +
             '<div style="flex:1;min-width:0">' +
             topHtml +
