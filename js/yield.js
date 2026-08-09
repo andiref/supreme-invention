@@ -658,7 +658,13 @@ function getCustomerCapaCards(cd,cust,includeClosed){
   const cards=t3.map(([def,cnt],i)=>{
     const model=cd?cd.topContributor(def,'model'):'';
     const comp=cd?cd.topContributor(def,'comp'):'';
-    return {defect:def,count:cnt,rank:i+1,model,comp,key:capaKey(cust,def,model,comp)};
+    // count = the DEFECT TYPE's total this week (what actually drives its
+    // Top-3 rank, e.g. "175 defects"). modelCount = how many of those 175
+    // are specifically from this model+component — can be much smaller if
+    // several models/components share the same defect type, so it's kept
+    // separate rather than assumed to equal the total.
+    const modelCount=cd?cd.countFor(def,model,comp):null;
+    return {defect:def,count:cnt,rank:i+1,model,comp,modelCount,key:capaKey(cust,def,model,comp)};
   });
   const seenKeys=new Set(cards.map(c=>c.key));
   Object.keys(capaData).forEach(k=>{
@@ -671,7 +677,7 @@ function getCustomerCapaCards(cd,cust,includeClosed){
     // (independent of Pareto rank) so it's caught with a real number
     // rather than sitting blank until someone happens to re-open it.
     const count=cd?cd.countFor(rec.defect,rec.model,rec.comp):null;
-    cards.push({defect:rec.defect,count,rank:null,model:rec.model||'',comp:rec.comp||'',key:k});
+    cards.push({defect:rec.defect,count,rank:null,model:rec.model||'',comp:rec.comp||'',modelCount:count,key:k});
     seenKeys.add(k);
   });
   return cards;
@@ -690,7 +696,7 @@ function renderCapaCard(cust,card,weeklyTop3Map,curWeek){
   const editMon=thisWeekEntry?(thisWeekEntry.monitoring||'Open'):mon;
   const monSelect=(cls)=>`<select class="${cls}" data-customer="${esc(cust)}" data-defect="${esc(card.defect)}" style="width:auto;font-size:10px;background:${capaStatusColor(mon)}20;border:1px solid ${capaStatusColor(mon)}40;color:${capaStatusColor(mon)};">${CAPA_STATUSES.map(s=>`<option${s===mon?' selected':''}>${s}</option>`).join('')}</select>`;
 
-  const modelTag=card.model?`<span style="font-size:10px;font-weight:400;color:#64748b;"> — ${esc(truncate(card.model,28))}${card.comp?' / '+esc(truncate(card.comp,16)):''}</span>`:'';
+  const modelTag=card.model?`<span style="font-size:10px;font-weight:400;color:#64748b;"> — ${esc(truncate(card.model,28))}${card.comp?' / '+esc(truncate(card.comp,16)):''}${card.modelCount!=null?` (${card.modelCount})`:''}</span>`:'';
 
   const notTop3Badge=card.count===0?badge('0 this wk ✅','#22c55e')
     :card.count!=null?badge(card.count+' this wk · not Top 3','#f59e0b')
