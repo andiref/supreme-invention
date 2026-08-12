@@ -72,7 +72,7 @@ export default function TimeView({ defectRows }) {
                     {s.topDefect ? (
                       <>
                         <div style={{ fontSize: 13, marginBottom: 2 }}>{s.topDefect} <span style={{ color: '#64748b' }}>({s.count}, {s.pctOfShift}%)</span></div>
-                        <div style={{ fontSize: 10, color: '#94a3b8' }}>{s.insight}</div>
+                        <div style={{ fontSize: 10, color: 'var(--yc-muted2)' }}>{s.insight}</div>
                       </>
                     ) : <div style={{ fontSize: 11, color: '#64748b' }}>No defects this shift.</div>}
                   </div>
@@ -87,7 +87,7 @@ export default function TimeView({ defectRows }) {
 
           <Card title="🔥 HOURLY HEATMAP (24h)">
             <HourlyHeatmap hourly={hourly} />
-            <div style={{ display: 'flex', gap: 14, marginTop: 10, fontSize: 10, color: '#94a3b8' }}>
+            <div style={{ display: 'flex', gap: 14, marginTop: 10, fontSize: 10, color: 'var(--yc-muted2)' }}>
               <span><span className="dot" style={{ background: '#3b82f6' }} /> Morning (07-15)</span>
               <span><span className="dot" style={{ background: '#f59e0b' }} /> Afternoon (15-23)</span>
               <span><span className="dot" style={{ background: '#a78bfa' }} /> Night (23-07)</span>

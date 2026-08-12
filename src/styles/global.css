@@ -2206,36 +2206,73 @@
    silently overridden this app's real ones if merged unscoped).
    ═══════════════════════════════════════════════════════════════ */
 #yc-root {
-    background: #0a0e17;
-    color: #e2e8f0;
+    /* Dark theme (default) — same look as the original ported tool */
+    --yc-bg: #0a0e17;
+    --yc-surface: #111827;
+    --yc-surface2: #060a12;
+    --yc-border: #1e293b;
+    --yc-border2: #1e3a5f;
+    --yc-text: #e2e8f0;
+    --yc-muted: #64748b;
+    --yc-muted2: #94a3b8;
+    --yc-input-bg: #1e293b;
+    --yc-input-border: #334155;
+    --yc-scrollbar-track: #0f172a;
+    --yc-scrollbar-thumb: #334155;
+    --yc-th-bg: #1e3a5f;
+    --yc-th-text: #93c5fd;
+    --yc-td-border: #1a2234;
+    --yc-hover-bg: #1e3a5f;
+
+    background: var(--yc-bg);
+    color: var(--yc-text);
     font-family: 'Courier New', monospace;
     font-size: 13px;
     padding: 18px 24px;
     max-width: 1440px;
     margin: 0 auto;
 }
+body.light #yc-root {
+    /* Light theme override — same variables, different values */
+    --yc-bg: #f7f8fc;
+    --yc-surface: #ffffff;
+    --yc-surface2: #f1f5f9;
+    --yc-border: #e2e8f0;
+    --yc-border2: #bfdbfe;
+    --yc-text: #1e293b;
+    --yc-muted: #64748b;
+    --yc-muted2: #475569;
+    --yc-input-bg: #f8fafc;
+    --yc-input-border: #cbd5e1;
+    --yc-scrollbar-track: #f1f5f9;
+    --yc-scrollbar-thumb: #cbd5e1;
+    --yc-th-bg: #dbeafe;
+    --yc-th-text: #1e40af;
+    --yc-td-border: #e2e8f0;
+    --yc-hover-bg: #dbeafe;
+}
 #yc-root * { box-sizing: border-box; }
 #yc-root ::-webkit-scrollbar { width: 6px; height: 6px; }
-#yc-root ::-webkit-scrollbar-track { background: #0f172a; }
-#yc-root ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+#yc-root ::-webkit-scrollbar-track { background: var(--yc-scrollbar-track); }
+#yc-root ::-webkit-scrollbar-thumb { background: var(--yc-scrollbar-thumb); border-radius: 3px; }
 #yc-root textarea, #yc-root input, #yc-root select { outline: none; }
-#yc-root .card { background: #111827; border: 1px solid #1e293b; border-radius: 8px; padding: 16px 20px; margin-bottom: 14px; }
-#yc-root .dk { background: #060a12; border: 1px solid #1e3a5f; border-radius: 8px; padding: 14px 18px; margin-bottom: 14px; }
+#yc-root .card { background: var(--yc-surface); border: 1px solid var(--yc-border); border-radius: 8px; padding: 16px 20px; margin-bottom: 14px; }
+#yc-root .dk { background: var(--yc-surface2); border: 1px solid var(--yc-border2); border-radius: 8px; padding: 14px 18px; margin-bottom: 14px; }
 #yc-root .ct { font-size: 10px; color: #3b82f6; font-weight: 700; letter-spacing: 0.1em; margin-bottom: 10px; text-transform: uppercase; }
 #yc-root .kpi-row { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
 #yc-root .kpi { flex: 1; min-width: 130px; border-radius: 8px; padding: 14px 18px; text-align: center; }
 #yc-root .kpi-n { font-size: 24px; font-weight: 700; letter-spacing: -1px; }
-#yc-root .kpi-l { font-size: 10px; color: #64748b; margin-top: 2px; }
-#yc-root .kpi-s { font-size: 9px; color: #64748b; margin-top: 4px; }
+#yc-root .kpi-l { font-size: 10px; color: var(--yc-muted); margin-top: 2px; }
+#yc-root .kpi-s { font-size: 9px; color: var(--yc-muted); margin-top: 4px; }
 #yc-root table { width: 100%; border-collapse: collapse; font-size: 11px; }
-#yc-root th { background: #1e3a5f; color: #93c5fd; padding: 7px 11px; text-align: left; border-bottom: 1px solid #1e293b; font-weight: 700; font-size: 10px; white-space: nowrap; }
-#yc-root td { padding: 7px 11px; border-bottom: 1px solid #1a2234; vertical-align: middle; }
-#yc-root tr:nth-child(even) { background: #0a0e17; }
+#yc-root th { background: var(--yc-th-bg); color: var(--yc-th-text); padding: 7px 11px; text-align: left; border-bottom: 1px solid var(--yc-border); font-weight: 700; font-size: 10px; white-space: nowrap; }
+#yc-root td { padding: 7px 11px; border-bottom: 1px solid var(--yc-td-border); vertical-align: middle; color: var(--yc-text); }
+#yc-root tr:nth-child(even) { background: var(--yc-bg); }
 #yc-root .num { text-align: right; }
 #yc-root .badge { border-radius: 3px; padding: 1px 7px; font-size: 10px; display: inline-block; }
 #yc-root .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 5px; }
 #yc-root input, #yc-root select, #yc-root textarea {
-    background: #1e293b; border: 1px solid #334155; border-radius: 4px; color: #e2e8f0;
+    background: var(--yc-input-bg); border: 1px solid var(--yc-input-border); border-radius: 4px; color: var(--yc-text);
     padding: 6px 9px; font-size: 11px; font-family: 'Courier New', monospace; width: 100%;
 }
 #yc-root textarea { resize: vertical; }
@@ -2248,9 +2285,9 @@
 #yc-root .col { flex: 1; min-width: 280px; }
 #yc-root .fw { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
 #yc-root .fl { flex: 1; min-width: 90px; }
-#yc-root .fl-lbl { font-size: 9px; color: #64748b; margin-bottom: 3px; }
+#yc-root .fl-lbl { font-size: 9px; color: var(--yc-muted); margin-bottom: 3px; }
 #yc-root .tbl-wrap { overflow-x: auto; }
-#yc-root .pc { background: #060a12; border: 1px solid #1e3a5f; border-radius: 4px; padding: 10px 14px; margin-bottom: 8px; font-size: 10px; font-family: 'Courier New', monospace; line-height: 2.2; color: #94a3b8; }
+#yc-root .pc { background: var(--yc-surface2); border: 1px solid var(--yc-border2); border-radius: 4px; padding: 10px 14px; margin-bottom: 8px; font-size: 10px; font-family: 'Courier New', monospace; line-height: 2.2; color: var(--yc-muted2); }
 #yc-root .err { color: #ef4444; font-size: 10px; margin-top: 4px; }
 #yc-root input[type="file"] { padding: 8px 9px; cursor: pointer; }
 #yc-root input[type="file"]::file-selector-button,
@@ -2263,6 +2300,6 @@
 #yc-root input[type="file"]::-webkit-file-upload-button:hover { background: #1e40af; }
 #yc-root #lib-wrap { display: flex; gap: 14px; }
 #yc-root #lib-list { width: 240px; flex-shrink: 0; }
-#yc-root .li { background: #111827; border: 1px solid #1e293b; border-radius: 6px; padding: 9px 12px; cursor: pointer; margin-bottom: 7px; transition: all 0.15s; }
-#yc-root .li:hover, #yc-root .li.active { background: #1e3a5f; border-color: #3b82f6; }
+#yc-root .li { background: var(--yc-surface); border: 1px solid var(--yc-border); border-radius: 6px; padding: 9px 12px; cursor: pointer; margin-bottom: 7px; transition: all 0.15s; }
+#yc-root .li:hover, #yc-root .li.active { background: var(--yc-hover-bg); border-color: #3b82f6; }
 #yc-root canvas { display: block; max-width: 100%; }

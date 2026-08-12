@@ -43,7 +43,7 @@ export default function CapaTracker({ customer, customerReportData, capaRecords,
             style={{ width: 220 }}
           />
         </div>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: '#94a3b8' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'var(--yc-muted2)' }}>
           <input type="checkbox" checked={includeClosed} onChange={(e) => setIncludeClosed(e.target.checked)} />
           Include closed
         </label>

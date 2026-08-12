@@ -65,7 +65,7 @@ export default function CapaCard({ customer, card, capaRecords, week, userEmail,
     <div className="dk" style={{ borderColor: `${color}50`, marginBottom: 10 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', cursor: 'pointer' }} onClick={() => setExpanded((v) => !v)}>
         <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#e2e8f0' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--yc-text)' }}>
             {card.rank ? `#${card.rank}  ` : ''}{card.defect}
           </div>
           <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>

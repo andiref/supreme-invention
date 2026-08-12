@@ -108,14 +108,14 @@ export default function YieldView({ defectRows, prodVolRows, userEmail, showToas
         {unmatched.length > 0 && (
           <div className="dk" style={{ fontSize: 11, color: '#f59e0b' }}>
             ⚠ {unmatched.length} Week+Customer+Model combo(s) have Defect Data but no matching Production Volume, so they're excluded from Yield/DPPM below:
-            <div style={{ marginTop: 6, color: '#94a3b8' }}>
+            <div style={{ marginTop: 6, color: 'var(--yc-muted2)' }}>
               {unmatched.slice(0, 8).map((c) => `${c.week} / ${c.customer} / ${c.model}`).join('  •  ')}
               {unmatched.length > 8 && ` …and ${unmatched.length - 8} more`}
             </div>
           </div>
         )}
 
-        <div className="dk" style={{ fontSize: 11, color: '#94a3b8', lineHeight: 2.2 }}>
+        <div className="dk" style={{ fontSize: 11, color: 'var(--yc-muted2)', lineHeight: 2.2 }}>
           <span style={{ color: '#22c55e', fontWeight: 700 }}>YIELD TOP   </span>= ( InspTOP − Unique Failed SN(TOP) ) ÷ InspTOP × 100<br />
           <span style={{ color: '#a78bfa', fontWeight: 700 }}>YIELD BOT   </span>= ( InspBOT − Unique Failed SN(BOT) ) ÷ InspBOT × 100<br />
           <span style={{ color: '#f59e0b', fontWeight: 700 }}>YIELD OVERALL</span>= ( InspTOP+InspBOT − Total Failed SN+Side ) ÷ ( InspTOP+InspBOT ) × 100<br />

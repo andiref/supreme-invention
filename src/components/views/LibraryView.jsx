@@ -43,28 +43,28 @@ export default function LibraryView() {
 
               <div className="dk">
                 <div style={{ fontSize: 10, fontWeight: 700, color: '#3b82f6', marginBottom: 6 }}>TYPICAL ROOT CAUSES</div>
-                <ul style={{ paddingLeft: 18, fontSize: 12, color: '#e2e8f0', lineHeight: 1.8 }}>
+                <ul style={{ paddingLeft: 18, fontSize: 12, color: 'var(--yc-text)', lineHeight: 1.8 }}>
                   {selected.causes.map((c, i) => <li key={i}>{c}</li>)}
                 </ul>
               </div>
 
               <div className="dk">
                 <div style={{ fontSize: 10, fontWeight: 700, color: '#f59e0b', marginBottom: 6 }}>5-WHY TEMPLATE</div>
-                <div style={{ fontSize: 12, color: '#e2e8f0', lineHeight: 1.9 }}>
+                <div style={{ fontSize: 12, color: 'var(--yc-text)', lineHeight: 1.9 }}>
                   {selected.whys.map((w, i) => <div key={i}>{w}</div>)}
                 </div>
               </div>
 
               <div className="dk">
                 <div style={{ fontSize: 10, fontWeight: 700, color: '#22c55e', marginBottom: 6 }}>CORRECTIVE ACTIONS</div>
-                <ul style={{ paddingLeft: 18, fontSize: 12, color: '#e2e8f0', lineHeight: 1.8 }}>
+                <ul style={{ paddingLeft: 18, fontSize: 12, color: 'var(--yc-text)', lineHeight: 1.8 }}>
                   {selected.actions.map((a, i) => <li key={i}>{a}</li>)}
                 </ul>
               </div>
 
               <div className="dk">
                 <div style={{ fontSize: 10, fontWeight: 700, color: '#a78bfa', marginBottom: 6 }}>PREVENTION</div>
-                <div style={{ fontSize: 12, color: '#e2e8f0' }}>{selected.prev}</div>
+                <div style={{ fontSize: 12, color: 'var(--yc-text)' }}>{selected.prev}</div>
               </div>
             </div>
           ) : (
