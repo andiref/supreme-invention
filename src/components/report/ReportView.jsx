@@ -1,10 +1,11 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   calcMetrics, distinctWeeks, distinctCustomers, resolveWeekRange, resolveReportWeekRange, computeCustomerReportData,
 } from '../../brain/index.js';
 import { Card } from '../common/Kpi.jsx';
 import FilterField from '../common/FilterField.jsx';
 import ReportSnapshot from '../report/ReportSnapshot.jsx';
+import { exportReportPng } from '../report/renderReportPng.js';
 import CapaTracker from '../capa/CapaTracker.jsx';
 
 function weekLabel(w) {
@@ -22,7 +23,6 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, userE
   const [fromWeek, setFromWeek] = useState('');
   const [toWeek, setToWeek] = useState('');
   const [exporting, setExporting] = useState(false);
-  const snapshotRef = useRef(null);
 
   const defaultRange = useMemo(() => resolveReportWeekRange(allWeeks), [allWeeks]);
   const range = useMemo(() => {
@@ -42,19 +42,14 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, userE
     return computeCustomerReportData(customer, range, metrics, defectRows);
   }, [customer, range, metrics, defectRows]);
 
-  async function handleExportPng() {
-    if (!snapshotRef.current) return;
+  function handleExportPng() {
+    if (!reportData || !range) return;
     setExporting(true);
     try {
-      const html2canvas = (await import('html2canvas')).default;
-      // No forced backgroundColor here — the snapshot element already paints
-      // its own opaque background via var(--yc-bg), so the export just
-      // captures whatever theme is currently active (same as what's on screen).
-      const canvas = await html2canvas(snapshotRef.current, { scale: 2 });
-      const link = document.createElement('a');
-      link.download = `SMT_Report_${customer}_${range.from}_${range.to}.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
+      // Hand-drawn Canvas report (KPI boxes, dual trend charts, ranked
+      // Top-3 defect cards) — same layout as the original app, not a
+      // screenshot of the on-screen preview.
+      exportReportPng(customer, range, reportData, author);
       showToast('✓ PNG downloaded');
     } catch (err) {
       showToast(`Export failed: ${err.message}`);
@@ -89,7 +84,7 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, userE
 
         {reportData ? (
           <>
-            <ReportSnapshot ref={snapshotRef} customer={customer} range={range} data={reportData} author={author} />
+            <ReportSnapshot customer={customer} range={range} data={reportData} author={author} />
             <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
               <button className="btn bg" onClick={handleExportPng} disabled={exporting}>
                 {exporting ? 'EXPORTING…' : '🖼 EXPORT PNG'}
