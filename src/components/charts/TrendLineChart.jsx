@@ -18,12 +18,12 @@ export default function TrendLineChart({ labels, series, target, valueSuffix = '
   return (
     <ResponsiveContainer width="100%" height={height}>
       <LineChart data={data} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
-        <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" />
-        <XAxis dataKey="label" stroke="#64748b" fontSize={10} tickLine={false} />
-        <YAxis stroke="#64748b" fontSize={10} tickLine={false} width={48} />
+        <CartesianGrid stroke="var(--yc-border)" strokeDasharray="3 3" />
+        <XAxis dataKey="label" stroke="var(--yc-muted)" fontSize={10} tickLine={false} />
+        <YAxis stroke="var(--yc-muted)" fontSize={10} tickLine={false} width={48} />
         <Tooltip
-          contentStyle={{ background: '#111827', border: '1px solid #1e293b', borderRadius: 6, fontSize: 11 }}
-          labelStyle={{ color: '#93c5fd' }}
+          contentStyle={{ background: 'var(--yc-surface)', border: '1px solid var(--yc-border)', borderRadius: 6, fontSize: 11 }}
+          labelStyle={{ color: '#3b82f6' }}
           formatter={(v) => (v == null ? '—' : `${typeof v === 'number' ? v.toFixed(2) : v}${valueSuffix}`)}
         />
         {series.length > 1 && <Legend wrapperStyle={{ fontSize: 10 }} />}

@@ -9,12 +9,12 @@ function weekLabel(w) {
 
 const ReportSnapshot = forwardRef(function ReportSnapshot({ customer, range, data, author }, ref) {
   return (
-    <div ref={ref} style={{ background: '#0a0e17', color: '#e2e8f0', padding: 20, borderRadius: 10, fontFamily: "'Courier New', monospace" }}>
+    <div ref={ref} style={{ background: 'var(--yc-bg)', color: 'var(--yc-text)', padding: 20, borderRadius: 10, fontFamily: "'Courier New', monospace" }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
         <div style={{ fontSize: 16, fontWeight: 700 }}>⚙️ SMT Weekly Quality Report — {customer}</div>
-        <div style={{ fontSize: 10, color: '#64748b' }}>{weekLabel(range.from)} – {weekLabel(range.to)}</div>
+        <div style={{ fontSize: 10, color: 'var(--yc-muted)' }}>{weekLabel(range.from)} – {weekLabel(range.to)}</div>
       </div>
-      {author && <div style={{ fontSize: 10, color: '#64748b', marginBottom: 12 }}>Prepared by {author} · {new Date().toLocaleDateString()}</div>}
+      {author && <div style={{ fontSize: 10, color: 'var(--yc-muted)', marginBottom: 12 }}>Prepared by {author} · {new Date().toLocaleDateString()}</div>}
 
       <div className="kpi-row">
         {[
@@ -63,7 +63,7 @@ const ReportSnapshot = forwardRef(function ReportSnapshot({ customer, range, dat
           </tbody>
         </table>
       ) : (
-        <div style={{ fontSize: 11, color: '#64748b' }}>No defects recorded in week {weekLabel(data.lw)}.</div>
+        <div style={{ fontSize: 11, color: 'var(--yc-muted)' }}>No defects recorded in week {weekLabel(data.lw)}.</div>
       )}
     </div>
   );

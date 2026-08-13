@@ -47,7 +47,10 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, userE
     setExporting(true);
     try {
       const html2canvas = (await import('html2canvas')).default;
-      const canvas = await html2canvas(snapshotRef.current, { backgroundColor: '#0a0e17', scale: 2 });
+      // No forced backgroundColor here — the snapshot element already paints
+      // its own opaque background via var(--yc-bg), so the export just
+      // captures whatever theme is currently active (same as what's on screen).
+      const canvas = await html2canvas(snapshotRef.current, { scale: 2 });
       const link = document.createElement('a');
       link.download = `SMT_Report_${customer}_${range.from}_${range.to}.png`;
       link.href = canvas.toDataURL('image/png');
@@ -63,7 +66,7 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, userE
   if (!allWeeks.length) {
     return (
       <div id="yc-root">
-        <Card><div style={{ fontSize: 12, color: '#64748b' }}>Import Defect Data on the Yield tab first — reports are built from that.</div></Card>
+        <Card><div style={{ fontSize: 12, color: 'var(--yc-muted)' }}>Import Defect Data on the Yield tab first — reports are built from that.</div></Card>
       </div>
     );
   }
@@ -94,7 +97,7 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, userE
             </div>
           </>
         ) : (
-          <div style={{ fontSize: 11, color: '#64748b' }}>No matched Yield data for {customer === 'ALL' ? 'any customer' : customer} in this week range.</div>
+          <div style={{ fontSize: 11, color: 'var(--yc-muted)' }}>No matched Yield data for {customer === 'ALL' ? 'any customer' : customer} in this week range.</div>
         )}
       </Card>
 
@@ -110,7 +113,7 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, userE
         />
       )}
       {customer === 'ALL' && (
-        <Card><div style={{ fontSize: 11, color: '#64748b' }}>Pick a specific customer above to open its CAPA tracker.</div></Card>
+        <Card><div style={{ fontSize: 11, color: 'var(--yc-muted)' }}>Pick a specific customer above to open its CAPA tracker.</div></Card>
       )}
     </div>
   );
