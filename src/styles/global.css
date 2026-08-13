@@ -37,6 +37,19 @@
             max-width: 480px;
             margin: 0 auto;
         }
+        /* React mounts into #root, a layer the original CSS (written for
+           #app as a direct child of body) didn't account for. Without this,
+           #app's `width:100%` has no properly-sized parent to be 100% of,
+           and the flex row shrinks to fit content instead of filling the
+           screen. flex:1 makes #root fill whatever body gives it, in both
+           the mobile (column) and desktop (row) layouts. */
+        #root {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-width: 0;
+            min-height: 0;
+        }
 
         /* ─── DESKTOP LAYOUT (≥900px) ─── */
         @media (min-width: 900px) {
