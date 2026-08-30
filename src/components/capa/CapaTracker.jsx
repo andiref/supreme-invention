@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
-import * as XLSX from 'xlsx';
-import { getCustomerCapaCards, capaCardMatchesSearch, capaChainRows } from '../../brain/index.js';
+import { getCustomerCapaCards, capaCardMatchesSearch } from '../../brain/index.js';
 import CapaCard from './CapaCard.jsx';
 
 export default function CapaTracker({ customer, customerReportData, capaRecords, week, showToast, showConfirm }) {
@@ -17,17 +16,6 @@ export default function CapaTracker({ customer, customerReportData, capaRecords,
     return cards.filter((c) => capaCardMatchesSearch(customer, c, capaRecords, q));
   }, [cards, customer, capaRecords, search]);
 
-  function handleExport() {
-    const rows = filteredCards.flatMap((c) => capaChainRows(customer, c, week, capaRecords));
-    if (!rows.length) {
-      showToast('Nothing to export');
-      return;
-    }
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'CAPA');
-    XLSX.writeFile(wb, `CAPA_${customer}_${week || 'export'}.xlsx`);
-  }
 
   return (
     <div className="card">
@@ -47,7 +35,6 @@ export default function CapaTracker({ customer, customerReportData, capaRecords,
           <input type="checkbox" checked={includeClosed} onChange={(e) => setIncludeClosed(e.target.checked)} />
           Include closed
         </label>
-        <button className="btn bb" onClick={handleExport}>⬇ EXPORT XLSX</button>
       </div>
 
       {filteredCards.length ? (

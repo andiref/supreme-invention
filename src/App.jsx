@@ -17,6 +17,7 @@ const LibraryView = lazy(() => import('./components/views/LibraryView.jsx'));
 const ReportView = lazy(() => import('./components/report/ReportView.jsx'));
 const EquipmentView = lazy(() => import('./components/equipment/EquipmentView.jsx'));
 const DataHealthView = lazy(() => import('./components/views/DataHealthView.jsx'));
+const QualityAssistantView = lazy(() => import('./components/views/QualityAssistantView.jsx'));
 
 export default function App() {
   const firebaseReady = useFirebaseReady();
@@ -79,6 +80,9 @@ export default function App() {
         )}
         {currentView === 'health' && (
           <DataHealthView defectRows={defectRows} prodVolRows={prodVolRows} capaRecords={capaRecords} />
+        )}
+        {currentView === 'assistant' && (
+          <QualityAssistantView defectRows={defectRows} prodVolRows={prodVolRows} capaRecords={capaRecords} />
         )}
         </>
         )}

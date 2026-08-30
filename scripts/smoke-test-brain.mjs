@@ -11,6 +11,7 @@ import {
   computeCustomerReportData, resolveReportWeekRange, resolveWeekRange,
   DEFECT_LIBRARY, findLibraryEntry, searchLibrary,
   sortEquipment, equipmentStatusColor, buildDataHealth, capaHealth, chronicDefectCount,
+  buildDigestData,
 } from '../src/brain/index.js';
 
 // ---- sample defect rows (mirrors the format shown in the original UI) ----
@@ -148,5 +149,18 @@ assert.equal(h.chronic.count, 0);
 assert.equal(capaHealth(capaSample, new Date('2025-04-20T12:00:00')).overdue, 1);
 assert.equal(chronicDefectCount(defectRows).count, 0);
 console.log('✓ buildDataHealth: warnings =', h.summary.warnings, 'overdue CAPA =', h.capa.overdue, 'chronic =', h.chronic.count);
+
+// ---- digest (multi-customer, one shared range) ----
+const digest = buildDigestData(['CUST-A', 'CUST-B'], wideRange, metrics, defectRows);
+assert.equal(digest.length, 2, 'both customers have data somewhere in the wide range');
+const custADigest = digest.find((d) => d.customer === 'CUST-A');
+const custBDigest = digest.find((d) => d.customer === 'CUST-B');
+// wideRange.to = 2025-W16, where CUST-A has no rows — so its "current week"
+// figures should read as empty even though its trend still has history.
+assert.equal(custADigest.data.latestTotalInsp, 0, 'CUST-A has no data specifically in the range-end week');
+assert.ok(custADigest.data.trendYieldSeries.length >= 1, 'but CUST-A still has trend history');
+// CUST-B's only week (W16) IS the range-end week, so its "current week" should be populated.
+assert.ok(custBDigest.data.latestTotalInsp > 0, 'CUST-B has data in the range-end week');
+console.log('✓ buildDigestData:', digest.length, 'customer(s) — CUST-A current-week insp =', custADigest.data.latestTotalInsp, '(no data, as expected), CUST-B =', custBDigest.data.latestTotalInsp);
 
 console.log('\nAll brain smoke tests passed ✓');

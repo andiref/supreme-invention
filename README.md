@@ -1,43 +1,26 @@
-# SMT Report Center v3
+# SMT Quality Engineer Assistant v4
 
-A React + Vite SMT yield / DPPM / CAPA / equipment dashboard with secure Firebase Authentication, realtime data, data-health validation, and customer reporting.
+A single-user SMT quality analysis and report tool. The app is intentionally focused on one engineer using production Yield + Defect data to understand the problem quickly and generate the **SMT Digest** report.
 
-## V3 upgrades
+## V4 focus
 
-- Firebase Email/Password authentication; verified accounts only.
-- API endpoints require a Firebase ID token and re-validate the owner email server-side.
-- Browser Firebase reads are owner-gated by `firebase.rules.json`; API writes use the server Firebase service account.
-- New **Data Health** dashboard for unmatched joins, duplicate production keys, zero/negative volume, CAPA aging, and chronic defects.
-- Existing Yield, Time, Library, Report, CAPA, Equipment, import/undo flows preserved.
-- API client now uses bearer-token auth instead of the legacy `X-User-Email` header.
+- **Quality Assistant**: deterministic analysis of Yield + Defect data, risk ranking, trend detection, SMT library causes/actions, and CAPA memory.
+- **Import Intelligence**: existing Excel/CSV import and Data Health validation remain the source of truth.
+- **SMT Digest export only**: the weekly multi-customer Digest PNG is retained. Customer-report PNG and CAPA XLSX exports were removed.
+- **Historical analysis**: compare the selected week against previous weeks rather than relying on live collaboration features.
 
-## Firebase setup
+## Workflow
 
-1. In Firebase Console → Authentication → Sign-in method, enable **Email/Password**.
-2. Create the owner user account and verify the email address.
-3. Replace `OWNER_EMAIL_REPLACE_ME` in `firebase.rules.json` with the exact lower-case owner email, then deploy the rules (for example with `firebase deploy --only database`).
-4. In Vercel, set:
-   - `OWNER_EMAIL`
-   - `FIREBASE_WEB_API_KEY`
-   - `FIREBASE_PROJECT_ID`
-   - `FIREBASE_CLIENT_EMAIL`
-   - `FIREBASE_PRIVATE_KEY`
-5. `FIREBASE_PRIVATE_KEY` should contain the service-account private key with literal `\\n` line breaks if stored as one Vercel variable.
+1. Import Defect Data and Production Volume.
+2. Check **Data Health** for unmatched or invalid production combinations.
+3. Open **Quality Assistant** and choose week/customer/model scope.
+4. Review priority findings, top defect drivers, standard checks, and CAPA memory.
+5. Use the **Report** tab to prepare the on-screen customer report and export the **SMT Digest PNG**.
 
-The web API key is not a secret; the Firebase service-account private key is.
+## Important
 
-## Run locally
+The Quality Assistant is a deterministic engineering aid, not a replacement for process investigation or formal root-cause verification. Its recommendations come from the imported defect pattern and the built-in SMT defect library/CAPA history.
 
-```bash
-npm install
-npm run dev
-```
+## Deployment
 
-## Validation
-
-```bash
-npm run build
-npm run test:brain
-```
-
-The `brain/` layer is intentionally pure and should be the main location for regression tests around quality calculations and data validation.
+Authentication and Firebase rules from v3 remain in place. Replace the owner placeholder in `firebase.rules.json` before deployment.

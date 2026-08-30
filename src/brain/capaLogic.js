@@ -106,41 +106,5 @@ export function capaCardMatchesSearch(customer, card, capaRecords, query) {
   return haystack.includes(query);
 }
 
-/**
- * Flattens one chain's history into export rows (one row per linked week),
- * or a single "Open, no history yet" row if nothing's been saved.
- * Shared by the bulk CAPA export and single-chain export.
- */
-export function capaChainRows(customer, card, currentWeek, capaRecords) {
-  const rec = capaRecords[card.key] || {};
-  const history = rec.history || {};
-  const weeks = Object.keys(history).sort();
-
-  if (!weeks.length) {
-    return [{
-      'Defect Chain ID': card.key, Customer: customer, Week: currentWeek || '',
-      'Pareto Rank': card.rank || 'Not in Top 3', Defect: card.defect,
-      Model: card.model || '', 'Ref/Component': card.comp || '',
-      'Count (that wk)': card.count ?? '',
-      'Root Cause': '', 'Corrective Action': '', 'Due Date': '', 'Owner (PIC)': '',
-      Status: 'Open', 'Weeks Tracked': 0, 'Last Updated': '', 'Updated By': '',
-    }];
-  }
-
-  return weeks.map((w) => {
-    const e = history[w];
-    return {
-      'Defect Chain ID': card.key, Customer: customer, Week: e.week || '(pre-history)',
-      'Pareto Rank': e.rank || 'Not in Top 3', Defect: card.defect,
-      Model: e.model || '', 'Ref/Component': e.comp || '',
-      'Count (that wk)': e.count ?? '',
-      'Root Cause': e.rootCause || '', 'Corrective Action': e.correctiveAction || '',
-      'Due Date': e.dueDate || '', 'Owner (PIC)': e.pic || '',
-      Status: e.monitoring || 'Open', 'Weeks Tracked': weeks.length,
-      'Last Updated': e.updated ? new Date(e.updated).toLocaleString() : '',
-      'Updated By': e.updatedBy || '',
-    };
-  });
-}
 
 export { CAPA_STATUSES };

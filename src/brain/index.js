@@ -22,3 +22,4 @@ export * from './importParsing.js';
 export * from './equipmentLogic.js';
 
 export * from './dataHealth.js';
+export * from './qualityAdvisor.js';

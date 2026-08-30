@@ -155,3 +155,21 @@ export function computeCustomerReportData(customer, range, allMetrics, allDefect
     trendDppmSeries: trendSummary.map((w) => w.dppm),
   };
 }
+
+/**
+ * Computes computeCustomerReportData() for every customer against the SAME
+ * shared week range (so every section's "current week" KPI reflects the
+ * same reporting week, even though each customer's own trend chart may
+ * span a different, sparser set of weeks depending on their own history).
+ * Customers with zero matched data anywhere in range are dropped.
+ *
+ * @param {string[]} customers
+ * @param {{from:string,to:string,weeks:string[]}} range
+ * @param {MetricRow[]} allMetrics
+ * @param {DefectRow[]} allDefectRows
+ */
+export function buildDigestData(customers, range, allMetrics, allDefectRows) {
+  return customers
+    .map((customer) => ({ customer, data: computeCustomerReportData(customer, range, allMetrics, allDefectRows) }))
+    .filter((x) => x.data);
+}

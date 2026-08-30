@@ -7,6 +7,7 @@ const VIEWS = [
   { id: 'report', label: '📧 Report' },
   { id: 'equipment', label: '🔧 Equipment' },
   { id: 'health', label: '🛡 Data Health' },
+  { id: 'assistant', label: '🤖 Quality Assistant' },
 ];
 
 export default function Shell({ user, currentView, onNavigate, connected, isLight, onToggleTheme, onLogout, children }) {
@@ -19,7 +20,7 @@ export default function Shell({ user, currentView, onNavigate, connected, isLigh
       {/* ─── Desktop sidebar ─── */}
       <div id="sidebar">
         <div id="sidebar-logo">
-          <div className="s-title">⚙️ SMT Report Center</div>
+          <div className="s-title">⚙️ SMT Quality Engineer</div>
           <div className="s-sub">{dateLabel}</div>
         </div>
         <div id="sidebar-nav">
@@ -65,7 +66,7 @@ export default function Shell({ user, currentView, onNavigate, connected, isLigh
           <div className="header-top">
             <div>
               <div className="header-label">{dateLabel}</div>
-              <div className="header-title">SMT Report Center</div>
+              <div className="header-title">SMT Quality Engineer</div>
             </div>
             <div className="header-counts">
               <div className="user-menu">

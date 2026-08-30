@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
-import { onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { onAuthStateChanged, sendEmailVerification, sendPasswordResetEmail, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { auth } from '../firebase/config.js';
 import { login as apiLogin } from '../api/client.js';
+
+/** Sends a verification email, swallowing the "already sent recently" rate-limit error so the caller's message stays the same either way. */
+async function trySendVerification(firebaseUser) {
+  try {
+    await sendEmailVerification(firebaseUser);
+    return true;
+  } catch {
+    return false; // most likely rate-limited from a previous attempt — not fatal, they already have one in their inbox
+  }
+}
 
 export function useAppAuth() {
   const [user, setUser] = useState(null);
@@ -17,8 +27,9 @@ export function useAppAuth() {
       }
       try {
         if (!firebaseUser.emailVerified) {
+          const sent = await trySendVerification(firebaseUser);
           await signOut(auth);
-          setError('Please verify your email address before signing in.');
+          setError(sent ? 'Check your inbox — we just sent a verification link. Click it, then sign in again.' : 'Please verify your email address before signing in (check your inbox for the link).');
           setUser(null);
           setLoading(false);
           return;
@@ -42,8 +53,9 @@ export function useAppAuth() {
     try {
       const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
       if (!credential.user.emailVerified) {
+        const sent = await trySendVerification(credential.user);
         await signOut(auth);
-        throw new Error('Please verify your email address before signing in.');
+        throw new Error(sent ? 'Check your inbox — we just sent a verification link. Click it, then sign in again.' : 'Please verify your email address before signing in (check your inbox for the link).');
       }
       const appUser = await apiLogin();
       setUser(appUser);
