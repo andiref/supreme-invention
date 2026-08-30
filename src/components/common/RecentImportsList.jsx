@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { listRecentImports, undoImport } from '../../api/client.js';
 import { timeAgo } from '../../brain/index.js';
 
-export default function RecentImportsList({ userEmail, refreshKey, onUndo, onShowConfirm }) {
+export default function RecentImportsList({ refreshKey, onUndo, onShowConfirm }) {
   const [imports, setImports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [undoingId, setUndoingId] = useState(null);
@@ -10,12 +10,12 @@ export default function RecentImportsList({ userEmail, refreshKey, onUndo, onSho
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    listRecentImports(userEmail)
+    listRecentImports()
       .then((list) => { if (!cancelled) setImports(list); })
       .catch(() => { /* best-effort — don't block the tab on this */ })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [userEmail, refreshKey]);
+  }, [refreshKey]);
 
   function handleUndoClick(imp) {
     onShowConfirm(
@@ -24,7 +24,7 @@ export default function RecentImportsList({ userEmail, refreshKey, onUndo, onSho
       async () => {
         setUndoingId(imp.importId);
         try {
-          await undoImport(userEmail, imp.importId);
+          await undoImport(imp.importId);
           setImports((prev) => prev.map((x) => (x.importId === imp.importId ? { ...x, undone: true } : x)));
           onUndo();
         } catch (err) {

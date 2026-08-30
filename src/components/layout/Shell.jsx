@@ -6,6 +6,7 @@ const VIEWS = [
   { id: 'library', label: '📖 Library' },
   { id: 'report', label: '📧 Report' },
   { id: 'equipment', label: '🔧 Equipment' },
+  { id: 'health', label: '🛡 Data Health' },
 ];
 
 export default function Shell({ user, currentView, onNavigate, connected, isLight, onToggleTheme, onLogout, children }) {

@@ -32,8 +32,9 @@ export default async function handler(req, res) {
         }
 
         const body = req.body || {};
-        const email = requireOwner(env, res, req.headers['x-user-email']);
-        if (!email) return;
+        const identity = await requireOwner(env, res, req.headers.authorization);
+        if (!identity) return;
+        const email = identity.email;
 
         const token = await getToken(env);
 

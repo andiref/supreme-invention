@@ -13,6 +13,12 @@ import { buildDefectRow } from '../brain/defectRow.js';
 function useFirebaseValue(path, transform, ready) {
   const [value, setValue] = useState(transform(null));
   const [error, setError] = useState(null);
+  // Starts true and stays true until the first snapshot (or error) actually
+  // arrives — an empty array before that point means "haven't heard from
+  // Firebase yet", not "confirmed there's no data". Without this, a fresh
+  // login briefly renders every view's empty state before real data streams
+  // in, which reads as broken for a moment.
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!ready) return undefined;
@@ -27,6 +33,7 @@ function useFirebaseValue(path, transform, ready) {
         (snap) => {
           setValue(transform(snap.val()));
           setError(null);
+          setLoading(false);
         },
         (err) => {
           console.error(`Firebase error on ${path}:`, err);
@@ -36,6 +43,7 @@ function useFirebaseValue(path, transform, ready) {
             timer = setTimeout(attach, 2000);
           } else {
             setError(err);
+            setLoading(false);
           }
         }
       );
@@ -49,7 +57,7 @@ function useFirebaseValue(path, transform, ready) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, ready]);
 
-  return { value, error };
+  return { value, error, loading };
 }
 
 /** Live defect rows, reconstructed into full DefectRow objects via the brain layer. */

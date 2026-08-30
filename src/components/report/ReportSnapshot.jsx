@@ -1,5 +1,5 @@
-import { forwardRef } from 'react';
-import TrendLineChart from '../charts/TrendLineChart.jsx';
+import { forwardRef, useMemo } from 'react';
+import TrendLineChart, { computeZoomedDomain } from '../charts/TrendLineChart.jsx';
 import { YIELD_TARGET, DPPM_LIMIT } from '../../brain/index.js';
 
 function weekLabel(w) {
@@ -8,6 +8,11 @@ function weekLabel(w) {
 }
 
 const ReportSnapshot = forwardRef(function ReportSnapshot({ customer, range, data, author }, ref) {
+  const yieldDomain = useMemo(
+    () => computeZoomedDomain([{ values: data.yieldSeries }], YIELD_TARGET),
+    [data.yieldSeries]
+  );
+
   return (
     <div ref={ref} style={{ background: 'var(--yc-bg)', color: 'var(--yc-text)', padding: 20, borderRadius: 10, fontFamily: "'Courier New', monospace" }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
@@ -38,6 +43,7 @@ const ReportSnapshot = forwardRef(function ReportSnapshot({ customer, range, dat
             target={YIELD_TARGET}
             valueSuffix="%"
             height={160}
+            domain={yieldDomain}
           />
         </div>
       )}

@@ -8,7 +8,7 @@ import { Card, KpiRow } from '../common/Kpi.jsx';
 import FilterField from '../common/FilterField.jsx';
 import ImportPanel from '../common/ImportPanel.jsx';
 import RecentImportsList from '../common/RecentImportsList.jsx';
-import TrendLineChart from '../charts/TrendLineChart.jsx';
+import TrendLineChart, { computeZoomedDomain } from '../charts/TrendLineChart.jsx';
 import SimpleBarChart from '../charts/SimpleBarChart.jsx';
 
 function weekLabel(w) {
@@ -16,7 +16,7 @@ function weekLabel(w) {
   return m ? `WW${m[1]}` : w;
 }
 
-export default function YieldView({ defectRows, prodVolRows, userEmail, showToast, showConfirm }) {
+export default function YieldView({ defectRows, prodVolRows, showToast, showConfirm }) {
   const [showImport, setShowImport] = useState(null); // null | 'defect' | 'prodvol'
   const [filters, setFilters] = useState({ week: 'ALL', customer: 'ALL', model: 'ALL' });
   const [trendMode, setTrendMode] = useState('overall'); // 'overall' | 'byCustomer'
@@ -80,6 +80,7 @@ export default function YieldView({ defectRows, prodVolRows, userEmail, showToas
 
   const pareto = useMemo(() => paretoByDefectType(filteredDefects).slice(0, 10), [filteredDefects]);
   const topComponents = useMemo(() => topFailingComponents(filteredDefects, 15), [filteredDefects]);
+  const yieldDomain = useMemo(() => computeZoomedDomain(yieldSeries, YIELD_TARGET), [yieldSeries]);
 
   function handleImported(result, type) {
     setShowImport(null);
@@ -97,12 +98,12 @@ export default function YieldView({ defectRows, prodVolRows, userEmail, showToas
         </div>
 
         {showImport && (
-          <ImportPanel type={showImport} userEmail={userEmail} onImported={handleImported} onClose={() => setShowImport(null)} />
+          <ImportPanel type={showImport}  onImported={handleImported} onClose={() => setShowImport(null)} />
         )}
 
         <Card title="🕘 RECENT IMPORTS">
           <div style={{ fontSize: 10, color: '#64748b', marginBottom: 8 }}>Imported the wrong file or wrong data by mistake? Undo it here.</div>
-          <RecentImportsList userEmail={userEmail} refreshKey={importsRefreshKey} onUndo={() => setImportsRefreshKey((k) => k + 1)} onShowConfirm={showConfirm} />
+          <RecentImportsList  refreshKey={importsRefreshKey} onUndo={() => setImportsRefreshKey((k) => k + 1)} onShowConfirm={showConfirm} />
         </Card>
 
         {unmatched.length > 0 && (
@@ -139,13 +140,13 @@ export default function YieldView({ defectRows, prodVolRows, userEmail, showToas
               options={[{ value: 'overall', label: 'Overall' }, { value: 'byCustomer', label: 'By Customer' }]} />
           </div>
           {trendWeeks.length ? (
-            <TrendLineChart labels={trendWeeks.map(weekLabel)} series={yieldSeries} target={YIELD_TARGET} valueSuffix="%" />
+            <TrendLineChart labels={trendWeeks.map(weekLabel)} series={yieldSeries} target={YIELD_TARGET} valueSuffix="%" domain={yieldDomain} />
           ) : <div style={{ fontSize: 11, color: '#64748b' }}>No data yet.</div>}
         </Card>
 
         <Card title="📉 DPPM TREND">
           {trendWeeks.length ? (
-            <TrendLineChart labels={trendWeeks.map(weekLabel)} series={dppmSeries} target={DPPM_LIMIT} />
+            <TrendLineChart labels={trendWeeks.map(weekLabel)} series={dppmSeries} target={DPPM_LIMIT} domain={[0, 'auto']} />
           ) : <div style={{ fontSize: 11, color: '#64748b' }}>No data yet.</div>}
         </Card>
 

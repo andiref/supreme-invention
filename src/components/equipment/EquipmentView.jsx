@@ -5,7 +5,7 @@ import { timeAgo } from '../../brain/datetime.js';
 
 const PRIORITIES = ['Low', 'Medium', 'High'];
 
-export default function EquipmentView({ equipment, userEmail, showToast, showConfirm }) {
+export default function EquipmentView({ equipment, showToast, showConfirm }) {
   const [partName, setPartName] = useState('');
   const [machine, setMachine] = useState('');
   const [priority, setPriority] = useState('Medium');
@@ -22,7 +22,7 @@ export default function EquipmentView({ equipment, userEmail, showToast, showCon
     }
     setSubmitting(true);
     try {
-      await addEquipment(userEmail, { partName: partName.trim(), equipment: machine.trim(), priority, notes: notes.trim() });
+      await addEquipment({ partName: partName.trim(), equipment: machine.trim(), priority, notes: notes.trim() });
       setPartName(''); setMachine(''); setPriority('Medium'); setNotes('');
       showToast('✓ Part added');
     } catch (err) {
@@ -35,7 +35,7 @@ export default function EquipmentView({ equipment, userEmail, showToast, showCon
   async function handleStatusChange(item, status) {
     setBusyId(item._id);
     try {
-      await updateEquipment(userEmail, item._id, { status });
+      await updateEquipment(item._id, { status });
     } catch (err) {
       showToast(err.message);
     } finally {
@@ -50,7 +50,7 @@ export default function EquipmentView({ equipment, userEmail, showToast, showCon
       async () => {
         setBusyId(item._id);
         try {
-          await deleteEquipment(userEmail, item._id);
+          await deleteEquipment(item._id);
           showToast('Deleted');
         } catch (err) {
           showToast(err.message);

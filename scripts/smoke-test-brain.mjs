@@ -10,7 +10,7 @@ import {
   capaKey, buildWeeklyTop3Map, chronicWeekCount, getCustomerCapaCards,
   computeCustomerReportData, resolveReportWeekRange, resolveWeekRange,
   DEFECT_LIBRARY, findLibraryEntry, searchLibrary,
-  sortEquipment, equipmentStatusColor,
+  sortEquipment, equipmentStatusColor, buildDataHealth, capaHealth, chronicDefectCount,
 } from '../src/brain/index.js';
 
 // ---- sample defect rows (mirrors the format shown in the original UI) ----
@@ -133,5 +133,20 @@ assert.equal(sorted[0].id, 'b', 'High priority active item sorts first');
 assert.equal(sorted[2].id, 'a', 'Installed sinks to the bottom');
 console.log('✓ sortEquipment order:', sorted.map((e) => e.id).join(' > '));
 assert.equal(equipmentStatusColor('Installed'), '#22c55e');
+console.log('✓ sortEquipment order:', sorted.map((e) => e.id).join(' > '));
+
+// ---- v3 data health ----
+const capaSample = {
+  c1: { customer: 'CUST-A', defect: 'Solder Bridge', monitoring: 'Open', dueDate: '2025-01-01' },
+  c2: { customer: 'CUST-A', defect: 'Tombstone', monitoring: 'Effective', dueDate: '2099-01-01' },
+};
+const h = buildDataHealth(defectRows, prodVol, capaSample, new Date('2025-04-20T12:00:00'));
+assert.equal(h.summary.unmatchedCombos, 0);
+assert.equal(h.summary.productionRows, 2);
+assert.equal(h.capa.overdue, 1);
+assert.equal(h.chronic.count, 0);
+assert.equal(capaHealth(capaSample, new Date('2025-04-20T12:00:00')).overdue, 1);
+assert.equal(chronicDefectCount(defectRows).count, 0);
+console.log('✓ buildDataHealth: warnings =', h.summary.warnings, 'overdue CAPA =', h.capa.overdue, 'chronic =', h.chronic.count);
 
 console.log('\nAll brain smoke tests passed ✓');

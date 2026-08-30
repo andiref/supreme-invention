@@ -20,3 +20,5 @@ export * from './capaLogic.js';
 export * from './reportData.js';
 export * from './importParsing.js';
 export * from './equipmentLogic.js';
+
+export * from './dataHealth.js';

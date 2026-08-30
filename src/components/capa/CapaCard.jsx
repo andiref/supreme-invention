@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { capaStatusColor, CAPA_STATUSES } from '../../brain/index.js';
 import { saveCapa, deleteCapa } from '../../api/client.js';
 
-export default function CapaCard({ customer, card, capaRecords, week, userEmail, showToast, showConfirm }) {
+export default function CapaCard({ customer, card, capaRecords, week, showToast, showConfirm }) {
   const rec = capaRecords[card.key] || {};
   const [expanded, setExpanded] = useState(false);
   const [rootCause, setRootCause] = useState(rec.rootCause || '');
@@ -31,7 +31,7 @@ export default function CapaCard({ customer, card, capaRecords, week, userEmail,
   async function handleSave() {
     setSaving(true);
     try {
-      await saveCapa(userEmail, {
+      await saveCapa({
         customer, defect: card.defect, week,
         rank: card.rank, count: card.count, model: card.model, comp: card.comp,
         rootCause, correctiveAction, dueDate, pic, monitoring: status,
@@ -51,7 +51,7 @@ export default function CapaCard({ customer, card, capaRecords, week, userEmail,
       `All history for "${card.defect}" / ${card.model} / ${card.comp} will be removed.`,
       async () => {
         try {
-          await deleteCapa(userEmail, { customer, defect: card.defect, model: card.model, comp: card.comp });
+          await deleteCapa({ customer, defect: card.defect, model: card.model, comp: card.comp });
           showToast('Chain deleted');
         } catch (err) {
           showToast(err.message);

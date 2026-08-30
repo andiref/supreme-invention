@@ -11,7 +11,7 @@
 export function setCors(res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-User-Email');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 }
 
 export function jsonResponse(res, data, status = 200) {
@@ -161,12 +161,15 @@ export async function fbDelete(env, token, path) {
     return res.json();
 }
 
-// ─── SOLO-USER AUTH ─────────────────────────
-// This app has exactly one user (you). Instead of a Firebase-backed user
-// table with roles/permissions, the caller's email — sent via the
-// X-User-Email header — is compared against the OWNER_EMAIL environment
-// variable (set this in your Vercel project settings). No passwords, no
-// user management, no roles: if the email matches, the request is yours.
+// ─── VERIFIED FIREBASE AUTH ─────────────────────────────────────────────
+// The v3 API accepts only Firebase ID tokens. The token is validated through
+// Firebase's identity toolkit endpoint, then the resulting email is checked
+// against OWNER_EMAIL. The old X-User-Email trust model is intentionally removed.
+
+function bearerToken(value) {
+    const match = String(value || '').match(/^Bearer\s+(.+)$/i);
+    return match ? match[1].trim() : '';
+}
 
 export function isOwnerEmail(env, email) {
     const allowed = (env.OWNER_EMAIL || '').trim().toLowerCase();
@@ -174,18 +177,42 @@ export function isOwnerEmail(env, email) {
     return sanitize(email || '', 200).toLowerCase() === allowed;
 }
 
-// Checks the X-User-Email header against OWNER_EMAIL. On failure, writes
-// the error response itself and returns null — check for that. On
-// success, returns the (lowercased) email.
-export function requireOwner(env, res, headerEmail) {
+export async function verifyFirebaseIdToken(env, idToken) {
+    if (!(env.FIREBASE_WEB_API_KEY || '').trim()) {
+        throw new Error('Server not configured: FIREBASE_WEB_API_KEY is missing');
+    }
+    if (!idToken) throw new Error('Missing authorization token');
+
+    const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(env.FIREBASE_WEB_API_KEY)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.users?.[0]) throw new Error('Invalid or expired authentication token');
+
+    const user = data.users[0];
+    const email = sanitize(user.email || '', 200).toLowerCase();
+    const verified = user.emailVerified === true || user.emailVerified === 'true';
+    if (!email || !verified) throw new Error('A verified email account is required');
+    return { uid: user.localId || '', email };
+}
+
+export async function requireOwner(env, res, authorizationHeader) {
     if (!(env.OWNER_EMAIL || '').trim()) {
         errorResponse(res, 'Server not configured: OWNER_EMAIL is missing', 500);
         return null;
     }
-    const email = sanitize(headerEmail || '', 200).toLowerCase();
-    if (!isOwnerEmail(env, email)) {
-        errorResponse(res, 'Unauthorized', 401);
+    try {
+        const identity = await verifyFirebaseIdToken(env, bearerToken(authorizationHeader));
+        if (!isOwnerEmail(env, identity.email)) {
+            errorResponse(res, 'Unauthorized', 401);
+            return null;
+        }
+        return identity;
+    } catch (err) {
+        console.error('auth verification failed:', err.message);
+        errorResponse(res, err.message === 'Missing authorization token' ? err.message : 'Unauthorized', 401);
         return null;
     }
-    return email;
 }

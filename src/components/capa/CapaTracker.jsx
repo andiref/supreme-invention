@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx';
 import { getCustomerCapaCards, capaCardMatchesSearch, capaChainRows } from '../../brain/index.js';
 import CapaCard from './CapaCard.jsx';
 
-export default function CapaTracker({ customer, customerReportData, capaRecords, week, userEmail, showToast, showConfirm }) {
+export default function CapaTracker({ customer, customerReportData, capaRecords, week, showToast, showConfirm }) {
   const [search, setSearch] = useState('');
   const [includeClosed, setIncludeClosed] = useState(false);
 
@@ -58,7 +58,6 @@ export default function CapaTracker({ customer, customerReportData, capaRecords,
             card={card}
             capaRecords={capaRecords}
             week={week}
-            userEmail={userEmail}
             showToast={showToast}
             showConfirm={showConfirm}
           />

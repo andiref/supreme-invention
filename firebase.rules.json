@@ -1,0 +1,6 @@
+{
+  "rules": {
+    ".read": "auth != null && auth.token.email_verified == true && auth.token.email == \"zulpaneh@gmail.com\"",
+    ".write": false
+  }
+}

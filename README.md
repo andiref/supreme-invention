@@ -1,105 +1,43 @@
-# SMT Report Center v2
+# SMT Report Center v3
 
-A rebuild of the original `supreme-invention` app. Same Firebase project, same
-Vercel API, same features — but the business logic ("the brain") is now a
-clean, framework-agnostic layer with zero DOM coupling, and the UI is React
-components instead of `document.getElementById` + inline `onclick` handlers.
+A React + Vite SMT yield / DPPM / CAPA / equipment dashboard with secure Firebase Authentication, realtime data, data-health validation, and customer reporting.
 
-## Why this is easier to work with
+## V3 upgrades
 
-The old `js/yield.js` (2,100 lines) mixed defect-math, DOM writes, and canvas
-drawing in the same functions. Changing how a KPI looks meant editing the
-same function that calculated it. Here, calculation and rendering are two
-different files:
+- Firebase Email/Password authentication; verified accounts only.
+- API endpoints require a Firebase ID token and re-validate the owner email server-side.
+- Browser Firebase reads are owner-gated by `firebase.rules.json`; API writes use the server Firebase service account.
+- New **Data Health** dashboard for unmatched joins, duplicate production keys, zero/negative volume, CAPA aging, and chronic defects.
+- Existing Yield, Time, Library, Report, CAPA, Equipment, import/undo flows preserved.
+- API client now uses bearer-token auth instead of the legacy `X-User-Email` header.
 
-```
-src/brain/        pure functions — (data) -> data, no DOM, no fetch, no React.
-                   Unit-testable in plain Node (see scripts/smoke-test-brain.mjs).
-src/api/client.js  the only file that calls fetch() against /api/*
-src/firebase/      the only files that touch the Firebase SDK
-src/components/    React components — presentation only, call into brain/ + api/
-```
+## Firebase setup
 
-Want to change how yield% is calculated? Edit `src/brain/metrics.js` — one
-file, no UI code nearby. Want to change how it's *displayed*? Edit
-`src/components/views/YieldView.jsx` — the math doesn't move.
+1. In Firebase Console → Authentication → Sign-in method, enable **Email/Password**.
+2. Create the owner user account and verify the email address.
+3. Replace `OWNER_EMAIL_REPLACE_ME` in `firebase.rules.json` with the exact lower-case owner email, then deploy the rules (for example with `firebase deploy --only database`).
+4. In Vercel, set:
+   - `OWNER_EMAIL`
+   - `FIREBASE_WEB_API_KEY`
+   - `FIREBASE_PROJECT_ID`
+   - `FIREBASE_CLIENT_EMAIL`
+   - `FIREBASE_PRIVATE_KEY`
+5. `FIREBASE_PRIVATE_KEY` should contain the service-account private key with literal `\\n` line breaks if stored as one Vercel variable.
 
-## Setup
+The web API key is not a secret; the Firebase service-account private key is.
+
+## Run locally
 
 ```bash
 npm install
-```
-
-### Environment
-
-The `/api/*` functions are unchanged from the original and need the same
-Vercel environment variables (Project Settings → Environment Variables):
-
-| Variable | Purpose |
-|---|---|
-| `FIREBASE_PROJECT_ID` | your Firebase project id |
-| `FIREBASE_CLIENT_EMAIL` | service account client email |
-| `FIREBASE_PRIVATE_KEY` | service account private key |
-| `OWNER_EMAIL` | the single email allowed to log in |
-
-The frontend's Firebase config (`src/firebase/config.js`) is the public
-client config — safe to commit, same as the original.
-
-### Local development
-
-```bash
 npm run dev
 ```
 
-Vite serves the React app on `localhost:5173` and proxies `/api/*` to
-`VITE_API_PROXY_TARGET` (defaults to `localhost:3000` — run `vercel dev`
-alongside this, or point it at your deployed URL, e.g.:
-
-```bash
-VITE_API_PROXY_TARGET=https://your-app.vercel.app npm run dev
-```
-
-### Deploying
+## Validation
 
 ```bash
 npm run build
-```
-
-Deploy the `dist/` folder + the `api/` folder to Vercel exactly like the
-original (the `api/` folder here is a straight, unmodified copy).
-
-### Testing the brain layer
-
-```bash
 npm run test:brain
 ```
 
-Runs `scripts/smoke-test-brain.mjs` — a quick end-to-end sanity check against
-sample data. Not a full test suite, but a good starting point: every function
-in `src/brain/` is a pure function, so adding real unit tests (Vitest, etc.)
-from here is straightforward.
-
-## What changed vs. the original
-
-- **Charts**: hand-rolled canvas drawing → [Recharts](https://recharts.org).
-  Less code, easier to restyle.
-- **PNG report export**: was drawn twice (once on screen, once to canvas for
-  the image) → now a single React component (`ReportSnapshot`) rendered once
-  and snapshotted with `html2canvas`. What you see is exactly what exports.
-- **State**: global `var`s (`rawDef`, `capaData`, etc.) → React state +
-  realtime Firebase hooks (`useDefects`, `useCapaData`, ...).
-- Everything else — API contracts, Firebase project, CSS, feature set — is
-  intentionally unchanged, so this is a drop-in replacement for the old
-  frontend, not a different app.
-
-## What to extend next
-
-- The `src/brain/` layer has no test suite beyond the smoke test — worth
-  backfilling with real unit tests (Vitest) before making changes to it.
-- `dist/assets/index-*.js` is ~1.3MB — recharts + xlsx + html2canvas are the
-  biggest contributors. Worth code-splitting (`React.lazy`) per view if
-  initial load time matters.
-- CAPA chronic-week detection (`buildWeeklyTop3Map` / `chronicWeekCount` in
-  `src/brain/capaLogic.js`) is extracted and tested but not yet wired into
-  any component — the original didn't surface it in the UI either, but it's
-  there if you want to add a "chronic" badge to CAPA cards.
+The `brain/` layer is intentionally pure and should be the main location for regression tests around quality calculations and data validation.

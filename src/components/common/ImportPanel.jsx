@@ -17,7 +17,7 @@ const COPY = {
   },
 };
 
-export default function ImportPanel({ type, userEmail, onImported, onClose }) {
+export default function ImportPanel({ type, onImported, onClose }) {
   const [file, setFile] = useState(null);
   const [parsed, setParsed] = useState(null); // { rows, skipped }
   const [error, setError] = useState('');
@@ -52,7 +52,7 @@ export default function ImportPanel({ type, userEmail, onImported, onClose }) {
     setError('');
     try {
       const fn = type === 'defect' ? importDefects : importProdVol;
-      const result = await fn(userEmail, parsed.rows, file?.name, (done, total, batchNum, totalBatches) => {
+      const result = await fn(parsed.rows, file?.name, (done, total, batchNum, totalBatches) => {
         setProgress({ done, total, batchNum, totalBatches });
       });
       onImported(result, type);
