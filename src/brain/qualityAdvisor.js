@@ -34,10 +34,18 @@ function uniqueActions(items, limit = 6) {
   return out.slice(0, limit);
 }
 
-function matchingCapaRecords(capaRecords, defect) {
+// Matches by defect name only, scoped to `customer` when one is selected.
+// Without the customer scope, two different customers' chains sharing a
+// defect name (e.g. "Insufficient Solder") would let one customer's CAPA
+// notes — root cause, corrective action, PIC — surface under another
+// customer's analysis, since CAPA chains are keyed by
+// customer+defect+model+component (see capaLogic.js) but this lookup was
+// only checking the defect segment of that key.
+function matchingCapaRecords(capaRecords, defect, customer) {
   return Object.values(capaRecords || {})
     .filter(Boolean)
     .filter((r) => norm(r.defect) === norm(defect))
+    .filter((r) => customer === 'ALL' || !customer || norm(r.customer) === norm(customer))
     .sort((a, b) => String(b.updatedAt || b.createdAt || '').localeCompare(String(a.updatedAt || a.createdAt || '')));
 }
 
@@ -113,7 +121,7 @@ export function analyzeQualityData(defectRows, prodVolRows, capaRecords = {}, fi
   const topDefects = defectCounts(scopedRows).slice(0, 5).map(([defect, count], index) => {
     const trend = summarizeTrend(latestRowsForTrend.filter((d) => d.defect === defect), trendWeeks);
     const library = findLibraryEntryLoose(defect);
-    const capa = matchingCapaRecords(capaRecords, defect);
+    const capa = matchingCapaRecords(capaRecords, defect, customer);
     const activeCapa = capa.find((r) => (r.monitoring || 'Open') !== 'Closed') || capa[0] || null;
     const sharePct = scopedRows.length ? (count / scopedRows.length) * 100 : 0;
     const risk = count >= 20 || sharePct >= 25 || trend.rising ? 'HIGH' : count >= 8 || sharePct >= 10 ? 'MEDIUM' : 'LOW';

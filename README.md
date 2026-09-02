@@ -23,4 +23,12 @@ The Quality Assistant is a deterministic engineering aid, not a replacement for 
 
 ## Deployment
 
-Authentication and Firebase rules from v3 remain in place. Replace the owner placeholder in `firebase.rules.json` before deployment.
+Authentication and Firebase rules from v3 remain in place, restricting `.read` to one verified owner email — same identity the `/api/*` endpoints check server-side (`OWNER_EMAIL`).
+
+`firebase.rules.json` is generated, not committed, so the real owner email never ends up in git history:
+
+1. Set `OWNER_EMAIL` in `.env` (same value used by the API).
+2. Run `npm run rules:build` to render `firebase.rules.template.json` → `firebase.rules.json`.
+3. Deploy as usual: `firebase deploy --only database`.
+
+Edit `firebase.rules.template.json` (tracked in git, uses the `__OWNER_EMAIL__` placeholder) if the rules themselves need to change — never hand-edit `firebase.rules.json`, and never commit the real email in its place (see git history for why this matters — it happened twice before this script existed).

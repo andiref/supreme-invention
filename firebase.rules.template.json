@@ -1,0 +1,6 @@
+{
+  "rules": {
+    ".read": "auth != null && auth.token.email_verified == true && auth.token.email == \"__OWNER_EMAIL__\"",
+    ".write": false
+  }
+}

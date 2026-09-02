@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test:brain": "node --experimental-vm-modules scripts/smoke-test-brain.mjs"
+    "test:brain": "node --experimental-vm-modules scripts/smoke-test-brain.mjs",
+    "rules:build": "node scripts/gen-rules.mjs"
   },
   "dependencies": {
     "firebase": "^12.18.0",

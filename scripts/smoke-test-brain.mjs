@@ -11,7 +11,7 @@ import {
   computeCustomerReportData, resolveReportWeekRange, resolveWeekRange,
   DEFECT_LIBRARY, findLibraryEntry, searchLibrary,
   sortEquipment, equipmentStatusColor, buildDataHealth, capaHealth, chronicDefectCount,
-  buildDigestData,
+  buildDigestData, analyzeQualityData,
 } from '../src/brain/index.js';
 
 // ---- sample defect rows (mirrors the format shown in the original UI) ----
@@ -162,5 +162,26 @@ assert.ok(custADigest.data.trendYieldSeries.length >= 1, 'but CUST-A still has t
 // CUST-B's only week (W16) IS the range-end week, so its "current week" should be populated.
 assert.ok(custBDigest.data.latestTotalInsp > 0, 'CUST-B has data in the range-end week');
 console.log('✓ buildDigestData:', digest.length, 'customer(s) — CUST-A current-week insp =', custADigest.data.latestTotalInsp, '(no data, as expected), CUST-B =', custBDigest.data.latestTotalInsp);
+
+// ---- quality advisor: CAPA matching must be scoped to the selected customer ----
+// Regression test: matchingCapaRecords() used to match by defect name only, so
+// two different customers sharing a defect name could leak one customer's CAPA
+// notes (root cause, corrective action, PIC) into another customer's analysis.
+const crossRaw = [
+  ['CUST-X', 'SN-900', 'MODEL-X1', 'Solder Bridge', 'R9', '04/07/2025 08:00:00', 'TOP'],
+  ['CUST-Y', 'SN-901', 'MODEL-Y1', 'Solder Bridge', 'R9', '04/07/2025 08:00:00', 'TOP'],
+];
+const crossRows = crossRaw.map((r) => buildDefectRow(r[5], r[0], r[2], r[1], r[6], r[4], r[3])).filter(Boolean);
+const crossProdVol = [
+  { week: '2025-W15', customer: 'CUST-X', model: 'MODEL-X1', inspTOP: 100, inspBOT: 100 },
+  { week: '2025-W15', customer: 'CUST-Y', model: 'MODEL-Y1', inspTOP: 100, inspBOT: 100 },
+];
+const crossCapa = {
+  onlyX: { customer: 'CUST-X', defect: 'Solder Bridge', model: 'MODEL-X1', comp: 'R9', monitoring: 'Open', correctiveAction: 'CUST-X-ONLY-FIX' },
+};
+const analysisY = analyzeQualityData(crossRows, crossProdVol, crossCapa, { week: '2025-W15', customer: 'CUST-Y' });
+assert.ok(analysisY.primaryDefect, 'CUST-Y should have its own primary defect (Solder Bridge)');
+assert.equal(analysisY.primaryDefect.capa, null, "CUST-Y's analysis must not pick up CUST-X's CAPA record just because the defect name matches");
+console.log('✓ analyzeQualityData: CAPA matching stays scoped to the selected customer');
 
 console.log('\nAll brain smoke tests passed ✓');
