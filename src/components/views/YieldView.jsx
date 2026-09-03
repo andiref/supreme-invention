@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import {
   calcMetrics, findUnmatchedDefectCombos, filterMetrics, filterDefectRows,
   distinctWeeks, distinctCustomers, distinctModels, aggregateKpis,
-  paretoByDefectType, topFailingComponents, CHART_COLORS, YIELD_TARGET, DPPM_LIMIT,
+  paretoByDefectType, CHART_COLORS, YIELD_TARGET, DPPM_LIMIT,
 } from '../../brain/index.js';
 import { Card, KpiRow } from '../common/Kpi.jsx';
 import FilterField from '../common/FilterField.jsx';
@@ -79,7 +79,6 @@ export default function YieldView({ defectRows, prodVolRows, showToast, showConf
   }, [trendMode, trendWeeks, trendCustomers, trendMetrics]);
 
   const pareto = useMemo(() => paretoByDefectType(filteredDefects).slice(0, 10), [filteredDefects]);
-  const topComponents = useMemo(() => topFailingComponents(filteredDefects, 15), [filteredDefects]);
   const yieldDomain = useMemo(() => computeZoomedDomain(yieldSeries, YIELD_TARGET), [yieldSeries]);
 
   function handleImported(result, type) {
@@ -157,27 +156,7 @@ export default function YieldView({ defectRows, prodVolRows, showToast, showConf
           ) : <div style={{ fontSize: 11, color: '#64748b' }}>No defects match the current filters.</div>}
         </Card>
 
-        <Card title="🔧 TOP FAILING COMPONENTS (filtered)">
-          {topComponents.length ? (
-            <div className="tbl-wrap">
-              <table>
-                <thead><tr><th>#</th><th>Ref</th><th>Fails</th><th>Top Defect</th><th>Models</th><th>Sides</th></tr></thead>
-                <tbody>
-                  {topComponents.map((c) => (
-                    <tr key={c.comp}>
-                      <td>{c.rank}</td>
-                      <td>{c.comp}</td>
-                      <td className="num">{c.count}</td>
-                      <td>{c.topDefect} ({c.topDefectCount})</td>
-                      <td>{c.models.join(', ')}</td>
-                      <td>{c.sides.join(', ')}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : <div style={{ fontSize: 11, color: '#64748b' }}>No defects match the current filters.</div>}
-        </Card>
+
       </div>
     </div>
   );
