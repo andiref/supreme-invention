@@ -32,3 +32,8 @@ Authentication and Firebase rules from v3 remain in place, restricting `.read` t
 3. Deploy as usual: `firebase deploy --only database`.
 
 Edit `firebase.rules.template.json` (tracked in git, uses the `__OWNER_EMAIL__` placeholder) if the rules themselves need to change — never hand-edit `firebase.rules.json`, and never commit the real email in its place (see git history for why this matters — it happened twice before this script existed).
+
+
+### Data sync model
+
+This is a single-user engineering tool. Firebase remains the cloud source of truth, but the app intentionally uses on-demand reads rather than live listeners. Use the **↻ Refresh** control after changes or whenever you want the latest cloud snapshot. Imports, CAPA edits, and equipment changes automatically trigger a fresh snapshot.

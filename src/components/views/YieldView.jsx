@@ -16,7 +16,7 @@ function weekLabel(w) {
   return m ? `WW${m[1]}` : w;
 }
 
-export default function YieldView({ defectRows, prodVolRows, showToast, showConfirm }) {
+export default function YieldView({ defectRows, prodVolRows, showToast, showConfirm, onDataChanged }) {
   const [showImport, setShowImport] = useState(null); // null | 'defect' | 'prodvol'
   const [filters, setFilters] = useState({ week: 'ALL', customer: 'ALL', model: 'ALL' });
   const [trendMode, setTrendMode] = useState('overall'); // 'overall' | 'byCustomer'
@@ -86,6 +86,7 @@ export default function YieldView({ defectRows, prodVolRows, showToast, showConf
     setShowImport(null);
     setImportsRefreshKey((k) => k + 1);
     showToast(`✓ Imported ${result.count ?? ''} ${type === 'defect' ? 'defect rows' : 'production volume rows'}${result.duplicates ? ` (${result.duplicates} duplicates skipped)` : ''}`);
+    onDataChanged?.();
   }
 
   return (
@@ -103,7 +104,7 @@ export default function YieldView({ defectRows, prodVolRows, showToast, showConf
 
         <Card title="🕘 RECENT IMPORTS">
           <div style={{ fontSize: 10, color: '#64748b', marginBottom: 8 }}>Imported the wrong file or wrong data by mistake? Undo it here.</div>
-          <RecentImportsList  refreshKey={importsRefreshKey} onUndo={() => setImportsRefreshKey((k) => k + 1)} onShowConfirm={showConfirm} />
+          <RecentImportsList refreshKey={importsRefreshKey} onUndo={() => { setImportsRefreshKey((k) => k + 1); onDataChanged?.(); }} onShowConfirm={showConfirm} />
         </Card>
 
         {unmatched.length > 0 && (

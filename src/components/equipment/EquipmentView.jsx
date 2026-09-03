@@ -5,7 +5,7 @@ import { timeAgo } from '../../brain/datetime.js';
 
 const PRIORITIES = ['Low', 'Medium', 'High'];
 
-export default function EquipmentView({ equipment, showToast, showConfirm }) {
+export default function EquipmentView({ equipment, showToast, showConfirm, onDataChanged }) {
   const [partName, setPartName] = useState('');
   const [machine, setMachine] = useState('');
   const [priority, setPriority] = useState('Medium');
@@ -25,6 +25,7 @@ export default function EquipmentView({ equipment, showToast, showConfirm }) {
       await addEquipment({ partName: partName.trim(), equipment: machine.trim(), priority, notes: notes.trim() });
       setPartName(''); setMachine(''); setPriority('Medium'); setNotes('');
       showToast('✓ Part added');
+      onDataChanged?.();
     } catch (err) {
       showToast(err.message);
     } finally {
@@ -36,6 +37,7 @@ export default function EquipmentView({ equipment, showToast, showConfirm }) {
     setBusyId(item._id);
     try {
       await updateEquipment(item._id, { status });
+      onDataChanged?.();
     } catch (err) {
       showToast(err.message);
     } finally {
@@ -52,6 +54,7 @@ export default function EquipmentView({ equipment, showToast, showConfirm }) {
         try {
           await deleteEquipment(item._id);
           showToast('Deleted');
+          onDataChanged?.();
         } catch (err) {
           showToast(err.message);
         } finally {

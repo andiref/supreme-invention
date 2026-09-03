@@ -10,7 +10,7 @@ const VIEWS = [
   { id: 'assistant', label: '🤖 Quality Assistant' },
 ];
 
-export default function Shell({ user, currentView, onNavigate, connected, isLight, onToggleTheme, onLogout, children }) {
+export default function Shell({ user, currentView, onNavigate, syncing, lastSyncedAt, onRefresh, isLight, onToggleTheme, onLogout, children }) {
   const initial = (user?.email || 'U')[0].toUpperCase();
   const now = new Date();
   const dateLabel = now.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
@@ -52,7 +52,7 @@ export default function Shell({ user, currentView, onNavigate, connected, isLigh
       {/* ─── Desktop right column ─── */}
       <div id="desktop-right">
         <div id="desktop-topbar">
-          <SyncStatus connected={connected} />
+          <SyncStatus syncing={syncing} lastSyncedAt={lastSyncedAt} onRefresh={onRefresh} />
           <div id="desktop-counts">
             <button className="theme-toggle" onClick={onToggleTheme} title="Toggle light/dark mode">
               {isLight ? '☀️' : '🌙'}
@@ -60,7 +60,7 @@ export default function Shell({ user, currentView, onNavigate, connected, isLigh
           </div>
         </div>
 
-        <SyncStatus connected={connected} mobile />
+        <SyncStatus syncing={syncing} lastSyncedAt={lastSyncedAt} onRefresh={onRefresh} mobile />
 
         <div id="header">
           <div className="header-top">

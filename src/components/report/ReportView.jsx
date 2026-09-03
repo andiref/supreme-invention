@@ -13,7 +13,7 @@ function weekLabel(w) {
   return m ? `WW${m[1]}` : w;
 }
 
-export default function ReportView({ defectRows, prodVolRows, capaRecords, showToast, showConfirm }) {
+export default function ReportView({ defectRows, prodVolRows, capaRecords, showToast, showConfirm, onDataChanged }) {
   const metrics = useMemo(() => calcMetrics(defectRows, prodVolRows), [defectRows, prodVolRows]);
   const allWeeks = useMemo(() => distinctWeeks(defectRows), [defectRows]);
   const customers = useMemo(() => distinctCustomers(defectRows), [defectRows]);
@@ -142,6 +142,7 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, showT
           week={reportData.lw}
           showToast={showToast}
           showConfirm={showConfirm}
+          onDataChanged={onDataChanged}
         />
       )}
       {customer === 'ALL' && (

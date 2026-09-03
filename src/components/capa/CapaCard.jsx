@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { capaStatusColor, CAPA_STATUSES } from '../../brain/index.js';
 import { saveCapa, deleteCapa } from '../../api/client.js';
 
-export default function CapaCard({ customer, card, capaRecords, week, showToast, showConfirm }) {
+export default function CapaCard({ customer, card, capaRecords, week, showToast, showConfirm, onDataChanged }) {
   const rec = capaRecords[card.key] || {};
   const [expanded, setExpanded] = useState(false);
   const [rootCause, setRootCause] = useState(rec.rootCause || '');
@@ -12,8 +12,7 @@ export default function CapaCard({ customer, card, capaRecords, week, showToast,
   const [status, setStatus] = useState(rec.monitoring || 'Open');
   const [saving, setSaving] = useState(false);
 
-  // Keep local edit fields in sync if the realtime record changes underneath us
-  // (another device saved) while this card is collapsed.
+  // Keep local edit fields in sync with the latest loaded snapshot while collapsed.
   useEffect(() => {
     if (!expanded) {
       setRootCause(rec.rootCause || '');
@@ -37,6 +36,7 @@ export default function CapaCard({ customer, card, capaRecords, week, showToast,
         rootCause, correctiveAction, dueDate, pic, monitoring: status,
       });
       showToast('✓ CAPA saved');
+      onDataChanged?.();
       setExpanded(false);
     } catch (err) {
       showToast(err.message);
@@ -53,6 +53,7 @@ export default function CapaCard({ customer, card, capaRecords, week, showToast,
         try {
           await deleteCapa({ customer, defect: card.defect, model: card.model, comp: card.comp });
           showToast('Chain deleted');
+          onDataChanged?.();
         } catch (err) {
           showToast(err.message);
         }

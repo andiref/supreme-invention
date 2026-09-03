@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { getCustomerCapaCards, capaCardMatchesSearch } from '../../brain/index.js';
 import CapaCard from './CapaCard.jsx';
 
-export default function CapaTracker({ customer, customerReportData, capaRecords, week, showToast, showConfirm }) {
+export default function CapaTracker({ customer, customerReportData, capaRecords, week, showToast, showConfirm, onDataChanged }) {
   const [search, setSearch] = useState('');
   const [includeClosed, setIncludeClosed] = useState(false);
 
@@ -47,6 +47,7 @@ export default function CapaTracker({ customer, customerReportData, capaRecords,
             week={week}
             showToast={showToast}
             showConfirm={showConfirm}
+            onDataChanged={onDataChanged}
           />
         ))
       ) : (

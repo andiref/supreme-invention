@@ -444,9 +444,8 @@
             border-radius: 50%;
             background: var(--muted);
         }
-        #app .sync-dot.live {
+        #app .sync-dot.ready {
             background: var(--green);
-            animation: pulse 2s infinite;
         }
         #app .sync-dot.error {
             background: var(--critical);

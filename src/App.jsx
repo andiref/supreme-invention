@@ -1,6 +1,6 @@
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { useFirebaseReady } from './firebase/useFirebaseReady.js';
-import { useDefects, useProdVol, useCapaData, useEquipment, useConnectionStatus } from './firebase/useRealtimeData.js';
+import { useDefects, useProdVol, useCapaData, useEquipment } from './firebase/useFirebaseData.js';
 import { useAppAuth } from './state/useAppAuth.js';
 import { useTheme } from './state/useTheme.js';
 import { useToast } from './state/useToast.js';
@@ -26,13 +26,24 @@ export default function App() {
   const { toastMessage, showToast } = useToast();
   const { confirmState, showConfirm, closeConfirm, confirmYes } = useConfirm();
   const [currentView, setCurrentView] = useState('yield');
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [lastSyncedAt, setLastSyncedAt] = useState(null);
 
-  const connected = useConnectionStatus(firebaseReady && !!user);
-  const { value: defectRows, loading: defectsLoading } = useDefects(firebaseReady && !!user);
-  const { value: prodVolRows, loading: prodVolLoading } = useProdVol(firebaseReady && !!user);
-  const { value: capaRecords, loading: capaLoading } = useCapaData(firebaseReady && !!user);
-  const { value: equipment, loading: equipmentLoading } = useEquipment(firebaseReady && !!user);
+  const ready = firebaseReady && !!user;
+  const { value: defectRows, loading: defectsLoading } = useDefects(ready, refreshKey);
+  const { value: prodVolRows, loading: prodVolLoading } = useProdVol(ready, refreshKey);
+  const { value: capaRecords, loading: capaLoading } = useCapaData(ready, refreshKey);
+  const { value: equipment, loading: equipmentLoading } = useEquipment(ready, refreshKey);
   const dataLoading = defectsLoading || prodVolLoading || capaLoading || equipmentLoading;
+
+  const handleRefresh = () => {
+    setLastSyncedAt(null);
+    setRefreshKey((key) => key + 1);
+  };
+
+  useEffect(() => {
+    if (ready && !dataLoading) setLastSyncedAt(new Date());
+  }, [ready, dataLoading]);
 
   if (!user) {
     // Toast isn't rendered here — nothing triggers one before login succeeds,
@@ -46,7 +57,9 @@ export default function App() {
         user={user}
         currentView={currentView}
         onNavigate={setCurrentView}
-        connected={connected}
+        syncing={dataLoading}
+        lastSyncedAt={lastSyncedAt}
+        onRefresh={handleRefresh}
         isLight={isLight}
         onToggleTheme={toggleTheme}
         onLogout={logout}
@@ -56,13 +69,13 @@ export default function App() {
           <div id="yc-root">
             <div className="card">
               <div className="ct">⏳ SYNCING DATA…</div>
-              <div style={{ fontSize: 11, color: 'var(--yc-muted)' }}>Connecting to your defect, production, CAPA, and equipment records for the first time this session.</div>
+              <div style={{ fontSize: 11, color: 'var(--yc-muted)' }}>Loading your defect, production, CAPA, and equipment snapshot from the cloud.</div>
             </div>
           </div>
         ) : (
         <>
         {currentView === 'yield' && (
-          <YieldView defectRows={defectRows} prodVolRows={prodVolRows} showToast={showToast} showConfirm={showConfirm} />
+          <YieldView defectRows={defectRows} prodVolRows={prodVolRows} showToast={showToast} showConfirm={showConfirm} onDataChanged={handleRefresh} />
         )}
         {currentView === 'time' && <TimeView defectRows={defectRows} />}
         {currentView === 'library' && <LibraryView />}
@@ -73,10 +86,11 @@ export default function App() {
             capaRecords={capaRecords}
             showToast={showToast}
             showConfirm={showConfirm}
+            onDataChanged={handleRefresh}
           />
         )}
         {currentView === 'equipment' && (
-          <EquipmentView equipment={equipment} showToast={showToast} showConfirm={showConfirm} />
+          <EquipmentView equipment={equipment} showToast={showToast} showConfirm={showConfirm} onDataChanged={handleRefresh} />
         )}
         {currentView === 'health' && (
           <DataHealthView defectRows={defectRows} prodVolRows={prodVolRows} capaRecords={capaRecords} />
