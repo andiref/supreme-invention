@@ -120,12 +120,18 @@ export function computeCustomerReportData(customer, range, allMetrics, allDefect
   const latestInspTOP = latestWeekMetrics.reduce((s, r) => s + r.inspTOP, 0);
   const latestInspBOT = latestWeekMetrics.reduce((s, r) => s + r.inspBOT, 0);
 
-  const allWeeksForCustomer = [...new Set(metricsAllTime.map((m) => m.week))].sort();
-  let toIdx = allWeeksForCustomer.indexOf(latestWeekInRange);
-  if (toIdx === -1) toIdx = allWeeksForCustomer.length - 1;
-  const trendWeeks = toIdx === -1 ? [] : allWeeksForCustomer.slice(Math.max(0, toIdx - REPORT_MAX_WEEKS + 1), toIdx + 1);
-  const trendWeekSet = new Set(trendWeeks);
-  const trendSummary = weeklySummary(metricsAllTime.filter((m) => trendWeekSet.has(m.week)));
+  // Trend window is built from every week in the WHOLE dataset (allMetrics,
+  // unfiltered by customer) rather than just this customer's own weeks. That
+  // way every customer's trend chart in a digest shares the exact same
+  // REPORT_MAX_WEEKS-wide x-axis — a customer that only reported one week
+  // (e.g. a new account) shows a single dot correctly positioned on the same
+  // timeline as everyone else, with visible gaps either side, instead of a
+  // misleadingly narrow chart with just one label.
+  const weekUniverse = [...new Set(allMetrics.map((m) => m.week))].sort();
+  let toIdx = weekUniverse.indexOf(latestWeekInRange);
+  if (toIdx === -1) toIdx = weekUniverse.length - 1;
+  const trendWeeks = toIdx === -1 ? [] : weekUniverse.slice(Math.max(0, toIdx - REPORT_MAX_WEEKS + 1), toIdx + 1);
+  const trendByWeek = new Map(weeklySummary(metricsAllTime).map((w) => [w.week, w]));
 
   return {
     totalInsp, totalFailed, failedTOP, failedBOT, inspTOP, inspBOT,
@@ -147,12 +153,12 @@ export function computeCustomerReportData(customer, range, allMetrics, allDefect
     latestYieldOverall: latestTotalInsp ? ((latestTotalInsp - latestTotalFailed) / latestTotalInsp) * 100 : 0,
     latestDppm: latestTotalInsp ? (latestTotalFailed / latestTotalInsp) * 1e6 : 0,
     latestTotalInsp,
-    trendLabels: trendSummary.map((w) => {
-      const m = w.week.match(/W(\d+)$/);
-      return m ? `WW${m[1]}` : w.week;
+    trendLabels: trendWeeks.map((w) => {
+      const m = w.match(/W(\d+)$/);
+      return m ? `WW${m[1]}` : w;
     }),
-    trendYieldSeries: trendSummary.map((w) => w.yieldPct),
-    trendDppmSeries: trendSummary.map((w) => w.dppm),
+    trendYieldSeries: trendWeeks.map((w) => trendByWeek.get(w)?.yieldPct ?? null),
+    trendDppmSeries: trendWeeks.map((w) => trendByWeek.get(w)?.dppm ?? null),
   };
 }
 
