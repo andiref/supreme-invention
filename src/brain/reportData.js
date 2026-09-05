@@ -120,17 +120,15 @@ export function computeCustomerReportData(customer, range, allMetrics, allDefect
   const latestInspTOP = latestWeekMetrics.reduce((s, r) => s + r.inspTOP, 0);
   const latestInspBOT = latestWeekMetrics.reduce((s, r) => s + r.inspBOT, 0);
 
-  // Trend window is built from every week in the WHOLE dataset (allMetrics,
-  // unfiltered by customer) rather than just this customer's own weeks. That
-  // way every customer's trend chart in a digest shares the exact same
-  // REPORT_MAX_WEEKS-wide x-axis — a customer that only reported one week
-  // (e.g. a new account) shows a single dot correctly positioned on the same
-  // timeline as everyone else, with visible gaps either side, instead of a
-  // misleadingly narrow chart with just one label.
-  const weekUniverse = [...new Set(allMetrics.map((m) => m.week))].sort();
-  let toIdx = weekUniverse.indexOf(latestWeekInRange);
-  if (toIdx === -1) toIdx = weekUniverse.length - 1;
-  const trendWeeks = toIdx === -1 ? [] : weekUniverse.slice(Math.max(0, toIdx - REPORT_MAX_WEEKS + 1), toIdx + 1);
+  // Trend window is the last REPORT_MAX_WEEKS weeks THIS CUSTOMER actually
+  // has data for ("builds"), not a calendar-wide window shared across every
+  // customer. A customer with fewer than REPORT_MAX_WEEKS builds on record
+  // just gets a shorter/narrower chart instead of being padded with empty
+  // slots to line up with everyone else's calendar.
+  const custWeeksSorted = [...new Set(metricsAllTime.map((m) => m.week))].sort();
+  let toIdx = custWeeksSorted.indexOf(latestWeekInRange);
+  if (toIdx === -1) toIdx = custWeeksSorted.length - 1;
+  const trendWeeks = toIdx === -1 ? [] : custWeeksSorted.slice(Math.max(0, toIdx - REPORT_MAX_WEEKS + 1), toIdx + 1);
   const trendByWeek = new Map(weeklySummary(metricsAllTime).map((w) => [w.week, w]));
 
   return {
