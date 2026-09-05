@@ -35,6 +35,21 @@ function formatTick(v) {
   return String(v);
 }
 
+// Recharts' own "nice tick" generator can misbehave when handed a fully
+// explicit, narrow, non-round domain (e.g. the zoomed-in yield% domain from
+// computeZoomedDomain) — it can emit garbled multi-million-looking tick
+// labels even though the plotted line/dots are positioned correctly. When
+// both domain endpoints are real numbers (not 'auto'), we sidestep that by
+// generating our own small set of evenly-spaced, sensibly-rounded ticks.
+function computeLinearTicks(min, max, count = 5) {
+  if (!Number.isFinite(min) || !Number.isFinite(max) || min === max) return undefined;
+  const range = max - min;
+  const decimals = range < 10 ? 1 : 0;
+  const scale = 10 ** decimals;
+  const step = range / (count - 1);
+  return Array.from({ length: count }, (_, i) => Math.round((min + step * i) * scale) / scale);
+}
+
 // The Y-axis label column needs to be exactly as wide as its longest tick
 // text, or long labels get clipped by the chart's left edge (this is what
 // caused DPPM-scale numbers to render with their leading digit sliced off —
@@ -61,6 +76,9 @@ export default function TrendLineChart({ labels, series, target, valueSuffix = '
     return row;
   });
   const axisWidth = estimateAxisWidth(series, valueSuffix);
+  const customTicks = typeof domain[0] === 'number' && typeof domain[1] === 'number'
+    ? computeLinearTicks(domain[0], domain[1])
+    : undefined;
 
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -73,6 +91,7 @@ export default function TrendLineChart({ labels, series, target, valueSuffix = '
           tickLine={false}
           width={axisWidth}
           domain={domain}
+          ticks={customTicks}
           allowDecimals
           tickFormatter={(v) => `${formatTick(v)}${valueSuffix}`}
         />
