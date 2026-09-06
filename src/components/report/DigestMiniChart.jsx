@@ -9,7 +9,7 @@ const VBW = 500; // reference viewBox width — the <svg> stretches to fill
 const VBH = 96; // whatever width its column ends up at, height stays fixed
 const PL = 40;
 const PR = 6;
-const PT = 6;
+const PT = 10;
 const PB = 16;
 const PW = VBW - PL - PR;
 const PH = VBH - PT - PB;
@@ -98,18 +98,27 @@ export default function DigestMiniChart({
         <polyline points={linePoints} fill="none" stroke="#000000" strokeWidth={1.6} />
         {have.map(({ v, i }) => <circle key={i} cx={xp(i)} cy={yp(v)} r={2.3} fill="#000000" />)}
 
-        {lastPoint && (
-          <text
-            x={xp(lastPoint.i)}
-            y={yp(lastPoint.v) - 6}
-            fontSize={9}
-            fontWeight={700}
-            fill="#000000"
-            textAnchor={lastPoint.i === labels.length - 1 ? 'end' : 'middle'}
-          >
-            {fmtVal(lastPoint.v)}
-          </text>
-        )}
+        {lastPoint && (() => {
+          const dotY = yp(lastPoint.v);
+          // Normally the label sits just above the dot. But if the dot is
+          // close to the top of the chart (a near-100% yield week, say),
+          // "above" pushes the label's own text glyphs above y=0 and the
+          // SVG clips them — cutting the tops off digits (a "9" reads as a
+          // "3", a "7" reads as a "1"). Flip it below the dot instead.
+          const labelY = dotY - 6 < 10 ? dotY + 13 : dotY - 6;
+          return (
+            <text
+              x={xp(lastPoint.i)}
+              y={labelY}
+              fontSize={9}
+              fontWeight={700}
+              fill="#000000"
+              textAnchor={lastPoint.i === labels.length - 1 ? 'end' : 'middle'}
+            >
+              {fmtVal(lastPoint.v)}
+            </text>
+          );
+        })()}
 
         {labels.map((l, i) => {
           if (i % showEvery !== 0 && i !== labels.length - 1) return null;
