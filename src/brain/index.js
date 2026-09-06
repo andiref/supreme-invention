@@ -20,6 +20,7 @@ export * from './defectLibrary.js';
 export * from './capaLogic.js';
 export * from './reportData.js';
 export * from './importParsing.js';
+export * from './delimited.js';
 export * from './equipmentLogic.js';
 
 export * from './dataHealth.js';

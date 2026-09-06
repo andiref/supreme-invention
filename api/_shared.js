@@ -16,7 +16,12 @@
 // so this doesn't break local dev before you configure it.
 export function setCors(res) {
     const allowedOrigin = (process.env.ALLOWED_ORIGIN || '').trim();
-    res.setHeader('Access-Control-Allow-Origin', allowedOrigin || '*');
+    const production = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
+    // Same-origin deployments do not need CORS. In production, never silently
+    // fall back to '*' when the allow-list is misconfigured. Keep '*' only for
+    // local development convenience.
+    if (allowedOrigin) res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+    else if (!production) res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Vary', 'Origin');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -58,6 +63,31 @@ export function sanitizeDate(str, maxLen = 30) {
 
 // Stricter sanitizer for values used as Firebase *path segments* (e.g. record IDs).
 // Unlike sanitize(), this also strips '.' since periods are illegal in Firebase keys.
+
+// Strict validation for defect timestamps. Values are stored as data, not keys,
+// so sanitizeDate() preserves their separators; this helper additionally rejects
+// impossible calendar/clock values and trailing junk.
+export function isValidDateTime(str) {
+    const s = String(str || '').trim();
+    const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if (!m) return false;
+    const [, mm, dd, yyyy, hh, min, ss] = m;
+    const month = Number(mm);
+    const day = Number(dd);
+    const year = Number(yyyy);
+    const hour = Number(hh);
+    const minute = Number(min);
+    const second = Number(ss || 0);
+    if (month < 1 || month > 12 || hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59) return false;
+    const dt = new Date(year, month - 1, day, hour, minute, second);
+    return dt.getFullYear() === year &&
+        dt.getMonth() === month - 1 &&
+        dt.getDate() === day &&
+        dt.getHours() === hour &&
+        dt.getMinutes() === minute &&
+        dt.getSeconds() === second;
+}
+
 export function sanitizeKey(str, maxLen = 20) {
     if (typeof str !== 'string') return '';
     return str.replace(/[.#$[\]/]/g, '').trim().slice(0, maxLen);
@@ -158,6 +188,38 @@ export async function fbGet(env, token, path) {
     });
     if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
     return res.json();
+}
+
+export async function fbGetWithEtag(env, token, path) {
+    const res = await fetch(`${dbURL(env)}/${path}.json`, {
+        headers: { Authorization: `Bearer ${token}`, 'X-Firebase-ETag': 'true' }
+    });
+    if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
+    return { data: await res.json(), etag: res.headers.get('ETag') };
+}
+
+/**
+ * Atomically transforms one RTDB value using its ETag. A concurrent writer
+ * causes HTTP 412, in which case the latest value is re-read and the transform
+ * is retried. This is the REST equivalent of a Firebase transaction.
+ */
+export async function fbTransaction(env, token, path, transform, maxRetries = 6) {
+    for (let attempt = 0; attempt < maxRetries; attempt += 1) {
+        const { data, etag } = await fbGetWithEtag(env, token, path);
+        const next = await transform(data);
+        const res = await fetch(`${dbURL(env)}/${path}.json`, {
+            method: 'PUT',
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                ...(etag ? { 'If-Match': etag } : {})
+            },
+            body: JSON.stringify(next === undefined ? null : next)
+        });
+        if (res.ok) return res.json();
+        if (res.status !== 412) throw new Error(`TRANSACTION ${path} failed: ${res.status}`);
+    }
+    throw new Error(`TRANSACTION ${path} conflicted too many times; retry the operation.`);
 }
 
 export async function fbPush(env, token, path, data) {

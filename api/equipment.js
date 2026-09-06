@@ -111,6 +111,6 @@ export default async function handler(req, res) {
 
     } catch (err) {
         console.error('equipment.js error:', err.message);
-        return errorResponse(res, 'Server error: ' + err.message, 500);
+        return errorResponse(res, 'Server error', 500);
     }
 }

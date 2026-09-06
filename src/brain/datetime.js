@@ -9,10 +9,30 @@
  */
 export function parseDateTime(str) {
   const s = String(str || '').trim();
-  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
   if (!m) return null;
   const [, mm, dd, yyyy, hh, min, ss] = m;
-  return new Date(+yyyy, +mm - 1, +dd, +hh, +min, +(ss || 0));
+  const month = +mm;
+  const day = +dd;
+  const year = +yyyy;
+  const hour = +hh;
+  const minute = +min;
+  const second = +(ss || 0);
+  if (month < 1 || month > 12 || hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59) return null;
+
+  // Date() silently normalizes invalid calendar dates such as 02/30/2025.
+  // Round-trip the components so malformed source data is rejected instead.
+  const dt = new Date(year, month - 1, day, hour, minute, second);
+  if (
+    dt.getFullYear() !== year ||
+    dt.getMonth() !== month - 1 ||
+    dt.getDate() !== day ||
+    dt.getHours() !== hour ||
+    dt.getMinutes() !== minute ||
+    dt.getSeconds() !== second
+  ) return null;
+
+  return dt;
 }
 
 /** ISO 8601 week label, e.g. "2026-W17". */

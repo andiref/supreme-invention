@@ -9,8 +9,62 @@
 
 import {
     jsonResponse, errorResponse, handleOptions,
-    sanitizeText, sanitizeDate, sanitizeKey, getToken, fbGet, fbPush, fbSet, fbUpdate, fbDelete, requireOwner
+    sanitizeText, sanitizeDate, sanitizeKey, isValidDateTime, getToken, fbGet, fbUpdate, fbDelete, requireOwner
 } from './_shared.js';
+
+
+export function planProdVolUndo(records, events) {
+    const all = Object.fromEntries(Object.entries(records || {}).map(([id, rec]) => [id, { ...rec }]));
+    const deletes = [];
+    const revertMap = {};
+    let skipped = 0;
+
+    for (let i = events.length - 1; i >= 0; i -= 1) {
+        const event = events[i];
+        const rec = all[event.recordId];
+        if (!rec) { skipped++; continue; }
+
+        if (event.kind === 'update') {
+            const current = Number(rec[event.field]) || 0;
+            if (current !== Number(event.after) || !Object.prototype.hasOwnProperty.call(rec, event.field)) {
+                skipped++;
+                continue;
+            }
+
+            const before = Number(event.before) || 0;
+            rec[event.field] = before;
+            if (!revertMap[event.recordId]) revertMap[event.recordId] = {};
+            revertMap[event.recordId][event.field] = before;
+        } else if (event.kind === 'create') {
+            const same = ['week', 'customer', 'model', 'inspTOP', 'inspBOT'].every((key) =>
+                String(rec[key] ?? '') === String(event.after[key] ?? '')
+            );
+            if (!same) {
+                skipped++;
+                continue;
+            }
+            deletes.push(event.recordId);
+            delete all[event.recordId];
+            delete revertMap[event.recordId];
+        }
+    }
+
+    const reverts = Object.entries(revertMap).map(([id, patch]) => ({ id, patch }));
+    return { deletes, reverts, skipped };
+}
+
+function newFirebaseRecordId(prefix) {
+    const uuid = globalThis.crypto?.randomUUID?.();
+    if (uuid) return `${prefix}_${uuid}`;
+    return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 14)}`;
+}
+
+async function defectSignature(row) {
+    const payload = JSON.stringify([row.dtStr, row.customer, row.model, row.sn, row.side, row.comp, row.defect]);
+    const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(payload));
+    return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 
 export default async function handler(req, res) {
     if (req.method === 'OPTIONS') return handleOptions(res);
@@ -58,48 +112,83 @@ export default async function handler(req, res) {
             if (!rows.length) return errorResponse(res, 'No rows to import');
             if (rows.length > 5000) return errorResponse(res, 'Too many rows in one import (max 5000)');
 
-            const sig = r => [r.dtStr, r.customer, r.model, r.sn, r.side, r.comp, r.defect].join('|');
-
             const clean = rows.map(r => ({
                 dtStr: sanitizeDate(r.dtStr || '', 30),
                 customer: sanitizeText(r.customer || '', 100),
                 model: sanitizeText(r.model || '', 100),
                 sn: sanitizeText(r.sn || '', 100),
-                side: sanitizeText(r.side || '', 10),
+                side: sanitizeText(r.side || '', 10).toUpperCase().replace('BOTTOM', 'BOT'),
                 comp: sanitizeText(r.comp || '', 40),
                 defect: sanitizeText(r.defect || '', 100)
-            })).filter(r => r.dtStr && r.customer && r.model && r.sn && r.side && r.comp && r.defect);
+            })).filter(r => r.dtStr && isValidDateTime(r.dtStr) && r.customer && r.model && r.sn && ['TOP', 'BOT'].includes(r.side) && r.comp && r.defect);
 
             if (!clean.length) return errorResponse(res, 'No valid rows after validation');
 
-            const existing = (await fbGet(env, token, 'smt_defects')) || {};
-            const seen = new Set(Object.values(existing).map(sig));
+            // Keep duplicate lookup data in a compact signature index instead of
+            // downloading every historical defect payload for every import. The
+            // one-time fallback below hydrates missing index entries from legacy
+            // rows; all subsequent imports use the compact index directly.
+            const existingIndex = (await fbGet(env, token, 'smt_defect_index')) || {};
+            const index = { ...existingIndex };
+            const indexBackfill = {};
 
-            const toImport = [];
-            let duplicates = 0;
-            for (const r of clean) {
-                const s = sig(r);
-                if (seen.has(s)) { duplicates++; continue; }
-                seen.add(s); // also catches duplicates repeated within this same file
-                toImport.push({ ...r, loggedBy: email, created: now, importId });
+            // Only the first import after this feature needs the full legacy scan.
+            // Once marked complete, future imports read the compact index alone.
+            if (existingIndex._meta?.backfilled !== true) {
+                const existing = (await fbGet(env, token, 'smt_defects')) || {};
+                for (const [id, row] of Object.entries(existing)) {
+                    const signature = await defectSignature(row);
+                    if (!index[signature]) {
+                        index[signature] = id;
+                        indexBackfill[`smt_defect_index/${signature}`] = id;
+                    }
+                }
+                index._meta = { version: 1, backfilled: true, updated: now };
+                indexBackfill['smt_defect_index/_meta'] = index._meta;
             }
 
-            if (toImport.length) await Promise.all(toImport.map(r => fbPush(env, token, 'smt_defects', r)));
+            const toImport = [];
+            const createdIds = [];
+            const createdIndexKeys = [];
+            let duplicates = 0;
+            for (const r of clean) {
+                const signature = await defectSignature(r);
+                if (index[signature]) { duplicates++; continue; }
+                const id = newFirebaseRecordId('def');
+                index[signature] = id; // also catches duplicates repeated within this same file
+                createdIds.push(id);
+                createdIndexKeys.push(signature);
+                toImport.push({ id, row: { ...r, loggedBy: email, created: now, importId } });
+            }
 
-            // Accumulate this batch into the shared import-log entry (read-modify-write
-            // is safe here because the client sends batches for one import sequentially,
-            // never in parallel — see importInBatches()).
-            if (toImport.length || duplicates) {
+            let log = null;
+            if (toImport.length || duplicates || Object.keys(indexBackfill).length) {
                 const prevLog = (await fbGet(env, token, `smt_imports/${importId}`)) || {};
-                await fbSet(env, token, `smt_imports/${importId}`, {
+                log = {
                     type: 'defects',
                     fileName: fileName || prevLog.fileName || '',
                     rowCount: (prevLog.rowCount || 0) + toImport.length,
                     duplicates: (prevLog.duplicates || 0) + duplicates,
+                    createdIds: [...(prevLog.createdIds || []), ...createdIds],
+                    createdIndexKeys: [...(prevLog.createdIndexKeys || []), ...createdIndexKeys],
                     loggedBy: email,
                     created: prevLog.created || now,
                     undone: false
-                });
+                };
+            }
+
+            // One multi-location PATCH writes defect rows, duplicate-index entries,
+            // legacy-index backfill, and the import log atomically.
+            if (toImport.length || log || Object.keys(indexBackfill).length) {
+                const multi = { ...indexBackfill };
+                for (const { id, row } of toImport) {
+                    multi[`smt_defects/${id}`] = row;
+                }
+                for (const signature of createdIndexKeys) {
+                    multi[`smt_defect_index/${signature}`] = index[signature];
+                }
+                if (log) multi[`smt_imports/${importId}`] = log;
+                await fbUpdate(env, token, '', multi);
             }
 
             return jsonResponse(res, { ok: true, count: toImport.length, duplicates, importId });
@@ -119,8 +208,8 @@ export default async function handler(req, res) {
                 customer: sanitizeText(r.customer || '', 100),
                 model: sanitizeText(r.model || '', 100),
                 side: r.side === 'BOT' ? 'BOT' : (r.side === 'TOP' ? 'TOP' : ''),
-                count: parseInt(r.count) || 0
-            })).filter(r => r.week && r.model && r.side);
+                count: Number(String(r.count ?? '').trim())
+            })).filter(r => r.week && r.model && r.side && Number.isSafeInteger(r.count) && r.count >= 0);
 
             if (!clean.length) return errorResponse(res, 'No valid rows after validation');
 
@@ -128,7 +217,14 @@ export default async function handler(req, res) {
             const existingArr = Object.keys(existing).map(id => ({ _id: id, ...existing[id] }));
 
             const updates = {};   // id -> patch
-            const creates = [];   // new records to push
+            const creates = [];   // { id, ...record } — IDs allocated before the atomic write
+            const changes = {};   // immutable undo events for this batch
+            let changeSeq = 0;
+
+            const addChange = (change) => {
+                const key = `chg_${now}_${changeSeq++}_${Math.random().toString(36).slice(2, 8)}`;
+                changes[key] = change;
+            };
 
             // Case/whitespace-insensitive match key — MUST stay in sync with
             // normKey() in js/yield.js, which is what calcMetricsRaw() uses
@@ -150,36 +246,63 @@ export default async function handler(req, res) {
                 const rKey = wkKey(r.week, r.customer, r.model);
                 const match = existingArr.find(p => wkKey(p.week, p.customer, p.model) === rKey);
                 const field = r.side === 'TOP' ? 'inspTOP' : 'inspBOT';
-                const prevField = field === 'inspTOP' ? 'prevInspTOP' : 'prevInspBOT';
                 if (match) {
-                    const patch = updates[match._id] || { lastImportId: importId, lastImportFields: [], updated: now };
+                    const patch = updates[match._id] || { updated: now };
+                    const before = Object.prototype.hasOwnProperty.call(patch, field) ? patch[field] : (Number(match[field]) || 0);
                     patch[field] = r.count;
-                    patch[prevField] = match[field] || 0;
-                    if (!patch.lastImportFields.includes(field)) patch.lastImportFields.push(field);
                     updates[match._id] = patch;
+                    addChange({ kind: 'update', recordId: match._id, field, before, after: r.count });
                 } else {
                     const pending = creates.find(c => wkKey(c.week, c.customer, c.model) === rKey);
-                    if (pending) pending[field] = r.count;
-                    else creates.push({ week: r.week, customer: r.customer, model: r.model, inspTOP: 0, inspBOT: 0, [field]: r.count, created: now, createdByImportId: importId, lastImportId: importId });
+                    if (pending) {
+                        pending[field] = r.count;
+                    } else {
+                        creates.push({ id: newFirebaseRecordId('vol'), week: r.week, customer: r.customer, model: r.model, inspTOP: 0, inspBOT: 0, [field]: r.count, created: now });
+                    }
                 }
             });
 
-            await Promise.all([
-                ...Object.keys(updates).map(id => fbUpdate(env, token, `smt_prodvol/${id}`, updates[id])),
-                ...creates.map(c => fbPush(env, token, 'smt_prodvol', c))
-            ]);
+            for (const c of creates) {
+                addChange({
+                    kind: 'create',
+                    recordId: c.id,
+                    after: {
+                        week: c.week,
+                        customer: c.customer,
+                        model: c.model,
+                        inspTOP: Number(c.inspTOP) || 0,
+                        inspBOT: Number(c.inspBOT) || 0
+                    }
+                });
+            }
 
-            if (creates.length || Object.keys(updates).length) {
+            let log = null;
+            if (changes && Object.keys(changes).length) {
                 const prevLog = (await fbGet(env, token, `smt_imports/${importId}`)) || {};
-                await fbSet(env, token, `smt_imports/${importId}`, {
+                log = {
                     type: 'prodvol',
                     fileName: fileName || prevLog.fileName || '',
                     createdCount: (prevLog.createdCount || 0) + creates.length,
                     updatedCount: (prevLog.updatedCount || 0) + Object.keys(updates).length,
                     loggedBy: email,
                     created: prevLog.created || now,
-                    undone: false
-                });
+                    undone: false,
+                    changes: { ...(prevLog.changes || {}), ...changes }
+                };
+            }
+
+            // One multi-location PATCH makes all record changes and the corresponding
+            // import log update visible atomically. This removes the old N+1 write loop.
+            if (Object.keys(updates).length || creates.length || log) {
+                const multi = {};
+                for (const [id, patch] of Object.entries(updates)) multi[`smt_prodvol/${id}`] = patch;
+                for (const c of creates) {
+                    const payload = { ...c };
+                    delete payload.id;
+                    multi[`smt_prodvol/${c.id}`] = payload;
+                }
+                if (log) multi[`smt_imports/${importId}`] = log;
+                await fbUpdate(env, token, '', multi);
             }
 
             return jsonResponse(res, { ok: true, updated: Object.keys(updates).length, created: creates.length, importId });
@@ -202,14 +325,10 @@ export default async function handler(req, res) {
         // every row tagged with that importId — always safe, regardless of
         // how much has happened since.
         //
-        // Production volume merges into existing week+customer+model
-        // records, so undo is per-record: a record this import *created*
-        // is deleted outright; a record it merely *updated* has just the
-        // field(s) that import touched reverted to their pre-import values
-        // — but ONLY if lastImportId still matches, i.e. nothing has
-        // written to that record again since. Records a later import has
-        // since touched are left alone and reported back as skipped,
-        // rather than risk clobbering newer legitimate data.
+        // Production volume merges into existing week+customer+model records.
+        // New imports therefore keep an immutable change log under the import ID.
+        // Undo walks those changes backwards and only reverses a field when the
+        // current value still equals the value written by the change.
         if (action === 'undoImport') {
             const targetId = sanitizeKey(body.importId || '', 64);
             if (!targetId) return errorResponse(res, 'Missing importId');
@@ -218,6 +337,18 @@ export default async function handler(req, res) {
             if (log.undone) return errorResponse(res, 'This import was already undone.');
 
             if (log.type === 'defects') {
+                if (Array.isArray(log.createdIds) && Array.isArray(log.createdIndexKeys)) {
+                    const multi = {};
+                    for (const id of log.createdIds) multi[`smt_defects/${id}`] = null;
+                    for (const signature of log.createdIndexKeys) multi[`smt_defect_index/${signature}`] = null;
+                    multi[`smt_imports/${targetId}/undone`] = true;
+                    multi[`smt_imports/${targetId}/undoneAt`] = now;
+                    await fbUpdate(env, token, '', multi);
+                    return jsonResponse(res, { ok: true, deleted: log.createdIds.length, reverted: 0, skipped: 0 });
+                }
+
+                // Legacy imports have no index metadata; retain the old scan-based
+                // fallback so their undo remains available.
                 const all = (await fbGet(env, token, 'smt_defects')) || {};
                 const toDelete = Object.keys(all).filter(id => all[id].importId === targetId);
                 await Promise.all(toDelete.map(id => fbDelete(env, token, `smt_defects/${id}`)));
@@ -226,19 +357,38 @@ export default async function handler(req, res) {
             }
 
             if (log.type === 'prodvol') {
+                // New imports carry an immutable change log. Undo walks the log
+                // backwards and only applies a reversal when the current value
+                // still equals the value written by that change. That makes undo
+                // safe across multiple batches of the same import and prevents it
+                // from clobbering a later import that changed the same field.
+                if (log.changes && Object.keys(log.changes).length) {
+                    const all = (await fbGet(env, token, 'smt_prodvol')) || {};
+                    const events = Object.values(log.changes);
+                    const { deletes, reverts, skipped } = planProdVolUndo(all, events);
+
+                    await Promise.all([
+                        ...deletes.map(id => fbDelete(env, token, `smt_prodvol/${id}`)),
+                        ...reverts.map(({ id, patch }) => fbUpdate(env, token, `smt_prodvol/${id}`, patch))
+                    ]);
+                    await fbUpdate(env, token, `smt_imports/${targetId}`, { undone: true, undoneAt: now });
+                    return jsonResponse(res, { ok: true, deleted: deletes.length, reverted: reverts.length, skipped });
+                }
+
+                // Legacy fallback for imports created before the immutable change
+                // log existed. Keep the old best-effort behavior so existing undo
+                // entries remain usable.
                 const all = (await fbGet(env, token, 'smt_prodvol')) || {};
                 const dels = [], reverts = [];
                 let skipped = 0;
                 Object.keys(all).forEach(id => {
                     const rec = all[id];
-                    if (rec.lastImportId !== targetId) return; // never touched by this import, or touched again since
+                    if (rec.lastImportId !== targetId) return;
                     if (rec.createdByImportId === targetId) { dels.push(id); return; }
                     const fields = rec.lastImportFields || [];
                     if (!fields.length) { skipped++; return; }
                     const patch = {};
                     fields.forEach(f => { patch[f] = f === 'inspTOP' ? (rec.prevInspTOP || 0) : (rec.prevInspBOT || 0); });
-                    // Clear the tracking fields so this record can't be double-undone
-                    // and doesn't keep pointing at an import that no longer applies.
                     patch.lastImportId = null; patch.lastImportFields = null;
                     patch.prevInspTOP = null; patch.prevInspBOT = null;
                     reverts.push({ id, patch });
@@ -280,6 +430,6 @@ export default async function handler(req, res) {
 
     } catch (err) {
         console.error('yield.js error:', err.message);
-        return errorResponse(res, 'Server error: ' + err.message, 500);
+        return errorResponse(res, 'Server error', 500);
     }
 }

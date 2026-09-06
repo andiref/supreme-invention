@@ -8,14 +8,10 @@
 import * as XLSX from 'xlsx';
 import { buildDefectRow } from './defectRow.js';
 import { formatDateTimeForImport } from './datetime.js';
+import { splitDelimited } from './delimited.js';
 
-/** Splits pasted/CSV text into rows of trimmed, unquoted cells. */
-export function splitDelimited(text) {
-  return text
-    .split('\n')
-    .filter((l) => l.trim())
-    .map((l) => l.split(/[\t,]/).map((x) => x.trim().replace(/^"|"$/g, '')));
-}
+/** Splits pasted/CSV text into rows of trimmed, quote-aware cells. */
+
 
 /**
  * Reads a File (csv/txt/xlsx/xls) and resolves with an array of
@@ -83,7 +79,9 @@ export function parseProdVolImportRows(rawRows) {
     if (!week || !model || !side) return null;
     const normSide = String(side).toUpperCase().replace('BOTTOM', 'BOT');
     if (!['TOP', 'BOT'].includes(normSide)) return null;
-    return { week, customer, model, side: normSide, count: parseInt(totalInspected, 10) || 0 };
+    const count = Number(String(totalInspected ?? '').trim());
+    if (!Number.isSafeInteger(count) || count < 0) return null;
+    return { week, customer, model, side: normSide, count };
   });
   const rows = parsed.filter(Boolean);
   return { rows, skipped: parsed.length - rows.length };
