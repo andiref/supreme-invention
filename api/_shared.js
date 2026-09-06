@@ -8,8 +8,16 @@
 // ============================================
 
 // ─── CORS ──────────────────────────────────
+// Restricted to ALLOWED_ORIGIN (set this to your deployed app's exact
+// origin, e.g. "https://smt-engineer-report.vercel.app") rather than '*'.
+// Auth here is a Bearer token, not a cookie, so a wildcard origin was never
+// a CSRF hole — but it did let any page on the internet relay requests
+// using a stolen token. Falls back to '*' only if ALLOWED_ORIGIN isn't set,
+// so this doesn't break local dev before you configure it.
 export function setCors(res) {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    const allowedOrigin = (process.env.ALLOWED_ORIGIN || '').trim();
+    res.setHeader('Access-Control-Allow-Origin', allowedOrigin || '*');
+    res.setHeader('Vary', 'Origin');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 }
@@ -55,6 +63,21 @@ export function sanitizeKey(str, maxLen = 20) {
     return str.replace(/[.#$[\]/]/g, '').trim().slice(0, maxLen);
 }
 
+// Looser sanitizer for free-text VALUES that are never used as Firebase
+// key/path segments — customer/model/defect names, part names, notes, root
+// cause, corrective action, PIC, etc. Firebase VALUES don't have the
+// character restrictions that KEYS do, so there's no reason to strip
+// '#', '$', '[', ']', or '/' from them — doing so silently corrupted
+// legitimate input like "Mounter #3" or model "RK3399/V2". This is the
+// same class of bug sanitizeDate() above was already created to fix for
+// dtStr; this generalizes that fix to every other free-text value field.
+// Anything that DOES get used as a path segment should still go through
+// sanitize() or sanitizeKey() instead.
+export function sanitizeText(str, maxLen = 500) {
+    if (typeof str !== 'string') return '';
+    return str.trim().slice(0, maxLen);
+}
+
 // ─── JWT AUTH ──────────────────────────────
 function pemToArrayBuffer(pem) {
     const base64 = pem
@@ -87,9 +110,22 @@ async function makeJWT(payload, privateKeyPem) {
     return `${signingInput}.${sig}`;
 }
 
+// Module-scope cache: on Vercel, a "warm" serverless instance is reused
+// across consecutive requests, so this survives between calls (though not
+// across cold starts). Without it, every single API call — even two fired
+// a second apart during a batched import — re-signed a JWT and did a full
+// round trip to Google's OAuth endpoint for a token that's valid for an
+// hour. Refreshed 60s before actual expiry to leave margin for in-flight
+// requests.
+let cachedToken = null; // { token, expiresAt } (expiresAt in epoch seconds)
+
 export async function getToken(env) {
-    const privateKey = env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n');
     const now = Math.floor(Date.now() / 1000);
+    if (cachedToken && cachedToken.expiresAt - 60 > now) {
+        return cachedToken.token;
+    }
+
+    const privateKey = env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n');
     const jwt = await makeJWT({
         iss: env.FIREBASE_CLIENT_EMAIL,
         sub: env.FIREBASE_CLIENT_EMAIL,
@@ -105,6 +141,8 @@ export async function getToken(env) {
     });
     const data = await res.json();
     if (!data.access_token) throw new Error('Token error: ' + JSON.stringify(data));
+
+    cachedToken = { token: data.access_token, expiresAt: now + (data.expires_in || 3600) };
     return data.access_token;
 }
 

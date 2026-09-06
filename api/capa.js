@@ -34,7 +34,7 @@
 
 import {
     jsonResponse, errorResponse, handleOptions,
-    sanitize, sanitizeDate, sanitizeKey, getToken, fbGet, fbSet, fbDelete, requireOwner
+    sanitizeText, sanitizeDate, sanitizeKey, getToken, fbGet, fbSet, fbDelete, requireOwner
 } from './_shared.js';
 
 const MONITORING_STATUSES = ['Open', 'Monitoring', 'Effective', 'Closed'];
@@ -95,10 +95,10 @@ export default async function handler(req, res) {
         // their previous value for that week (or default to '' / 'Open'
         // the first time that week is touched).
         if (action === 'save') {
-            const customer = sanitize(body.customer || '', 150);
-            const defect = sanitize(body.defect || '', 150);
-            const model = sanitize(body.model || '', 120);
-            const comp = sanitize(body.comp || '', 60);
+            const customer = sanitizeText(body.customer || '', 150);
+            const defect = sanitizeText(body.defect || '', 150);
+            const model = sanitizeText(body.model || '', 120);
+            const comp = sanitizeText(body.comp || '', 60);
             const week = sanitizeKey(body.week || '', 20);
             if (!customer) return errorResponse(res, 'Missing customer');
             if (!defect) return errorResponse(res, 'Missing defect');
@@ -140,12 +140,12 @@ export default async function handler(req, res) {
             const entryPatch = {};
             if (body.rank !== undefined) entryPatch.rank = body.rank === null ? null : clampInt(body.rank, 1, 999);
             if (body.count !== undefined) entryPatch.count = body.count === null ? null : clampInt(body.count, 0, 1e9);
-            if (body.model !== undefined) entryPatch.model = sanitize(body.model, 120);
-            if (body.comp !== undefined) entryPatch.comp = sanitize(body.comp, 60);
-            if (body.rootCause !== undefined) entryPatch.rootCause = sanitize(body.rootCause, 1500);
-            if (body.correctiveAction !== undefined) entryPatch.correctiveAction = sanitize(body.correctiveAction, 1500);
+            if (body.model !== undefined) entryPatch.model = sanitizeText(body.model, 120);
+            if (body.comp !== undefined) entryPatch.comp = sanitizeText(body.comp, 60);
+            if (body.rootCause !== undefined) entryPatch.rootCause = sanitizeText(body.rootCause, 1500);
+            if (body.correctiveAction !== undefined) entryPatch.correctiveAction = sanitizeText(body.correctiveAction, 1500);
             if (body.dueDate !== undefined) entryPatch.dueDate = sanitizeDate(body.dueDate, 20);
-            if (body.pic !== undefined) entryPatch.pic = sanitize(body.pic, 100);
+            if (body.pic !== undefined) entryPatch.pic = sanitizeText(body.pic, 100);
             if (body.monitoring !== undefined) entryPatch.monitoring = body.monitoring;
 
             const newEntry = Object.assign(
@@ -183,10 +183,10 @@ export default async function handler(req, res) {
         // no `week` is given at all, the whole chain is cleared — same as
         // the original single-record "Clear entry" behavior.
         if (action === 'delete') {
-            const customer = sanitize(body.customer || '', 150);
-            const defect = sanitize(body.defect || '', 150);
-            const model = sanitize(body.model || '', 120);
-            const comp = sanitize(body.comp || '', 60);
+            const customer = sanitizeText(body.customer || '', 150);
+            const defect = sanitizeText(body.defect || '', 150);
+            const model = sanitizeText(body.model || '', 120);
+            const comp = sanitizeText(body.comp || '', 60);
             if (!customer) return errorResponse(res, 'Missing customer');
             if (!defect) return errorResponse(res, 'Missing defect');
             const key = capaKey(customer, defect, model, comp);
