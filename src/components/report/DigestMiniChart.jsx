@@ -4,6 +4,7 @@
 // and a title + legend row above it. Kept deliberately separate from the
 // full-size Recharts-based TrendLineChart used elsewhere in the app — this
 // one exists purely to match the old digest's exact printable look.
+import { fmtInt } from '../../brain/index.js';
 
 const VBW = 500; // reference viewBox width — the <svg> stretches to fill
 const VBH = 96; // whatever width its column ends up at, height stays fixed
@@ -69,7 +70,7 @@ export default function DigestMiniChart({
 
   const xp = (i) => PL + (labels.length < 2 ? PW / 2 : (i / (labels.length - 1)) * PW);
   const yp = (v) => PT + PH - ((v - minV) / span) * PH;
-  const fmtVal = (v) => (isYield ? `${v.toFixed(2)}%` : Math.round(v).toLocaleString());
+  const fmtVal = (v) => (isYield ? `${v.toFixed(2)}%` : fmtInt(v));
 
   const linePoints = have.map(({ v, i }) => `${xp(i)},${yp(v)}`).join(' ');
   const lastPoint = have[have.length - 1];

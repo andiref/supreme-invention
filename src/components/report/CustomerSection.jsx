@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import TrendLineChart, { computeZoomedDomain } from '../charts/TrendLineChart.jsx';
-import { YIELD_TARGET, DPPM_LIMIT } from '../../brain/index.js';
+import { YIELD_TARGET, DPPM_LIMIT, fmtInt } from '../../brain/index.js';
 
 function weekLabel(w) {
   const m = String(w).match(/W(\d+)$/);
@@ -74,8 +74,8 @@ export default function CustomerSection({ customer, data, color, bordered = true
             <div style={{ fontSize: 9, color: 'var(--yc-muted)', letterSpacing: '0.05em' }}>DPPM</div>
             {hasCurrentData ? (
               <>
-                <div style={{ fontSize: 22, fontWeight: 700, color: data.latestDppm <= DPPM_LIMIT ? '#22c55e' : '#ef4444' }}>{Math.round(data.latestDppm).toLocaleString()}</div>
-                <div style={{ fontSize: 9, color: 'var(--yc-muted)' }}>Limit: {DPPM_LIMIT.toLocaleString()}</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: data.latestDppm <= DPPM_LIMIT ? '#22c55e' : '#ef4444' }}>{fmtInt(data.latestDppm)}</div>
+                <div style={{ fontSize: 9, color: 'var(--yc-muted)' }}>Limit: {fmtInt(DPPM_LIMIT)}</div>
               </>
             ) : (
               <div style={{ fontSize: 18, color: 'var(--yc-muted)' }}>—</div>
