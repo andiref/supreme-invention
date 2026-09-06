@@ -34,7 +34,7 @@
 
 import {
     jsonResponse, errorResponse, handleOptions,
-    sanitizeText, sanitizeDate, sanitizeKey, getToken, fbGet, fbTransaction, fbDelete, requireOwner
+    sanitizeText, sanitizeDate, sanitizeKey, isValidIsoWeek, getToken, fbGet, fbTransaction, fbDelete, requireOwner
 } from './_shared.js';
 
 const MONITORING_STATUSES = ['Open', 'Monitoring', 'Effective', 'Closed'];
@@ -63,10 +63,14 @@ function latestOf(history) {
     return { week, entry: history[week] };
 }
 
-function clampInt(v, min, max) {
+// Rejects instead of silently coercing — a fractional rank/count (12.7) or
+// an out-of-range one used to get quietly rounded/clamped into something
+// technically valid but not what was actually entered. Returns undefined
+// for anything that isn't cleanly an integer in [min, max].
+function strictInt(v, min, max) {
     const n = Number(v);
-    if (!Number.isFinite(n)) return null;
-    return Math.max(min, Math.min(max, Math.round(n)));
+    if (!Number.isInteger(n) || n < min || n > max) return undefined;
+    return n;
 }
 
 export default async function handler(req, res) {
@@ -103,8 +107,25 @@ export default async function handler(req, res) {
             if (!customer) return errorResponse(res, 'Missing customer');
             if (!defect) return errorResponse(res, 'Missing defect');
             if (!week) return errorResponse(res, 'Missing week');
+            if (!isValidIsoWeek(week)) return errorResponse(res, 'Invalid week format (expected YYYY-Www, e.g. 2026-W33)');
             if (body.monitoring !== undefined && !MONITORING_STATUSES.includes(body.monitoring)) {
                 return errorResponse(res, 'Invalid monitoring status');
+            }
+
+            // Validated up front, outside the transaction retry callback below —
+            // these don't depend on the record's current state, and a 412
+            // conflict can make fbTransaction call that callback more than
+            // once, which would risk sending a second HTTP response if an
+            // error return lived inside it instead.
+            let rankValue;
+            if (body.rank !== undefined && body.rank !== null) {
+                rankValue = strictInt(body.rank, 1, 999);
+                if (rankValue === undefined) return errorResponse(res, 'Invalid rank — must be a whole number between 1 and 999');
+            }
+            let countValue;
+            if (body.count !== undefined && body.count !== null) {
+                countValue = strictInt(body.count, 0, 1e9);
+                if (countValue === undefined) return errorResponse(res, 'Invalid count — must be a whole non-negative number');
             }
 
             const key = capaKey(customer, defect, model, comp);
@@ -137,8 +158,8 @@ export default async function handler(req, res) {
 
                 const existingEntry = history[week] || {};
                 const entryPatch = {};
-                if (body.rank !== undefined) entryPatch.rank = body.rank === null ? null : clampInt(body.rank, 1, 999);
-                if (body.count !== undefined) entryPatch.count = body.count === null ? null : clampInt(body.count, 0, 1e9);
+                if (body.rank !== undefined) entryPatch.rank = body.rank === null ? null : rankValue;
+                if (body.count !== undefined) entryPatch.count = body.count === null ? null : countValue;
                 if (body.model !== undefined) entryPatch.model = sanitizeText(body.model, 120);
                 if (body.comp !== undefined) entryPatch.comp = sanitizeText(body.comp, 60);
                 if (body.rootCause !== undefined) entryPatch.rootCause = sanitizeText(body.rootCause, 1500);
@@ -188,6 +209,7 @@ export default async function handler(req, res) {
             if (!key) return errorResponse(res, 'Invalid customer/defect');
 
             const week = body.week ? sanitizeKey(body.week, 20) : '';
+            if (week && !isValidIsoWeek(week)) return errorResponse(res, 'Invalid week format (expected YYYY-Www, e.g. 2026-W33)');
             if (!week) {
                 await fbDelete(env, token, `smt_capa/${key}`);
                 return jsonResponse(res, { ok: true });

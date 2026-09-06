@@ -9,7 +9,7 @@
 
 import {
     jsonResponse, errorResponse, handleOptions,
-    sanitizeText, sanitizeDate, sanitizeKey, isValidDateTime, getToken, fbGet, fbUpdate, fbDelete, requireOwner
+    sanitizeText, sanitizeDate, sanitizeKey, isValidDateTime, isValidIsoWeek, getToken, fbGet, fbUpdate, fbDelete, requireOwner
 } from './_shared.js';
 
 
@@ -51,6 +51,90 @@ export function planProdVolUndo(records, events) {
 
     const reverts = Object.entries(revertMap).map(([id, patch]) => ({ id, patch }));
     return { deletes, reverts, skipped };
+}
+
+// Case/whitespace-insensitive match key — MUST stay in sync with normKey()
+// in js/yield.js, which is what calcMetricsRaw() uses to join this data
+// against smt_defects. Matching case-sensitively here let two rows like
+// "CustA" and "custa" get stored as separate Firebase records that
+// calcMetricsRaw's normalized join then collapsed into one key anyway —
+// silently dropping whichever record lost that collision instead of
+// merging into it.
+function prodVolKey(week, customer, model) {
+    return [week, customer, model].map((s) => String(s || '').trim().toLowerCase()).join('|');
+}
+
+/**
+ * Matches each imported production-volume row against existing records (or
+ * other rows earlier in the same import) by week+customer+model, producing
+ * the updates/creates/change-log needed to write them. Existing records and
+ * in-progress creates are indexed by key up front, so this is O(rows +
+ * existingRecords) instead of O(rows × existingRecords) — see
+ * test-prodvol-import.mjs for the correctness + performance regression
+ * tests. Every touched record's change is logged (+ its pre-change value)
+ * so "Undo" can revert exactly what this import did, but only if nothing
+ * has touched the record again since — see planProdVolUndo above.
+ *
+ * @param {Array} clean       validated {week, customer, model, side, count} rows
+ * @param {Object} existing   raw smt_prodvol records keyed by id, as returned by fbGet
+ * @param {number} now
+ * @param {() => string} newId   ID generator for newly-created records (injectable for tests)
+ * @returns {{updates: Object, creates: Array, changes: Object}}
+ */
+export function planProdVolImport(clean, existing, now, newId) {
+    const existingByKey = new Map();
+    for (const id of Object.keys(existing || {})) {
+        const rec = existing[id];
+        existingByKey.set(prodVolKey(rec.week, rec.customer, rec.model), { _id: id, ...rec });
+    }
+    const createsByKey = new Map();
+
+    const updates = {};
+    const creates = [];
+    const changes = {};
+    let changeSeq = 0;
+    const addChange = (change) => {
+        const key = `chg_${now}_${changeSeq++}_${Math.random().toString(36).slice(2, 8)}`;
+        changes[key] = change;
+    };
+
+    clean.forEach((r) => {
+        const rKey = prodVolKey(r.week, r.customer, r.model);
+        const match = existingByKey.get(rKey);
+        const field = r.side === 'TOP' ? 'inspTOP' : 'inspBOT';
+        if (match) {
+            const patch = updates[match._id] || { updated: now };
+            const before = Object.prototype.hasOwnProperty.call(patch, field) ? patch[field] : (Number(match[field]) || 0);
+            patch[field] = r.count;
+            updates[match._id] = patch;
+            addChange({ kind: 'update', recordId: match._id, field, before, after: r.count });
+        } else {
+            const pending = createsByKey.get(rKey);
+            if (pending) {
+                pending[field] = r.count;
+            } else {
+                const record = { id: newId(), week: r.week, customer: r.customer, model: r.model, inspTOP: 0, inspBOT: 0, [field]: r.count, created: now };
+                creates.push(record);
+                createsByKey.set(rKey, record);
+            }
+        }
+    });
+
+    for (const c of creates) {
+        addChange({
+            kind: 'create',
+            recordId: c.id,
+            after: {
+                week: c.week,
+                customer: c.customer,
+                model: c.model,
+                inspTOP: Number(c.inspTOP) || 0,
+                inspBOT: Number(c.inspBOT) || 0
+            }
+        });
+    }
+
+    return { updates, creates, changes };
 }
 
 function newFirebaseRecordId(prefix) {
@@ -209,72 +293,12 @@ export default async function handler(req, res) {
                 model: sanitizeText(r.model || '', 100),
                 side: r.side === 'BOT' ? 'BOT' : (r.side === 'TOP' ? 'TOP' : ''),
                 count: Number(String(r.count ?? '').trim())
-            })).filter(r => r.week && r.model && r.side && Number.isSafeInteger(r.count) && r.count >= 0);
+            })).filter(r => r.week && isValidIsoWeek(r.week) && r.model && r.side && Number.isSafeInteger(r.count) && r.count >= 0);
 
             if (!clean.length) return errorResponse(res, 'No valid rows after validation');
 
             const existing = (await fbGet(env, token, 'smt_prodvol')) || {};
-            const existingArr = Object.keys(existing).map(id => ({ _id: id, ...existing[id] }));
-
-            const updates = {};   // id -> patch
-            const creates = [];   // { id, ...record } — IDs allocated before the atomic write
-            const changes = {};   // immutable undo events for this batch
-            let changeSeq = 0;
-
-            const addChange = (change) => {
-                const key = `chg_${now}_${changeSeq++}_${Math.random().toString(36).slice(2, 8)}`;
-                changes[key] = change;
-            };
-
-            // Case/whitespace-insensitive match key — MUST stay in sync with
-            // normKey() in js/yield.js, which is what calcMetricsRaw() uses
-            // to join this data against smt_defects. Matching case-sensitively
-            // here let two rows like "CustA" and "custa" get stored as separate
-            // Firebase records that calcMetricsRaw's normalized join then
-            // collapsed into one key anyway — silently dropping whichever
-            // record lost that collision instead of merging into it.
-            const wkKey = (week, customer, model) =>
-                [week, customer, model].map(s => String(s || '').trim().toLowerCase()).join('|');
-
-            // Every touched record is tagged with lastImportId (+ which
-            // field(s) this specific import changed, and their pre-change
-            // values) so "Undo" can revert exactly what this import did —
-            // but only if nothing has touched the record again since. A
-            // brand-new record (createdByImportId matches) is deleted
-            // outright on undo instead of "reverted".
-            clean.forEach(r => {
-                const rKey = wkKey(r.week, r.customer, r.model);
-                const match = existingArr.find(p => wkKey(p.week, p.customer, p.model) === rKey);
-                const field = r.side === 'TOP' ? 'inspTOP' : 'inspBOT';
-                if (match) {
-                    const patch = updates[match._id] || { updated: now };
-                    const before = Object.prototype.hasOwnProperty.call(patch, field) ? patch[field] : (Number(match[field]) || 0);
-                    patch[field] = r.count;
-                    updates[match._id] = patch;
-                    addChange({ kind: 'update', recordId: match._id, field, before, after: r.count });
-                } else {
-                    const pending = creates.find(c => wkKey(c.week, c.customer, c.model) === rKey);
-                    if (pending) {
-                        pending[field] = r.count;
-                    } else {
-                        creates.push({ id: newFirebaseRecordId('vol'), week: r.week, customer: r.customer, model: r.model, inspTOP: 0, inspBOT: 0, [field]: r.count, created: now });
-                    }
-                }
-            });
-
-            for (const c of creates) {
-                addChange({
-                    kind: 'create',
-                    recordId: c.id,
-                    after: {
-                        week: c.week,
-                        customer: c.customer,
-                        model: c.model,
-                        inspTOP: Number(c.inspTOP) || 0,
-                        inspBOT: Number(c.inspBOT) || 0
-                    }
-                });
-            }
+            const { updates, creates, changes } = planProdVolImport(clean, existing, now, () => newFirebaseRecordId('vol'));
 
             let log = null;
             if (changes && Object.keys(changes).length) {

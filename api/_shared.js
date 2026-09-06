@@ -88,6 +88,16 @@ export function isValidDateTime(str) {
         dt.getSeconds() === second;
 }
 
+// Matches the "YYYY-Www" week labels isoWeek() in datetime.js produces
+// (e.g. "2026-W33"), weeks 01-53. Used to reject free-text garbage in any
+// field that's supposed to be one of these labels (CAPA history keys,
+// production-volume import rows) instead of silently accepting it as a
+// Firebase key/value the way sanitizeKey()/sanitizeText() alone would.
+const ISO_WEEK_RE = /^\d{4}-W(0[1-9]|[1-4]\d|5[0-3])$/;
+export function isValidIsoWeek(str) {
+    return typeof str === 'string' && ISO_WEEK_RE.test(str);
+}
+
 export function sanitizeKey(str, maxLen = 20) {
     if (typeof str !== 'string') return '';
     return str.replace(/[.#$[\]/]/g, '').trim().slice(0, maxLen);
