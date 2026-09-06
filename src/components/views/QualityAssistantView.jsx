@@ -19,10 +19,13 @@ const tone = {
 export default function QualityAssistantView({ defectRows, prodVolRows, capaRecords }) {
   const weeks = useMemo(() => distinctWeeks(defectRows).sort(), [defectRows]);
   const customers = useMemo(() => distinctCustomers(defectRows), [defectRows]);
-  const models = useMemo(() => distinctModels(defectRows), [defectRows]);
   const [week, setWeek] = useState('ALL');
   const [customer, setCustomer] = useState('ALL');
   const [model, setModel] = useState('ALL');
+  const models = useMemo(
+    () => distinctModels(customer === 'ALL' ? defectRows : defectRows.filter((d) => d.customer === customer)),
+    [defectRows, customer]
+  );
   const [question, setQuestion] = useState('');
   const [asked, setAsked] = useState('');
 
@@ -56,7 +59,7 @@ export default function QualityAssistantView({ defectRows, prodVolRows, capaReco
         <div className="fw">
           <FilterField label="WEEK" value={week} onChange={setWeek} width={140}
             options={[{ value: 'ALL', label: 'Latest Week' }, ...weeks.map((w) => ({ value: w, label: weekLabel(w) }))]} />
-          <FilterField label="CUSTOMER" value={customer} onChange={setCustomer} width={170}
+          <FilterField label="CUSTOMER" value={customer} onChange={(v) => { setCustomer(v); setModel('ALL'); }} width={170}
             options={[{ value: 'ALL', label: 'All Customers' }, ...customers]} />
           <FilterField label="MODEL" value={model} onChange={setModel} width={180}
             options={[{ value: 'ALL', label: 'All Models' }, ...models]} />

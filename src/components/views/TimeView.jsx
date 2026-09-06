@@ -19,7 +19,10 @@ export default function TimeView({ defectRows }) {
 
   const weeks = useMemo(() => distinctWeeks(defectRows), [defectRows]);
   const customers = useMemo(() => distinctCustomers(defectRows), [defectRows]);
-  const models = useMemo(() => distinctModels(defectRows), [defectRows]);
+  const models = useMemo(
+    () => distinctModels(filters.customer === 'ALL' ? defectRows : defectRows.filter((d) => d.customer === filters.customer)),
+    [defectRows, filters.customer]
+  );
 
   const filtered = useMemo(() => filterDefectRows(defectRows, filters), [defectRows, filters]);
 
@@ -34,7 +37,7 @@ export default function TimeView({ defectRows }) {
       <div className="fw" style={{ marginBottom: 14 }}>
         <FilterField label="WEEK" value={filters.week} onChange={(v) => setFilters((f) => ({ ...f, week: v }))}
           options={[{ value: 'ALL', label: 'All Weeks' }, ...weeks.map((w) => ({ value: w, label: weekLabel(w) }))]} />
-        <FilterField label="CUSTOMER" value={filters.customer} onChange={(v) => setFilters((f) => ({ ...f, customer: v }))}
+        <FilterField label="CUSTOMER" value={filters.customer} onChange={(v) => setFilters((f) => ({ ...f, customer: v, model: 'ALL' }))}
           options={[{ value: 'ALL', label: 'All Customers' }, ...customers]} />
         <FilterField label="MODEL" value={filters.model} onChange={(v) => setFilters((f) => ({ ...f, model: v }))}
           options={[{ value: 'ALL', label: 'All Models' }, ...models]} />
