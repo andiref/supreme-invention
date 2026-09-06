@@ -197,6 +197,7 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, showT
           customer={customer}
           customerReportData={reportData}
           capaRecords={capaRecords}
+          defectRows={defectRows}
           week={reportData.lw}
           showToast={showToast}
           showConfirm={showConfirm}

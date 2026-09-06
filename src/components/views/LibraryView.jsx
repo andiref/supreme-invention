@@ -1,9 +1,24 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { DEFECT_LIBRARY, searchLibrary } from '../../brain/index.js';
 
-export default function LibraryView() {
+export default function LibraryView({ focusType, onFocusHandled }) {
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState(DEFECT_LIBRARY[0]?.id ?? null);
+
+  // Jump here from a Quality Assistant finding: clear any leftover search
+  // text so the target isn't hidden by a stale filter, select its entry,
+  // then tell the parent the jump was consumed so it doesn't fire again on
+  // a later ordinary visit to this tab.
+  useEffect(() => {
+    if (!focusType) return;
+    const match = DEFECT_LIBRARY.find((d) => d.type === focusType);
+    if (match) {
+      setQuery('');
+      setSelectedId(match.id);
+    }
+    onFocusHandled?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusType]);
 
   const results = useMemo(() => searchLibrary(query), [query]);
   const selected = useMemo(() => DEFECT_LIBRARY.find((d) => d.id === selectedId) || results[0] || null, [selectedId, results]);

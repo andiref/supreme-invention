@@ -108,3 +108,51 @@ export function capaCardMatchesSearch(customer, card, capaRecords, query) {
 
 
 export { CAPA_STATUSES };
+
+/**
+ * Before/after occurrence-count comparison for a CAPA chain, anchored on
+ * the week its status FIRST moved past "Open" — i.e. when an action was
+ * actually taken, not just planned. Returns null if that hasn't happened
+ * yet (still sitting at Open, nothing to check effectiveness of).
+ *
+ * This counts raw weekly occurrences of the exact (customer, defect,
+ * model, comp) combo from the underlying defect rows — not a DPPM, since
+ * that would need this exact combo's per-week production volume, which
+ * isn't tracked at this granularity. Treat the result as a directional
+ * signal ("did the rate actually go down"), not a certified rate — the
+ * UI should label it as such.
+ */
+export function capaEffectiveness(rec, defectRows) {
+  if (!rec || !rec.history) return null;
+  const weeks = Object.keys(rec.history).filter((w) => w !== '0000-legacy').sort();
+  const actionWeek = weeks.find((w) => (rec.history[w].monitoring || 'Open') !== 'Open');
+  if (!actionWeek) return null;
+
+  const chainRows = (defectRows || []).filter((d) =>
+    d.customer === rec.customer && d.defect === rec.defect &&
+    (rec.model ? d.model === rec.model : true) &&
+    (rec.comp ? d.comp === rec.comp : true)
+  );
+  const countsByWeek = new Map();
+  chainRows.forEach((d) => countsByWeek.set(d.week, (countsByWeek.get(d.week) || 0) + 1));
+
+  const beforeWeeks = [...countsByWeek.keys()].filter((w) => w < actionWeek).sort();
+  const afterWeeks = [...countsByWeek.keys()].filter((w) => w >= actionWeek).sort();
+  if (!beforeWeeks.length || !afterWeeks.length) {
+    return { actionWeek, insufficientData: true };
+  }
+
+  const beforeTotal = beforeWeeks.reduce((s, w) => s + countsByWeek.get(w), 0);
+  const afterTotal = afterWeeks.reduce((s, w) => s + countsByWeek.get(w), 0);
+  const beforeAvg = beforeTotal / beforeWeeks.length;
+  const afterAvg = afterTotal / afterWeeks.length;
+  const deltaPct = beforeAvg > 0 ? ((afterAvg - beforeAvg) / beforeAvg) * 100 : (afterAvg > 0 ? 100 : 0);
+
+  return {
+    actionWeek, insufficientData: false,
+    beforeWeeks: beforeWeeks.length, afterWeeks: afterWeeks.length,
+    beforeAvg, afterAvg, deltaPct,
+    improved: deltaPct <= -10,
+    worsened: deltaPct >= 10,
+  };
+}
