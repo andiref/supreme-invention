@@ -4,7 +4,7 @@
 // No DOM, fetch, or framework dependencies.
 // ============================================
 
-import { aggregateKpis, calcMetrics, weeklySummary } from './metrics.js';
+import { aggregateKpis, calcMetrics, weeklySummary, normKey } from './metrics.js';
 import { YIELD_TARGET, DPPM_LIMIT, REPORT_MAX_WEEKS } from './constants.js';
 import { findLibraryEntry } from './defectLibrary.js';
 
@@ -99,6 +99,17 @@ export function analyzeQualityData(defectRows, prodVolRows, capaRecords = {}, fi
     (model === 'ALL' || d.model === model)
   );
 
+  // Top Defect Drivers and their risk/trend scoring should only ever be
+  // built from combos that actually have matched production volume — the
+  // same "matched" definition the KPI snapshot and Data Health tab use.
+  // Without this, a defect with no joined production volume (share%,
+  // trend, and risk level all computed against an unreliable denominator)
+  // could show up as a HIGH-risk finding right below a KPI card saying
+  // "No matched production volume" for the very same slice.
+  const pvKeySet = new Set(prodVolRows.map((p) => normKey(p.week, p.customer, p.model)));
+  const matchedRows = scopedRows.filter((d) => pvKeySet.has(normKey(d.week, d.customer, d.model)));
+  const unmatchedCount = scopedRows.length - matchedRows.length;
+
   const kpis = aggregateKpis(scopedMetrics);
   const availableWeeks = [...new Set(metrics
     .filter((m) => customer === 'ALL' || m.customer === customer)
@@ -113,17 +124,13 @@ export function analyzeQualityData(defectRows, prodVolRows, capaRecords = {}, fi
   );
   const weekly = weeklySummary(trendMetrics);
 
-  const latestRowsForTrend = defectRows.filter((d) =>
-    trendWeeks.includes(d.week) &&
-    (customer === 'ALL' || d.customer === customer) &&
-    (model === 'ALL' || d.model === model)
-  );
-  const topDefects = defectCounts(scopedRows).slice(0, 5).map(([defect, count], index) => {
+  const latestRowsForTrend = matchedRows.filter((d) => trendWeeks.includes(d.week));
+  const topDefects = defectCounts(matchedRows).slice(0, 5).map(([defect, count], index) => {
     const trend = summarizeTrend(latestRowsForTrend.filter((d) => d.defect === defect), trendWeeks);
     const library = findLibraryEntryLoose(defect);
     const capa = matchingCapaRecords(capaRecords, defect, customer);
     const activeCapa = capa.find((r) => (r.monitoring || 'Open') !== 'Closed') || capa[0] || null;
-    const sharePct = scopedRows.length ? (count / scopedRows.length) * 100 : 0;
+    const sharePct = matchedRows.length ? (count / matchedRows.length) * 100 : 0;
     const risk = count >= 20 || sharePct >= 25 || trend.rising ? 'HIGH' : count >= 8 || sharePct >= 10 ? 'MEDIUM' : 'LOW';
     return {
       rank: index + 1,
@@ -147,6 +154,7 @@ export function analyzeQualityData(defectRows, prodVolRows, capaRecords = {}, fi
     if (kpis.yieldOverall < YIELD_TARGET) risks.push({ level: kpis.yieldOverall < YIELD_TARGET - 1 ? 'HIGH' : 'MEDIUM', title: 'Yield below target', detail: `${kpis.yieldOverall.toFixed(2)}% vs ${YIELD_TARGET}% target.` });
     if (kpis.dppm > DPPM_LIMIT) risks.push({ level: kpis.dppm > DPPM_LIMIT * 2 ? 'HIGH' : 'MEDIUM', title: 'DPPM above limit', detail: `${Math.round(kpis.dppm).toLocaleString()} vs ${DPPM_LIMIT.toLocaleString()} limit.` });
   }
+  if (unmatchedCount > 0) risks.push({ level: 'MEDIUM', title: 'Some defect rows excluded from this analysis', detail: `${unmatchedCount} defect row(s) in this scope have no matched production volume, so they're left out of Top Defect Drivers below. Check Data Health to reconcile them.` });
   topDefects.filter((d) => d.risk === 'HIGH').slice(0, 3).forEach((d) => risks.push({ level: 'HIGH', title: `${d.defect} is a priority defect`, detail: `${d.count} occurrences (${d.sharePct.toFixed(1)}% of defects)${d.trend.rising ? ', with an increasing trend' : ''}.` }));
   topDefects.filter((d) => d.trend.rising && d.risk !== 'HIGH').slice(0, 2).forEach((d) => risks.push({ level: 'MEDIUM', title: `${d.defect} is trending up`, detail: `Current ${d.trend.current} vs ${d.trend.baseline.toFixed(1)} average across prior weeks.` }));
 
@@ -173,6 +181,7 @@ export function analyzeQualityData(defectRows, prodVolRows, capaRecords = {}, fi
     weeks: trendWeeks,
     weekly,
     topDefects,
+    unmatchedCount,
     risks: risks.slice(0, 6),
     recommendations,
     primaryDefect: primary,

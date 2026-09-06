@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
-import { analyzeQualityData, answerQualityQuestion, distinctCustomers, distinctModels, distinctWeeks } from '../../brain/index.js';
+import { analyzeQualityData, answerQualityQuestion, distinctCustomers, distinctModels, distinctWeeks, YIELD_TARGET, DPPM_LIMIT } from '../../brain/index.js';
 import FilterField from '../common/FilterField.jsx';
 import { Card } from '../common/Kpi.jsx';
+import TrendLineChart, { computeZoomedDomain } from '../charts/TrendLineChart.jsx';
 
 function weekLabel(w) {
   const m = String(w).match(/W(\d+)$/);
@@ -81,6 +82,31 @@ export default function QualityAssistantView({ defectRows, prodVolRows, capaReco
             ['FAILED', analysis.kpis.totalFailed.toLocaleString()],
           ].map(([label, value]) => <div key={label} className="kpi ai-kpi"><div className="kpi-n">{value}</div><div className="kpi-l">{label}</div></div>)}
         </div>
+        {analysis.weekly.length > 1 && (
+          <div className="row" style={{ marginTop: 12 }}>
+            <div className="col">
+              <div className="ai-subtitle">YIELD TREND ({analysis.weekly.length}wk)</div>
+              <TrendLineChart
+                labels={analysis.weekly.map((w) => weekLabel(w.week))}
+                series={[{ name: 'Yield', color: '#22c55e', values: analysis.weekly.map((w) => w.yieldPct) }]}
+                target={YIELD_TARGET}
+                valueSuffix="%"
+                height={140}
+                domain={computeZoomedDomain([{ values: analysis.weekly.map((w) => w.yieldPct) }], YIELD_TARGET)}
+              />
+            </div>
+            <div className="col">
+              <div className="ai-subtitle">DPPM TREND ({analysis.weekly.length}wk)</div>
+              <TrendLineChart
+                labels={analysis.weekly.map((w) => weekLabel(w.week))}
+                series={[{ name: 'DPPM', color: '#ef4444', values: analysis.weekly.map((w) => w.dppm) }]}
+                target={DPPM_LIMIT}
+                height={140}
+                domain={[0, 'auto']}
+              />
+            </div>
+          </div>
+        )}
       </Card>
 
       <div className="row">
