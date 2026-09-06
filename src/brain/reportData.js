@@ -4,8 +4,8 @@
 // raw rows + metrics + a week range, returns plain data. No DOM, no canvas.
 // ============================================
 
-import { REPORT_MAX_WEEKS } from './constants.js';
-import { weeklySummary } from './metrics.js';
+import { REPORT_MAX_WEEKS } from "./constants.js";
+import { weeklySummary } from "./metrics.js";
 
 /**
  * Clamps a from/to week selection to a valid, ordered pair within
@@ -14,19 +14,25 @@ import { weeklySummary } from './metrics.js';
  * @param {string[]} allWeeksSorted
  */
 export function resolveWeekRange(allWeeksSorted, fromWeek, toWeek, anchor) {
-  if (!allWeeksSorted.length) return { from: '', to: '', weeks: [] };
+  if (!allWeeksSorted.length) return { from: "", to: "", weeks: [] };
   let i0 = allWeeksSorted.indexOf(fromWeek);
   if (i0 === -1) i0 = 0;
   let i1 = allWeeksSorted.indexOf(toWeek);
   if (i1 === -1) i1 = allWeeksSorted.length - 1;
   if (i0 > i1) {
-    if (anchor === 'from') i1 = i0; else i0 = i1;
+    if (anchor === "from") i1 = i0;
+    else i0 = i1;
   }
   if (i1 - i0 + 1 > REPORT_MAX_WEEKS) {
-    if (anchor === 'from') i1 = Math.min(allWeeksSorted.length - 1, i0 + REPORT_MAX_WEEKS - 1);
+    if (anchor === "from")
+      i1 = Math.min(allWeeksSorted.length - 1, i0 + REPORT_MAX_WEEKS - 1);
     else i0 = Math.max(0, i1 - REPORT_MAX_WEEKS + 1);
   }
-  return { from: allWeeksSorted[i0], to: allWeeksSorted[i1], weeks: allWeeksSorted.slice(i0, i1 + 1) };
+  return {
+    from: allWeeksSorted[i0],
+    to: allWeeksSorted[i1],
+    weeks: allWeeksSorted.slice(i0, i1 + 1),
+  };
 }
 
 /**
@@ -34,11 +40,23 @@ export function resolveWeekRange(allWeeksSorted, fromWeek, toWeek, anchor) {
  * in sensible defaults (last REPORT_MAX_WEEKS weeks) if nothing's selected
  * yet. Caller supplies the current UI selection (or undefined for "use default").
  */
-export function resolveReportWeekRange(allDefectWeeksSorted, selectedFrom, selectedTo) {
+export function resolveReportWeekRange(
+  allDefectWeeksSorted,
+  selectedFrom,
+  selectedTo,
+) {
   if (!allDefectWeeksSorted.length) return null;
-  const defaultFrom = allDefectWeeksSorted[Math.max(0, allDefectWeeksSorted.length - REPORT_MAX_WEEKS)];
+  const defaultFrom =
+    allDefectWeeksSorted[
+      Math.max(0, allDefectWeeksSorted.length - REPORT_MAX_WEEKS)
+    ];
   const defaultTo = allDefectWeeksSorted[allDefectWeeksSorted.length - 1];
-  return resolveWeekRange(allDefectWeeksSorted, selectedFrom || defaultFrom, selectedTo || defaultTo, 'to');
+  return resolveWeekRange(
+    allDefectWeeksSorted,
+    selectedFrom || defaultFrom,
+    selectedTo || defaultTo,
+    "to",
+  );
 }
 
 /** Truncates text to at most maxLen chars, adding an ellipsis. */
@@ -56,11 +74,26 @@ function truncateText(name, maxLen) {
  * @param {MetricRow[]} allMetrics
  * @param {DefectRow[]} allDefectRows
  */
-export function computeCustomerReportData(customer, range, allMetrics, allDefectRows) {
-  const metricsAllTime = customer === 'ALL' ? allMetrics : allMetrics.filter((m) => m.customer === customer);
-  const rowsAllTime = customer === 'ALL' ? allDefectRows : allDefectRows.filter((d) => d.customer === customer);
-  const metricsInRange = metricsAllTime.filter((m) => m.week >= range.from && m.week <= range.to);
-  const rowsInRange = rowsAllTime.filter((d) => d.week >= range.from && d.week <= range.to);
+export function computeCustomerReportData(
+  customer,
+  range,
+  allMetrics,
+  allDefectRows,
+) {
+  const metricsAllTime =
+    customer === "ALL"
+      ? allMetrics
+      : allMetrics.filter((m) => m.customer === customer);
+  const rowsAllTime =
+    customer === "ALL"
+      ? allDefectRows
+      : allDefectRows.filter((d) => d.customer === customer);
+  const metricsInRange = metricsAllTime.filter(
+    (m) => m.week >= range.from && m.week <= range.to,
+  );
+  const rowsInRange = rowsAllTime.filter(
+    (d) => d.week >= range.from && d.week <= range.to,
+  );
 
   const weeklyInRange = weeklySummary(metricsInRange);
   if (!weeklyInRange.length) return null;
@@ -80,43 +113,77 @@ export function computeCustomerReportData(customer, range, allMetrics, allDefect
   // Top-3 defects reference the END of the selected range (not necessarily
   // the absolute latest week in the whole dataset), so the breakdown stays
   // consistent with whichever weeks the report actually covers.
-  const latestWeekInRange = range.to || '';
-  const latestWeekRows = rowsInRange.filter((d) => d.week === latestWeekInRange);
+  const latestWeekInRange = range.to || "";
+  const latestWeekRows = rowsInRange.filter(
+    (d) => d.week === latestWeekInRange,
+  );
   const defectCounts = {};
-  latestWeekRows.forEach((d) => { defectCounts[d.defect] = (defectCounts[d.defect] || 0) + 1; });
-  const top3 = Object.entries(defectCounts).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  latestWeekRows.forEach((d) => {
+    defectCounts[d.defect] = (defectCounts[d.defect] || 0) + 1;
+  });
+  const top3 = Object.entries(defectCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3);
 
-  /** Top contributing value (model/comp) for a defect, truncated + " (count)" — for display. */
-  function topOf(defect, key, maxLen = 13) {
+  /** Top contributing value (model/comp) for a defect, truncated + " (count)"
+   *  for display. maxLen defaults generously high — component refs (U7, J2,
+   *  SH1) never approach it, and model numbers should display in full rather
+   *  than clipping to "T100098-20-C…"; it only exists as a safety cap
+   *  against a pathologically long value breaking the layout. */
+  function topOf(defect, key, maxLen = 40) {
     const counts = {};
-    latestWeekRows.filter((d) => d.defect === defect).forEach((d) => { counts[d[key]] = (counts[d[key]] || 0) + 1; });
+    latestWeekRows
+      .filter((d) => d.defect === defect)
+      .forEach((d) => {
+        counts[d[key]] = (counts[d[key]] || 0) + 1;
+      });
     const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-    if (!sorted.length) return '-';
+    if (!sorted.length) return "-";
     return `${truncateText(String(sorted[0][0]), maxLen)} (${sorted[0][1]})`;
   }
 
   /** Same ranking as topOf() but the raw value only — for CAPA chain identity, not display. */
   function topContributor(defect, key) {
     const counts = {};
-    latestWeekRows.filter((d) => d.defect === defect).forEach((d) => { counts[d[key]] = (counts[d[key]] || 0) + 1; });
+    latestWeekRows
+      .filter((d) => d.defect === defect)
+      .forEach((d) => {
+        counts[d[key]] = (counts[d[key]] || 0) + 1;
+      });
     const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-    return sorted.length ? String(sorted[0][0]) : '';
+    return sorted.length ? String(sorted[0][0]) : "";
   }
 
   /** Actual occurrence count for one exact chain this week, independent of Top-3 rank. */
   function countFor(defect, model, comp) {
-    return latestWeekRows.filter((d) => d.defect === defect && d.model === model && d.comp === comp).length;
+    return latestWeekRows.filter(
+      (d) => d.defect === defect && d.model === model && d.comp === comp,
+    ).length;
   }
 
   // ---- Digest-only figures: decoupled from the from/to range picker ----
   // 1) headline yield/DPPM for the single latest week (a snapshot, not an average)
   // 2) a trend series spanning the last REPORT_MAX_WEEKS weeks ending at that week,
   //    regardless of how narrow/wide the selected range is.
-  const latestWeekMetrics = metricsAllTime.filter((m) => m.week === latestWeekInRange);
-  const latestTotalInsp = latestWeekMetrics.reduce((s, r) => s + r.totalInsp, 0);
-  const latestTotalFailed = latestWeekMetrics.reduce((s, r) => s + r.totalFailed, 0);
-  const latestFailedTOP = latestWeekMetrics.reduce((s, r) => s + r.failedTOP, 0);
-  const latestFailedBOT = latestWeekMetrics.reduce((s, r) => s + r.failedBOT, 0);
+  const latestWeekMetrics = metricsAllTime.filter(
+    (m) => m.week === latestWeekInRange,
+  );
+  const latestTotalInsp = latestWeekMetrics.reduce(
+    (s, r) => s + r.totalInsp,
+    0,
+  );
+  const latestTotalFailed = latestWeekMetrics.reduce(
+    (s, r) => s + r.totalFailed,
+    0,
+  );
+  const latestFailedTOP = latestWeekMetrics.reduce(
+    (s, r) => s + r.failedTOP,
+    0,
+  );
+  const latestFailedBOT = latestWeekMetrics.reduce(
+    (s, r) => s + r.failedBOT,
+    0,
+  );
   const latestInspTOP = latestWeekMetrics.reduce((s, r) => s + r.inspTOP, 0);
   const latestInspBOT = latestWeekMetrics.reduce((s, r) => s + r.inspBOT, 0);
 
@@ -125,14 +192,29 @@ export function computeCustomerReportData(customer, range, allMetrics, allDefect
   // customer. A customer with fewer than REPORT_MAX_WEEKS builds on record
   // just gets a shorter/narrower chart instead of being padded with empty
   // slots to line up with everyone else's calendar.
-  const custWeeksSorted = [...new Set(metricsAllTime.map((m) => m.week))].sort();
+  const custWeeksSorted = [
+    ...new Set(metricsAllTime.map((m) => m.week)),
+  ].sort();
   let toIdx = custWeeksSorted.indexOf(latestWeekInRange);
   if (toIdx === -1) toIdx = custWeeksSorted.length - 1;
-  const trendWeeks = toIdx === -1 ? [] : custWeeksSorted.slice(Math.max(0, toIdx - REPORT_MAX_WEEKS + 1), toIdx + 1);
-  const trendByWeek = new Map(weeklySummary(metricsAllTime).map((w) => [w.week, w]));
+  const trendWeeks =
+    toIdx === -1
+      ? []
+      : custWeeksSorted.slice(
+          Math.max(0, toIdx - REPORT_MAX_WEEKS + 1),
+          toIdx + 1,
+        );
+  const trendByWeek = new Map(
+    weeklySummary(metricsAllTime).map((w) => [w.week, w]),
+  );
 
   return {
-    totalInsp, totalFailed, failedTOP, failedBOT, inspTOP, inspBOT,
+    totalInsp,
+    totalFailed,
+    failedTOP,
+    failedBOT,
+    inspTOP,
+    inspBOT,
     yieldOverall: totalInsp ? ((totalInsp - totalFailed) / totalInsp) * 100 : 0,
     yieldTOP: inspTOP ? ((inspTOP - failedTOP) / inspTOP) * 100 : null,
     yieldBOT: inspBOT ? ((inspBOT - failedBOT) / inspBOT) * 100 : null,
@@ -148,14 +230,20 @@ export function computeCustomerReportData(customer, range, allMetrics, allDefect
     filtRawCount: rowsInRange.length,
 
     // digest-only
-    latestYieldOverall: latestTotalInsp ? ((latestTotalInsp - latestTotalFailed) / latestTotalInsp) * 100 : 0,
-    latestDppm: latestTotalInsp ? (latestTotalFailed / latestTotalInsp) * 1e6 : 0,
+    latestYieldOverall: latestTotalInsp
+      ? ((latestTotalInsp - latestTotalFailed) / latestTotalInsp) * 100
+      : 0,
+    latestDppm: latestTotalInsp
+      ? (latestTotalFailed / latestTotalInsp) * 1e6
+      : 0,
     latestTotalInsp,
     trendLabels: trendWeeks.map((w) => {
       const m = w.match(/W(\d+)$/);
       return m ? `WW${m[1]}` : w;
     }),
-    trendYieldSeries: trendWeeks.map((w) => trendByWeek.get(w)?.yieldPct ?? null),
+    trendYieldSeries: trendWeeks.map(
+      (w) => trendByWeek.get(w)?.yieldPct ?? null,
+    ),
     trendDppmSeries: trendWeeks.map((w) => trendByWeek.get(w)?.dppm ?? null),
   };
 }
@@ -174,6 +262,14 @@ export function computeCustomerReportData(customer, range, allMetrics, allDefect
  */
 export function buildDigestData(customers, range, allMetrics, allDefectRows) {
   return customers
-    .map((customer) => ({ customer, data: computeCustomerReportData(customer, range, allMetrics, allDefectRows) }))
+    .map((customer) => ({
+      customer,
+      data: computeCustomerReportData(
+        customer,
+        range,
+        allMetrics,
+        allDefectRows,
+      ),
+    }))
     .filter((x) => x.data);
 }
