@@ -1,4 +1,6 @@
-import { useMemo, useRef, useState } from 'react';
+import {
+  useEffect, useMemo, useRef, useState,
+} from 'react';
 import {
   calcMetrics, distinctWeeks, distinctCustomers, resolveWeekRange, resolveReportWeekRange, computeCustomerReportData, buildDigestData,
 } from '../../brain/index.js';
@@ -26,6 +28,37 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, showT
   const [digestExporting, setDigestExporting] = useState(false);
   const digestRef = useRef(null);
 
+  // Which customers get included in the digest. New customers default to
+  // checked (so a freshly-imported account shows up without extra clicks);
+  // a customer someone explicitly unchecked stays unchecked even as new
+  // data comes in for other accounts.
+  const knownCustomersRef = useRef(new Set());
+  const [selectedCustomers, setSelectedCustomers] = useState(new Set());
+  useEffect(() => {
+    setSelectedCustomers((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      customers.forEach((c) => {
+        if (!knownCustomersRef.current.has(c)) {
+          knownCustomersRef.current.add(c);
+          next.add(c);
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [customers]);
+
+  function toggleCustomer(c) {
+    setSelectedCustomers((prev) => {
+      const next = new Set(prev);
+      if (next.has(c)) next.delete(c); else next.add(c);
+      return next;
+    });
+  }
+  const selectAllCustomers = () => setSelectedCustomers(new Set(customers));
+  const selectNoCustomers = () => setSelectedCustomers(new Set());
+
   const defaultRange = useMemo(() => resolveReportWeekRange(allWeeks), [allWeeks]);
   const range = useMemo(() => {
     if (!allWeeks.length) return null;
@@ -44,10 +77,14 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, showT
     return computeCustomerReportData(customer, range, metrics, defectRows);
   }, [customer, range, metrics, defectRows]);
 
+  const digestCustomers = useMemo(
+    () => customers.filter((c) => selectedCustomers.has(c)),
+    [customers, selectedCustomers],
+  );
   const digestSections = useMemo(() => {
     if (!range) return [];
-    return buildDigestData(customers, range, metrics, defectRows);
-  }, [range, customers, metrics, defectRows]);
+    return buildDigestData(digestCustomers, range, metrics, defectRows);
+  }, [range, digestCustomers, metrics, defectRows]);
 
   async function exportNode(node, filename, setBusy) {
     if (!node) return;
@@ -55,8 +92,8 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, showT
     try {
       const html2canvas = (await import('html2canvas')).default;
       // No forced backgroundColor here — the snapshot element already paints
-      // its own opaque background via var(--yc-bg), so the export just
-      // captures whatever theme is currently active (same as what's on screen).
+      // its own opaque background, so the export just captures whatever's
+      // rendered (the digest always uses its own fixed light/print palette).
       const canvas = await html2canvas(node, { scale: 2 });
       const link = document.createElement('a');
       link.download = filename;
@@ -108,12 +145,33 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, showT
       <Card>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
           <div>
-            <div className="ct" style={{ marginBottom: 2 }}>🗂 WEEKLY DIGEST — ALL CUSTOMERS</div>
-            <div style={{ fontSize: 10, color: 'var(--yc-muted)' }}>One stacked image, every customer's KPI + trend for week {weekLabel(range.to)}.</div>
+            <div className="ct" style={{ marginBottom: 2 }}>🗂 WEEKLY DIGEST</div>
+            <div style={{ fontSize: 10, color: 'var(--yc-muted)' }}>One stacked image, every selected customer's KPI + trend for week {weekLabel(range.to)}.</div>
           </div>
           <button className="btn bb" onClick={() => setShowDigest((v) => !v)}>
-            {showDigest ? 'HIDE DIGEST' : `GENERATE DIGEST (${digestSections.length})`}
+            {showDigest ? 'HIDE DIGEST' : `GENERATE DIGEST (${digestCustomers.length})`}
           </button>
+        </div>
+
+        <div style={{ marginTop: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <div className="fl-lbl">CUSTOMERS TO INCLUDE ({digestCustomers.length}/{customers.length})</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button className="btn bb" style={{ padding: '3px 9px', fontSize: 10 }} onClick={selectAllCustomers}>ALL</button>
+              <button className="btn bb" style={{ padding: '3px 9px', fontSize: 10 }} onClick={selectNoCustomers}>NONE</button>
+            </div>
+          </div>
+          <div style={{
+            display: 'flex', flexWrap: 'wrap', gap: '6px 16px', maxHeight: 130, overflowY: 'auto', padding: 10, border: '1px solid var(--yc-border)', borderRadius: 6,
+          }}
+          >
+            {customers.length ? customers.map((c) => (
+              <label key={c} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, whiteSpace: 'nowrap', cursor: 'pointer' }}>
+                <input type="checkbox" checked={selectedCustomers.has(c)} onChange={() => toggleCustomer(c)} />
+                {c}
+              </label>
+            )) : <div style={{ fontSize: 11, color: 'var(--yc-muted)' }}>No customers yet — import defect data first.</div>}
+          </div>
         </div>
 
         {showDigest && (
@@ -129,7 +187,7 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, showT
               </div>
             </>
           ) : (
-            <div style={{ fontSize: 11, color: 'var(--yc-muted)', marginTop: 10 }}>No customers have matched data in this week range.</div>
+            <div style={{ fontSize: 11, color: 'var(--yc-muted)', marginTop: 10 }}>No selected customers have matched data in this week range.</div>
           )
         )}
       </Card>
