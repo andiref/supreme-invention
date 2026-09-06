@@ -27,7 +27,13 @@ export default function YieldView({ defectRows, prodVolRows, showToast, showConf
 
   const weeks = useMemo(() => distinctWeeks(metrics), [metrics]);
   const customers = useMemo(() => distinctCustomers(metrics), [metrics]);
-  const models = useMemo(() => distinctModels(metrics), [metrics]);
+  // Models are scoped to the selected customer — picking a customer with
+  // only a few models shouldn't leave every other customer's models in the
+  // dropdown too.
+  const models = useMemo(
+    () => distinctModels(filters.customer === 'ALL' ? metrics : metrics.filter((m) => m.customer === filters.customer)),
+    [metrics, filters.customer]
+  );
 
   const filteredMetrics = useMemo(() => filterMetrics(metrics, filters), [metrics, filters]);
   const filteredDefects = useMemo(() => filterDefectRows(defectRows, filters), [defectRows, filters]);
@@ -126,7 +132,7 @@ export default function YieldView({ defectRows, prodVolRows, showToast, showConf
         <div className="fw" style={{ marginBottom: 14 }}>
           <FilterField label="WEEK" value={filters.week} onChange={(v) => setFilters((f) => ({ ...f, week: v }))}
             options={[{ value: 'ALL', label: 'All Weeks' }, ...weeks.map((w) => ({ value: w, label: weekLabel(w) }))]} />
-          <FilterField label="CUSTOMER" value={filters.customer} onChange={(v) => setFilters((f) => ({ ...f, customer: v }))}
+          <FilterField label="CUSTOMER" value={filters.customer} onChange={(v) => setFilters((f) => ({ ...f, customer: v, model: 'ALL' }))}
             options={[{ value: 'ALL', label: 'All Customers' }, ...customers]} />
           <FilterField label="MODEL" value={filters.model} onChange={(v) => setFilters((f) => ({ ...f, model: v }))}
             options={[{ value: 'ALL', label: 'All Models' }, ...models]} />
