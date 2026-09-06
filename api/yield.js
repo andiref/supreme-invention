@@ -9,7 +9,7 @@
 
 import {
     jsonResponse, errorResponse, handleOptions,
-    sanitize, sanitizeDate, sanitizeKey, getToken, fbGet, fbPush, fbSet, fbUpdate, fbDelete, requireOwner
+    sanitizeText, sanitizeDate, sanitizeKey, getToken, fbGet, fbPush, fbSet, fbUpdate, fbDelete, requireOwner
 } from './_shared.js';
 
 export default async function handler(req, res) {
@@ -42,7 +42,7 @@ export default async function handler(req, res) {
         // across all of that import's batches so the UI can show one entry
         // ("214 rows imported") instead of one per batch.
         const importId = sanitizeKey(body.importId || ('auto_' + now), 64);
-        const fileName = sanitize(body.fileName || '', 150);
+        const fileName = sanitizeText(body.fileName || '', 150);
 
         // ── IMPORT DEFECT ROWS ────────────────────────────────────────────
         // body.rows: [{dtStr, customer, model, sn, side, comp, defect}, ...]
@@ -62,12 +62,12 @@ export default async function handler(req, res) {
 
             const clean = rows.map(r => ({
                 dtStr: sanitizeDate(r.dtStr || '', 30),
-                customer: sanitize(r.customer || '', 100),
-                model: sanitize(r.model || '', 100),
-                sn: sanitize(r.sn || '', 100),
-                side: sanitize(r.side || '', 10),
-                comp: sanitize(r.comp || '', 40),
-                defect: sanitize(r.defect || '', 100)
+                customer: sanitizeText(r.customer || '', 100),
+                model: sanitizeText(r.model || '', 100),
+                sn: sanitizeText(r.sn || '', 100),
+                side: sanitizeText(r.side || '', 10),
+                comp: sanitizeText(r.comp || '', 40),
+                defect: sanitizeText(r.defect || '', 100)
             })).filter(r => r.dtStr && r.customer && r.model && r.sn && r.side && r.comp && r.defect);
 
             if (!clean.length) return errorResponse(res, 'No valid rows after validation');
@@ -115,9 +115,9 @@ export default async function handler(req, res) {
             if (rows.length > 2000) return errorResponse(res, 'Too many rows in one import (max 2000)');
 
             const clean = rows.map(r => ({
-                week: sanitize(r.week || '', 20),
-                customer: sanitize(r.customer || '', 100),
-                model: sanitize(r.model || '', 100),
+                week: sanitizeText(r.week || '', 20),
+                customer: sanitizeText(r.customer || '', 100),
+                model: sanitizeText(r.model || '', 100),
                 side: r.side === 'BOT' ? 'BOT' : (r.side === 'TOP' ? 'TOP' : ''),
                 count: parseInt(r.count) || 0
             })).filter(r => r.week && r.model && r.side);

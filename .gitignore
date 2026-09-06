@@ -8,3 +8,4 @@ dist/
 # Generated from firebase.rules.template.json by scripts/gen-rules.mjs —
 # contains the real owner email, so it must never be committed.
 firebase.rules.json
+*.patch

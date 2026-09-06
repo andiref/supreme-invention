@@ -15,7 +15,7 @@
 
 import {
     jsonResponse, errorResponse, handleOptions,
-    sanitize, sanitizeKey, getToken, fbGet, fbPush, fbUpdate, fbDelete, requireOwner
+    sanitizeText, sanitizeKey, getToken, fbGet, fbPush, fbUpdate, fbDelete, requireOwner
 } from './_shared.js';
 
 const STATUSES = ['Requested', 'Ordered', 'In Transit', 'Received', 'Installed', 'Cancelled'];
@@ -42,10 +42,10 @@ export default async function handler(req, res) {
 
         // ── ADD PART FOLLOW-UP ──────────────────────────────────────────────
         if (action === 'add') {
-            const partName = sanitize(body.partName || '', 150);
-            const equipment = sanitize(body.equipment || '', 150);
+            const partName = sanitizeText(body.partName || '', 150);
+            const equipment = sanitizeText(body.equipment || '', 150);
             const priority = PRIORITIES.includes(body.priority) ? body.priority : 'Medium';
-            const notes = sanitize(body.notes || '', 1000);
+            const notes = sanitizeText(body.notes || '', 1000);
 
             if (!partName) return errorResponse(res, 'Part name is required');
             if (!equipment) return errorResponse(res, 'Equipment/machine is required');
@@ -77,12 +77,12 @@ export default async function handler(req, res) {
                 patch.status = body.status;
             }
             if (body.partName !== undefined) {
-                const partName = sanitize(body.partName, 150);
+                const partName = sanitizeText(body.partName, 150);
                 if (!partName) return errorResponse(res, 'Part name cannot be empty');
                 patch.partName = partName;
             }
             if (body.equipment !== undefined) {
-                const equipment = sanitize(body.equipment, 150);
+                const equipment = sanitizeText(body.equipment, 150);
                 if (!equipment) return errorResponse(res, 'Equipment/machine cannot be empty');
                 patch.equipment = equipment;
             }
@@ -90,7 +90,7 @@ export default async function handler(req, res) {
                 if (!PRIORITIES.includes(body.priority)) return errorResponse(res, 'Invalid priority');
                 patch.priority = body.priority;
             }
-            if (body.notes !== undefined) patch.notes = sanitize(body.notes, 1000);
+            if (body.notes !== undefined) patch.notes = sanitizeText(body.notes, 1000);
 
             if (!Object.keys(patch).length) return errorResponse(res, 'Nothing to update');
             patch.updated = Date.now();
