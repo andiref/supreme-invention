@@ -16,7 +16,7 @@ const tone = {
   'NO DATA': '#64748b',
 };
 
-export default function QualityAssistantView({ defectRows, prodVolRows, capaRecords }) {
+export default function QualityAssistantView({ defectRows, prodVolRows, capaRecords, onOpenLibrary }) {
   const weeks = useMemo(() => distinctWeeks(defectRows).sort(), [defectRows]);
   const customers = useMemo(() => distinctCustomers(defectRows), [defectRows]);
   const [week, setWeek] = useState('ALL');
@@ -140,7 +140,15 @@ export default function QualityAssistantView({ defectRows, prodVolRows, capaReco
                   <td>{d.rank}</td><td>{d.defect}</td><td className="num">{d.count}</td><td className="num">{d.sharePct.toFixed(1)}%</td>
                   <td>{d.trend.rising ? '↑ Rising' : d.trend.falling ? '↓ Falling' : '→ Stable'}</td>
                   <td><span className="badge" style={{ color: d.risk === 'HIGH' ? '#ef4444' : d.risk === 'MEDIUM' ? '#f59e0b' : '#22c55e', background: 'transparent' }}>{d.risk}</span></td>
-                  <td>{d.category}</td>
+                  <td>
+                    {d.category}
+                    {d.library && onOpenLibrary && (
+                      <>
+                        {' · '}
+                        <button className="link-btn" onClick={() => onOpenLibrary(d.defect)}>📖 View in Library</button>
+                      </>
+                    )}
+                  </td>
                 </tr>
               ))}</tbody>
             </table>
@@ -150,6 +158,11 @@ export default function QualityAssistantView({ defectRows, prodVolRows, capaReco
 
       {primary && (
         <Card title={`🧠 PRIMARY DEFECT — ${primary.defect}`}>
+          {primary.library && onOpenLibrary && (
+            <div style={{ marginBottom: 10 }}>
+              <button className="link-btn" onClick={() => onOpenLibrary(primary.defect)}>📖 Open full Library entry →</button>
+            </div>
+          )}
           <div className="row">
             <div className="col">
               <div className="ai-subtitle">POSSIBLE CAUSES</div>

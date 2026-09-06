@@ -28,6 +28,12 @@ export default function App() {
   const [currentView, setCurrentView] = useState('yield');
   const [refreshKey, setRefreshKey] = useState(0);
   const [lastSyncedAt, setLastSyncedAt] = useState(null);
+  // Set by "View in Library" from Quality Assistant findings — which defect
+  // type Library should land on and pre-select when it opens. Cleared once
+  // LibraryView has consumed it, so navigating to Library normally afterward
+  // (via the nav bar) doesn't keep jumping back to a stale target.
+  const [libraryFocusType, setLibraryFocusType] = useState(null);
+  const openLibrary = (defectType) => { setLibraryFocusType(defectType); setCurrentView('library'); };
 
   const ready = firebaseReady && !!user;
   const { value: defectRows, loading: defectsLoading } = useDefects(ready, refreshKey);
@@ -78,7 +84,9 @@ export default function App() {
           <YieldView defectRows={defectRows} prodVolRows={prodVolRows} showToast={showToast} showConfirm={showConfirm} onDataChanged={handleRefresh} />
         )}
         {currentView === 'time' && <TimeView defectRows={defectRows} />}
-        {currentView === 'library' && <LibraryView />}
+        {currentView === 'library' && (
+          <LibraryView focusType={libraryFocusType} onFocusHandled={() => setLibraryFocusType(null)} />
+        )}
         {currentView === 'report' && (
           <ReportView
             defectRows={defectRows}
@@ -96,7 +104,7 @@ export default function App() {
           <DataHealthView defectRows={defectRows} prodVolRows={prodVolRows} capaRecords={capaRecords} />
         )}
         {currentView === 'assistant' && (
-          <QualityAssistantView defectRows={defectRows} prodVolRows={prodVolRows} capaRecords={capaRecords} />
+          <QualityAssistantView defectRows={defectRows} prodVolRows={prodVolRows} capaRecords={capaRecords} onOpenLibrary={openLibrary} />
         )}
         </>
         )}

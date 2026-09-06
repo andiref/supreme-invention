@@ -163,13 +163,23 @@ export default async function handler(req, res) {
                 if (body.model !== undefined) entryPatch.model = sanitizeText(body.model, 120);
                 if (body.comp !== undefined) entryPatch.comp = sanitizeText(body.comp, 60);
                 if (body.rootCause !== undefined) entryPatch.rootCause = sanitizeText(body.rootCause, 1500);
+                // Structured 5-Why chain: up to 5 free-text steps, each one
+                // "why" deeper than the last. Stored alongside rootCause
+                // (not instead of it) — the UI keeps rootCause as the 5th/
+                // final step's mirror so anything already reading
+                // capa.rootCause elsewhere keeps working unchanged.
+                if (body.whys !== undefined) {
+                    entryPatch.whys = Array.isArray(body.whys)
+                        ? body.whys.slice(0, 5).map((w) => sanitizeText(w, 300))
+                        : [];
+                }
                 if (body.correctiveAction !== undefined) entryPatch.correctiveAction = sanitizeText(body.correctiveAction, 1500);
                 if (body.dueDate !== undefined) entryPatch.dueDate = sanitizeDate(body.dueDate, 20);
                 if (body.pic !== undefined) entryPatch.pic = sanitizeText(body.pic, 100);
                 if (body.monitoring !== undefined) entryPatch.monitoring = body.monitoring;
 
                 const newEntry = Object.assign(
-                    { rank: null, count: null, model: '', comp: '', rootCause: '', correctiveAction: '', dueDate: '', pic: '', monitoring: 'Open' },
+                    { rank: null, count: null, model: '', comp: '', rootCause: '', whys: [], correctiveAction: '', dueDate: '', pic: '', monitoring: 'Open' },
                     existingEntry,
                     entryPatch,
                     { week, updated: Date.now(), updatedBy: email }
@@ -182,7 +192,7 @@ export default async function handler(req, res) {
                     existing,
                     {
                         customer, defect, model, comp, history: newHistory,
-                        rootCause: latest.entry.rootCause, correctiveAction: latest.entry.correctiveAction,
+                        rootCause: latest.entry.rootCause, whys: latest.entry.whys || [], correctiveAction: latest.entry.correctiveAction,
                         dueDate: latest.entry.dueDate, pic: latest.entry.pic, monitoring: latest.entry.monitoring,
                         updated: Date.now(), updatedBy: email
                     }
@@ -225,7 +235,7 @@ export default async function handler(req, res) {
                 const latest = latestOf(history);
                 return Object.assign({}, existing, {
                     history,
-                    rootCause: latest.entry.rootCause, correctiveAction: latest.entry.correctiveAction,
+                    rootCause: latest.entry.rootCause, whys: latest.entry.whys || [], correctiveAction: latest.entry.correctiveAction,
                     dueDate: latest.entry.dueDate, pic: latest.entry.pic, monitoring: latest.entry.monitoring,
                     updated: Date.now(), updatedBy: email
                 });

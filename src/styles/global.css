@@ -2333,6 +2333,8 @@ body.light #yc-root {
 #yc-root .health-critical > span { color:#ef4444; }
 .login-link-btn { width:100%; border:0; background:transparent; color:var(--accent2); font-size:11px; padding:8px 0 0; cursor:pointer; }
 .login-link-btn:disabled { opacity:.5; cursor:not-allowed; }
+.link-btn { border:0; background:transparent; color:var(--accent2); font-size:inherit; font-weight:700; padding:0; cursor:pointer; text-decoration:underline; }
+.link-btn:hover { opacity:.8; }
 @media (max-width: 520px) { #yc-root .health-grid { grid-template-columns:1fr; } #yc-root .data-health-banner { align-items:flex-start; flex-direction:column; } }
 
 /* ── V4 Quality Engineer Assistant ── */
