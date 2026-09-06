@@ -9,6 +9,7 @@
 // ============================================
 
 export * from './constants.js';
+export * from './format.js';
 export * from './datetime.js';
 export * from './defectRow.js';
 export * from './metrics.js';

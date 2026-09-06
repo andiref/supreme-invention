@@ -6,6 +6,7 @@
 
 import { aggregateKpis, calcMetrics, weeklySummary, normKey } from './metrics.js';
 import { YIELD_TARGET, DPPM_LIMIT, REPORT_MAX_WEEKS } from './constants.js';
+import { fmtInt } from './format.js';
 import { findLibraryEntry } from './defectLibrary.js';
 
 function norm(value) {
@@ -152,7 +153,7 @@ export function analyzeQualityData(defectRows, prodVolRows, capaRecords = {}, fi
   if (kpis.totalInsp === 0) risks.push({ level: 'HIGH', title: 'No matched production volume', detail: 'The selected slice has no joined production volume, so yield and DPPM cannot be trusted yet.' });
   else {
     if (kpis.yieldOverall < YIELD_TARGET) risks.push({ level: kpis.yieldOverall < YIELD_TARGET - 1 ? 'HIGH' : 'MEDIUM', title: 'Yield below target', detail: `${kpis.yieldOverall.toFixed(2)}% vs ${YIELD_TARGET}% target.` });
-    if (kpis.dppm > DPPM_LIMIT) risks.push({ level: kpis.dppm > DPPM_LIMIT * 2 ? 'HIGH' : 'MEDIUM', title: 'DPPM above limit', detail: `${Math.round(kpis.dppm).toLocaleString()} vs ${DPPM_LIMIT.toLocaleString()} limit.` });
+    if (kpis.dppm > DPPM_LIMIT) risks.push({ level: kpis.dppm > DPPM_LIMIT * 2 ? 'HIGH' : 'MEDIUM', title: 'DPPM above limit', detail: `${fmtInt(kpis.dppm)} vs ${fmtInt(DPPM_LIMIT)} limit.` });
   }
   if (unmatchedCount > 0) risks.push({ level: 'MEDIUM', title: 'Some defect rows excluded from this analysis', detail: `${unmatchedCount} defect row(s) in this scope have no matched production volume, so they're left out of Top Defect Drivers below. Check Data Health to reconcile them.` });
   topDefects.filter((d) => d.risk === 'HIGH').slice(0, 3).forEach((d) => risks.push({ level: 'HIGH', title: `${d.defect} is a priority defect`, detail: `${d.count} occurrences (${d.sharePct.toFixed(1)}% of defects)${d.trend.rising ? ', with an increasing trend' : ''}.` }));

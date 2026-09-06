@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { buildDataHealth } from '../../brain/index.js';
+import { buildDataHealth, fmtInt } from '../../brain/index.js';
 import { Card, KpiRow } from '../common/Kpi.jsx';
 
 function HealthKpi({ label, value, sub, tone = 'blue' }) {
@@ -27,10 +27,10 @@ export default function DataHealthView({ defectRows, prodVolRows, capaRecords })
           <div className="health-stamp">{new Date(health.generatedAt).toLocaleString()}</div>
         </div>
         <div className="kpi-row">
-          <HealthKpi label="DEFECT ROWS" value={s.defectRows.toLocaleString()} sub="Realtime records" />
-          <HealthKpi label="PROD ROWS" value={s.productionRows.toLocaleString()} sub="Realtime records" />
-          <HealthKpi label="MATCHED COMBOS" value={s.matchedCombos.toLocaleString()} sub="Yield-ready joins" tone="green" />
-          <HealthKpi label="WARNINGS" value={s.warnings.toLocaleString()} sub="Require review" tone={s.warnings ? 'amber' : 'green'} />
+          <HealthKpi label="DEFECT ROWS" value={fmtInt(s.defectRows)} sub="Realtime records" />
+          <HealthKpi label="PROD ROWS" value={fmtInt(s.productionRows)} sub="Realtime records" />
+          <HealthKpi label="MATCHED COMBOS" value={fmtInt(s.matchedCombos)} sub="Yield-ready joins" tone="green" />
+          <HealthKpi label="WARNINGS" value={fmtInt(s.warnings)} sub="Require review" tone={s.warnings ? 'amber' : 'green'} />
         </div>
       </Card>
 

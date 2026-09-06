@@ -1,5 +1,5 @@
 import DigestMiniChart from './DigestMiniChart.jsx';
-import { YIELD_TARGET, DPPM_LIMIT } from '../../brain/index.js';
+import { YIELD_TARGET, DPPM_LIMIT, fmtInt } from '../../brain/index.js';
 
 // rank 1/2/3 bar colors — red, orange, yellow — matching the old digest
 const DEFECT_BAR_COLORS = ['#dc2626', '#f59e0b', '#eab308'];
@@ -58,14 +58,14 @@ export default function DigestCard({ customer, data, color, weekBadge, first = f
 
           <div style={{ marginBottom: 14 }}>
             <div style={{ fontSize: 9, fontWeight: 700, color: '#888888' }}>THIS WEEK&apos;S YIELD</div>
-            <div style={{ fontSize: 21, fontWeight: 700, color: '#000000' }}>{hasCurrentData ? `${data.latestYieldOverall.toFixed(2)}%` : '—'}</div>
+            <div style={{ fontSize: 21, fontWeight: 700, color: hasCurrentData ? (data.latestYieldOverall >= YIELD_TARGET ? '#16a34a' : '#dc2626') : '#000000' }}>{hasCurrentData ? `${data.latestYieldOverall.toFixed(2)}%` : '—'}</div>
             <div style={{ fontSize: 9, color: '#888888' }}>{hasCurrentData ? `Target: ${YIELD_TARGET}%` : 'No data this week'}</div>
           </div>
 
           <div>
             <div style={{ fontSize: 9, fontWeight: 700, color: '#888888' }}>DPPM</div>
-            <div style={{ fontSize: 21, fontWeight: 700, color: '#000000' }}>{hasCurrentData ? Math.round(data.latestDppm).toLocaleString() : '—'}</div>
-            <div style={{ fontSize: 9, color: '#888888' }}>{hasCurrentData ? `Limit: ${DPPM_LIMIT.toLocaleString()}` : ''}</div>
+            <div style={{ fontSize: 21, fontWeight: 700, color: hasCurrentData ? (data.latestDppm <= DPPM_LIMIT ? '#16a34a' : '#dc2626') : '#000000' }}>{hasCurrentData ? fmtInt(data.latestDppm) : '—'}</div>
+            <div style={{ fontSize: 9, color: '#888888' }}>{hasCurrentData ? `Limit: ${fmtInt(DPPM_LIMIT)}` : ''}</div>
           </div>
         </div>
 
@@ -109,7 +109,7 @@ export default function DigestCard({ customer, data, color, weekBadge, first = f
             targetColor="#dc2626"
             isYield={false}
             metricLabel="DPPM"
-            targetText={`${DPPM_LIMIT.toLocaleString()} limit`}
+            targetText={`${fmtInt(DPPM_LIMIT)} limit`}
           />
         </div>
       </div>

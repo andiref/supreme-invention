@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import {
   calcMetrics, findUnmatchedDefectCombos, filterMetrics, filterDefectRows,
   distinctWeeks, distinctCustomers, distinctModels, aggregateKpis,
-  paretoByDefectType, CHART_COLORS, YIELD_TARGET, DPPM_LIMIT,
+  paretoByDefectType, CHART_COLORS, YIELD_TARGET, DPPM_LIMIT, fmtInt,
 } from '../../brain/index.js';
 import { Card, KpiRow } from '../common/Kpi.jsx';
 import FilterField from '../common/FilterField.jsx';
@@ -41,9 +41,9 @@ export default function YieldView({ defectRows, prodVolRows, showToast, showConf
 
   const kpiCards = filteredMetrics.length ? [
     { label: 'YIELD OVERALL', value: `${kpi.yieldOverall.toFixed(3)}%`, color: kpi.yieldOverall >= YIELD_TARGET ? '#22c55e' : '#ef4444', sub: `Target ≥${YIELD_TARGET}%  ${kpi.yieldOverall >= YIELD_TARGET ? '✅' : '❌'}` },
-    { label: 'YIELD TOP', value: kpi.yieldTOP != null ? `${kpi.yieldTOP.toFixed(3)}%` : '—', color: kpi.yieldTOP != null && kpi.yieldTOP >= YIELD_TARGET ? '#22c55e' : '#ef4444', sub: `Insp:${kpi.inspTOP.toLocaleString()} Fail:${kpi.failedTOP}` },
-    { label: 'YIELD BOT', value: kpi.yieldBOT != null ? `${kpi.yieldBOT.toFixed(3)}%` : '—', color: kpi.yieldBOT != null && kpi.yieldBOT >= YIELD_TARGET ? '#22c55e' : '#a78bfa', sub: `Insp:${kpi.inspBOT.toLocaleString()} Fail:${kpi.failedBOT}` },
-    { label: 'DPPM', value: Math.round(kpi.dppm).toLocaleString(), color: kpi.dppm <= DPPM_LIMIT ? '#22c55e' : '#ef4444', sub: `Limit ≤${DPPM_LIMIT.toLocaleString()}  ${kpi.dppm <= DPPM_LIMIT ? '✅' : '❌'}` },
+    { label: 'YIELD TOP', value: kpi.yieldTOP != null ? `${kpi.yieldTOP.toFixed(3)}%` : '—', color: kpi.yieldTOP != null && kpi.yieldTOP >= YIELD_TARGET ? '#22c55e' : '#ef4444', sub: `Insp:${fmtInt(kpi.inspTOP)} Fail:${kpi.failedTOP}` },
+    { label: 'YIELD BOT', value: kpi.yieldBOT != null ? `${kpi.yieldBOT.toFixed(3)}%` : '—', color: kpi.yieldBOT != null && kpi.yieldBOT >= YIELD_TARGET ? '#22c55e' : '#a78bfa', sub: `Insp:${fmtInt(kpi.inspBOT)} Fail:${kpi.failedBOT}` },
+    { label: 'DPPM', value: fmtInt(kpi.dppm), color: kpi.dppm <= DPPM_LIMIT ? '#22c55e' : '#ef4444', sub: `Limit ≤${fmtInt(DPPM_LIMIT)}  ${kpi.dppm <= DPPM_LIMIT ? '✅' : '❌'}` },
     { label: 'DEFECT RECORDS', value: String(kpi.totalDefects), color: '#a78bfa', sub: 'Total defect rows' },
   ] : [];
 

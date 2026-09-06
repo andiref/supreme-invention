@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { analyzeQualityData, answerQualityQuestion, distinctCustomers, distinctModels, distinctWeeks, YIELD_TARGET, DPPM_LIMIT } from '../../brain/index.js';
+import { analyzeQualityData, answerQualityQuestion, distinctCustomers, distinctModels, distinctWeeks, YIELD_TARGET, DPPM_LIMIT, fmtInt } from '../../brain/index.js';
 import FilterField from '../common/FilterField.jsx';
 import { Card } from '../common/Kpi.jsx';
 import TrendLineChart, { computeZoomedDomain } from '../charts/TrendLineChart.jsx';
@@ -80,9 +80,9 @@ export default function QualityAssistantView({ defectRows, prodVolRows, capaReco
         <div className="kpi-row">
           {[
             ['YIELD', analysis.kpis.totalInsp ? `${analysis.kpis.yieldOverall.toFixed(2)}%` : '—'],
-            ['DPPM', analysis.kpis.totalInsp ? Math.round(analysis.kpis.dppm).toLocaleString() : '—'],
-            ['INSPECTED', analysis.kpis.totalInsp.toLocaleString()],
-            ['FAILED', analysis.kpis.totalFailed.toLocaleString()],
+            ['DPPM', analysis.kpis.totalInsp ? fmtInt(analysis.kpis.dppm) : '—'],
+            ['INSPECTED', fmtInt(analysis.kpis.totalInsp)],
+            ['FAILED', fmtInt(analysis.kpis.totalFailed)],
           ].map(([label, value]) => <div key={label} className="kpi ai-kpi"><div className="kpi-n">{value}</div><div className="kpi-l">{label}</div></div>)}
         </div>
         {analysis.weekly.length > 1 && (
