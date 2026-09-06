@@ -99,16 +99,26 @@ export default function DigestMiniChart({
         {have.map(({ v, i }) => <circle key={i} cx={xp(i)} cy={yp(v)} r={2.3} fill="#000000" />)}
 
         {lastPoint && (
-          <text x={xp(lastPoint.i)} y={yp(lastPoint.v) - 6} fontSize={9} fontWeight={700} fill="#000000" textAnchor="middle">
+          <text
+            x={xp(lastPoint.i)}
+            y={yp(lastPoint.v) - 6}
+            fontSize={9}
+            fontWeight={700}
+            fill="#000000"
+            textAnchor={lastPoint.i === labels.length - 1 ? 'end' : 'middle'}
+          >
             {fmtVal(lastPoint.v)}
           </text>
         )}
 
-        {labels.map((l, i) => (
-          (i % showEvery === 0 || i === labels.length - 1)
-            ? <text key={i} x={xp(i)} y={PT + PH + 11} fontSize={7} fill="#666666" textAnchor="middle">{l}</text>
-            : null
-        ))}
+        {labels.map((l, i) => {
+          if (i % showEvery !== 0 && i !== labels.length - 1) return null;
+          // Middle-anchor interior labels, but anchor the first/last labels
+          // to the inside edge so their text never spills past the chart
+          // boundary and gets clipped.
+          const anchor = i === 0 && labels.length > 1 ? 'start' : (i === labels.length - 1 && labels.length > 1 ? 'end' : 'middle');
+          return <text key={i} x={xp(i)} y={PT + PH + 11} fontSize={7} fill="#666666" textAnchor={anchor}>{l}</text>;
+        })}
       </svg>
     </div>
   );
