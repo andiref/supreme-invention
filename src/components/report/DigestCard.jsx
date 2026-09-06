@@ -57,7 +57,7 @@ export default function DigestCard({ customer, data, color, weekBadge, first = f
           <div style={{ fontSize: 10, fontWeight: 700, color: '#666666', marginBottom: 16 }}>{weekBadge}</div>
 
           <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 9, fontWeight: 700, color: '#888888' }}>OVERALL YIELD</div>
+            <div style={{ fontSize: 9, fontWeight: 700, color: '#888888' }}>THIS WEEK&apos;S YIELD</div>
             <div style={{ fontSize: 21, fontWeight: 700, color: '#000000' }}>{hasCurrentData ? `${data.latestYieldOverall.toFixed(2)}%` : '—'}</div>
             <div style={{ fontSize: 9, color: '#888888' }}>{hasCurrentData ? `Target: ${YIELD_TARGET}%` : 'No data this week'}</div>
           </div>

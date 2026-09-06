@@ -56,7 +56,7 @@ export default function CustomerSection({ customer, data, color, bordered = true
           <div style={{ fontSize: 10, color: 'var(--yc-muted)', marginBottom: 12 }}>{weekLabel(data.lw)}</div>
 
           <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 9, color: 'var(--yc-muted)', letterSpacing: '0.05em' }}>OVERALL YIELD</div>
+            <div style={{ fontSize: 9, color: 'var(--yc-muted)', letterSpacing: '0.05em' }}>THIS WEEK&apos;S YIELD</div>
             {hasCurrentData ? (
               <>
                 <div style={{ fontSize: 22, fontWeight: 700, color: data.latestYieldOverall >= YIELD_TARGET ? '#22c55e' : '#ef4444' }}>{data.latestYieldOverall.toFixed(2)}%</div>
