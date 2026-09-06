@@ -34,7 +34,7 @@
 
 import {
     jsonResponse, errorResponse, handleOptions,
-    sanitizeText, sanitizeDate, sanitizeKey, getToken, fbGet, fbSet, fbDelete, requireOwner
+    sanitizeText, sanitizeDate, sanitizeKey, getToken, fbGet, fbTransaction, fbDelete, requireOwner
 } from './_shared.js';
 
 const MONITORING_STATUSES = ['Open', 'Monitoring', 'Effective', 'Closed'];
@@ -110,69 +110,64 @@ export default async function handler(req, res) {
             const key = capaKey(customer, defect, model, comp);
             if (!key) return errorResponse(res, 'Invalid customer/defect');
 
-            const existing = (await fbGet(env, token, `smt_capa/${key}`)) || {};
+            // This entire read/merge/write cycle is an ETag transaction. If
+            // another tab updates the same chain between our GET and PUT,
+            // Firebase returns 412 and fbTransaction retries from the newest
+            // record rather than overwriting that other tab's history.
+            await fbTransaction(env, token, `smt_capa/${key}`, (current) => {
+                const existing = current || {};
 
-            // One-time migration: a record saved before this feature existed
-            // has its root cause etc. sitting at the top level with no
-            // `history` map at all. Fold that into a single "0000-legacy"
-            // entry so it becomes the first row of the chain instead of
-            // being silently overwritten the next time this record is
-            // touched. Only runs once per record — after this, `history`
-            // always exists (even if empty), so this block never fires again.
-            let history = existing.history;
-            if (!history) {
-                history = {};
-                const hadLegacyData = existing.rootCause || existing.correctiveAction ||
-                    existing.dueDate || existing.pic || (existing.monitoring && existing.monitoring !== 'Open');
-                if (hadLegacyData) {
-                    history['0000-legacy'] = {
-                        week: null, rank: null, count: null, model: '', comp: '',
-                        rootCause: existing.rootCause || '', correctiveAction: existing.correctiveAction || '',
-                        dueDate: existing.dueDate || '', pic: existing.pic || '',
-                        monitoring: existing.monitoring || 'Open',
-                        updated: existing.updated || existing.created || Date.now(),
-                        updatedBy: existing.updatedBy || ''
-                    };
+                // One-time migration of the old flat shape into history.
+                let history = existing.history;
+                if (!history) {
+                    history = {};
+                    const hadLegacyData = existing.rootCause || existing.correctiveAction ||
+                        existing.dueDate || existing.pic || (existing.monitoring && existing.monitoring !== 'Open');
+                    if (hadLegacyData) {
+                        history['0000-legacy'] = {
+                            week: null, rank: null, count: null, model: '', comp: '',
+                            rootCause: existing.rootCause || '', correctiveAction: existing.correctiveAction || '',
+                            dueDate: existing.dueDate || '', pic: existing.pic || '',
+                            monitoring: existing.monitoring || 'Open',
+                            updated: existing.updated || existing.created || Date.now(),
+                            updatedBy: existing.updatedBy || ''
+                        };
+                    }
                 }
-            }
 
-            const existingEntry = history[week] || {};
-            const entryPatch = {};
-            if (body.rank !== undefined) entryPatch.rank = body.rank === null ? null : clampInt(body.rank, 1, 999);
-            if (body.count !== undefined) entryPatch.count = body.count === null ? null : clampInt(body.count, 0, 1e9);
-            if (body.model !== undefined) entryPatch.model = sanitizeText(body.model, 120);
-            if (body.comp !== undefined) entryPatch.comp = sanitizeText(body.comp, 60);
-            if (body.rootCause !== undefined) entryPatch.rootCause = sanitizeText(body.rootCause, 1500);
-            if (body.correctiveAction !== undefined) entryPatch.correctiveAction = sanitizeText(body.correctiveAction, 1500);
-            if (body.dueDate !== undefined) entryPatch.dueDate = sanitizeDate(body.dueDate, 20);
-            if (body.pic !== undefined) entryPatch.pic = sanitizeText(body.pic, 100);
-            if (body.monitoring !== undefined) entryPatch.monitoring = body.monitoring;
+                const existingEntry = history[week] || {};
+                const entryPatch = {};
+                if (body.rank !== undefined) entryPatch.rank = body.rank === null ? null : clampInt(body.rank, 1, 999);
+                if (body.count !== undefined) entryPatch.count = body.count === null ? null : clampInt(body.count, 0, 1e9);
+                if (body.model !== undefined) entryPatch.model = sanitizeText(body.model, 120);
+                if (body.comp !== undefined) entryPatch.comp = sanitizeText(body.comp, 60);
+                if (body.rootCause !== undefined) entryPatch.rootCause = sanitizeText(body.rootCause, 1500);
+                if (body.correctiveAction !== undefined) entryPatch.correctiveAction = sanitizeText(body.correctiveAction, 1500);
+                if (body.dueDate !== undefined) entryPatch.dueDate = sanitizeDate(body.dueDate, 20);
+                if (body.pic !== undefined) entryPatch.pic = sanitizeText(body.pic, 100);
+                if (body.monitoring !== undefined) entryPatch.monitoring = body.monitoring;
 
-            const newEntry = Object.assign(
-                { rank: null, count: null, model: '', comp: '', rootCause: '', correctiveAction: '', dueDate: '', pic: '', monitoring: 'Open' },
-                existingEntry,
-                entryPatch,
-                { week, updated: Date.now(), updatedBy: email }
-            );
+                const newEntry = Object.assign(
+                    { rank: null, count: null, model: '', comp: '', rootCause: '', correctiveAction: '', dueDate: '', pic: '', monitoring: 'Open' },
+                    existingEntry,
+                    entryPatch,
+                    { week, updated: Date.now(), updatedBy: email }
+                );
 
-            const newHistory = Object.assign({}, history, { [week]: newEntry });
-            const latest = latestOf(newHistory);
+                const newHistory = Object.assign({}, history, { [week]: newEntry });
+                const latest = latestOf(newHistory);
+                return Object.assign(
+                    { created: Date.now() },
+                    existing,
+                    {
+                        customer, defect, model, comp, history: newHistory,
+                        rootCause: latest.entry.rootCause, correctiveAction: latest.entry.correctiveAction,
+                        dueDate: latest.entry.dueDate, pic: latest.entry.pic, monitoring: latest.entry.monitoring,
+                        updated: Date.now(), updatedBy: email
+                    }
+                );
+            });
 
-            const record = Object.assign(
-                { created: Date.now() },
-                existing,
-                {
-                    customer, defect, model, comp, history: newHistory,
-                    // Mirror = latest week's entry. Kept at the top level so
-                    // anything still reading the old flat shape (older
-                    // dashboards, ad-hoc scripts, etc.) keeps working as-is.
-                    rootCause: latest.entry.rootCause, correctiveAction: latest.entry.correctiveAction,
-                    dueDate: latest.entry.dueDate, pic: latest.entry.pic, monitoring: latest.entry.monitoring,
-                    updated: Date.now(), updatedBy: email
-                }
-            );
-
-            await fbSet(env, token, `smt_capa/${key}`, record);
             return jsonResponse(res, { ok: true, id: key });
         }
 
@@ -198,28 +193,21 @@ export default async function handler(req, res) {
                 return jsonResponse(res, { ok: true });
             }
 
-            const existing = (await fbGet(env, token, `smt_capa/${key}`)) || {};
-            const history = Object.assign({}, existing.history || {});
-            if (!(week in history)) {
-                // Nothing to delete under this week — no-op rather than
-                // falling through to any destructive branch below.
-                return jsonResponse(res, { ok: true });
-            }
-            delete history[week];
+            await fbTransaction(env, token, `smt_capa/${key}`, (current) => {
+                const existing = current || {};
+                const history = Object.assign({}, existing.history || {});
+                if (!(week in history)) return existing;
+                delete history[week];
+                if (!Object.keys(history).length) return null;
 
-            if (!Object.keys(history).length) {
-                await fbDelete(env, token, `smt_capa/${key}`);
-                return jsonResponse(res, { ok: true });
-            }
-
-            const latest = latestOf(history);
-            const record = Object.assign({}, existing, {
-                history,
-                rootCause: latest.entry.rootCause, correctiveAction: latest.entry.correctiveAction,
-                dueDate: latest.entry.dueDate, pic: latest.entry.pic, monitoring: latest.entry.monitoring,
-                updated: Date.now(), updatedBy: email
+                const latest = latestOf(history);
+                return Object.assign({}, existing, {
+                    history,
+                    rootCause: latest.entry.rootCause, correctiveAction: latest.entry.correctiveAction,
+                    dueDate: latest.entry.dueDate, pic: latest.entry.pic, monitoring: latest.entry.monitoring,
+                    updated: Date.now(), updatedBy: email
+                });
             });
-            await fbSet(env, token, `smt_capa/${key}`, record);
             return jsonResponse(res, { ok: true });
         }
 
@@ -227,6 +215,6 @@ export default async function handler(req, res) {
 
     } catch (err) {
         console.error('capa.js error:', err.message);
-        return errorResponse(res, 'Server error: ' + err.message, 500);
+        return errorResponse(res, 'Server error', 500);
     }
 }

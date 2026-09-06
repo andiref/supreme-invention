@@ -47,7 +47,9 @@ function matchingCapaRecords(capaRecords, defect, customer) {
     .filter(Boolean)
     .filter((r) => norm(r.defect) === norm(defect))
     .filter((r) => customer === 'ALL' || !customer || norm(r.customer) === norm(customer))
-    .sort((a, b) => String(b.updatedAt || b.createdAt || '').localeCompare(String(a.updatedAt || a.createdAt || '')));
+    // CAPA API records use `updated` / `created` (epoch milliseconds).
+    // Prefer the latest explicit update; keep created as a legacy fallback.
+    .sort((a, b) => Number(b.updated || b.created || 0) - Number(a.updated || a.created || 0));
 }
 
 function percentDelta(current, baseline) {

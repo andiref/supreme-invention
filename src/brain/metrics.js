@@ -78,6 +78,11 @@ export function calcMetrics(defectRows, prodVolRows, thresholds = {}) {
     }
   });
 
+  // Index defect rows once. The previous implementation filtered the entire
+  // defect dataset again for every production-volume combo, turning this join
+  // into O(combos × defectRows) work on large histories.
+  const defectsByKey = new Map();
+
   // Display text (week/customer/model as shown in KPIs/tables) is taken
   // from whichever Defect Data row first used this combo — usually the
   // more detailed/authoritative source — falling back to Production
@@ -85,6 +90,8 @@ export function calcMetrics(defectRows, prodVolRows, thresholds = {}) {
   const drDisplay = new Map();
   defectRows.forEach((d) => {
     const k = normKey(d.week, d.customer, d.model);
+    if (!defectsByKey.has(k)) defectsByKey.set(k, []);
+    defectsByKey.get(k).push(d);
     if (!drDisplay.has(k)) drDisplay.set(k, { week: d.week, customer: d.customer, model: d.model });
   });
 
@@ -95,7 +102,7 @@ export function calcMetrics(defectRows, prodVolRows, thresholds = {}) {
     const prow = pvByKey.get(k);
     if (!prow) return; // no production volume => no yield/DPPM for this combo
 
-    const drows = defectRows.filter((d) => normKey(d.week, d.customer, d.model) === k);
+    const drows = defectsByKey.get(k) || [];
     const disp = drDisplay.get(k) || { week: prow.week, customer: prow.customer, model: prow.model };
 
     const inspTOP = prow.inspTOP || 0;
