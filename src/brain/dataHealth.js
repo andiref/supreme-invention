@@ -40,7 +40,7 @@ export function chronicDefectCount(defectRows, lookbackWeeks = 4) {
       if (weeksInTop3 >= 2) { count += 1; details.push({ customer, defect, weeksInTop3 }); }
     });
   }
-  return { count, details: details.sort((a, b) => b.weeksInTop3 - a.weeksInTop3 || a.defect.localeCompare(b.defect)) };
+  return { count, details: details.sort((a, b) => b.weeksInTop3 - a.weeksInTop3 || String(a.defect || '').localeCompare(String(b.defect || ''))) };
 }
 
 export function buildDataHealth(defectRows, prodVolRows, capaRecords = {}, now = new Date()) {
