@@ -12,7 +12,7 @@ import TrendLineChart, { computeZoomedDomain } from '../charts/TrendLineChart.js
 import SimpleBarChart from '../charts/SimpleBarChart.jsx';
 
 function weekLabel(w) {
-  const m = w.match(/W(\d+)$/);
+  const m = String(w).match(/W(\d+)$/);
   return m ? `WW${m[1]}` : w;
 }
 

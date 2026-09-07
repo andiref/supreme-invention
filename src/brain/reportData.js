@@ -106,7 +106,7 @@ export function computeCustomerReportData(
   const inspBOT = metricsInRange.reduce((s, r) => s + r.inspBOT, 0);
 
   const labels = weeklyInRange.map((w) => {
-    const m = w.week.match(/W(\d+)$/);
+    const m = String(w.week).match(/W(\d+)$/);
     return m ? `WW${m[1]}` : w.week;
   });
 
@@ -238,7 +238,7 @@ export function computeCustomerReportData(
       : 0,
     latestTotalInsp,
     trendLabels: trendWeeks.map((w) => {
-      const m = w.match(/W(\d+)$/);
+      const m = String(w).match(/W(\d+)$/);
       return m ? `WW${m[1]}` : w;
     }),
     trendYieldSeries: trendWeeks.map(
