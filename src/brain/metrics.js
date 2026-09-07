@@ -128,7 +128,11 @@ export function calcMetrics(defectRows, prodVolRows, thresholds = {}) {
     });
   });
 
-  return result.sort((a, b) => a.week.localeCompare(b.week) || a.model.localeCompare(b.model));
+  // String(...) guards against a legacy/malformed row with a missing week
+  // or model — previously a single such row crashed this .sort() outright
+  // (undefined has no .localeCompare), taking down every view that calls
+  // calcMetrics for ALL customers, not just the one bad row.
+  return result.sort((a, b) => String(a.week || '').localeCompare(String(b.week || '')) || String(a.model || '').localeCompare(String(b.model || '')));
 }
 
 /**
