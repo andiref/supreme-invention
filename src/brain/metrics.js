@@ -105,6 +105,15 @@ export function calcMetrics(defectRows, prodVolRows, thresholds = {}) {
     const drows = defectsByKey.get(k) || [];
     const disp = drDisplay.get(k) || { week: prow.week, customer: prow.customer, model: prow.model };
 
+    // Defensive: normKey() builds a valid-looking key even from an empty/
+    // missing week or model (empty segments just join into "||model" etc.),
+    // so a row saved before validation existed — or edited by hand — can
+    // still reach this point with disp.week/model undefined. Current import
+    // paths already reject that (isValidIsoWeek / isValidDateTime), but
+    // dropping it here too means one bad legacy row can't crash the whole
+    // app on the sort below, or show a blank week/model in every table.
+    if (!disp.week || !disp.customer || !disp.model) return;
+
     const inspTOP = prow.inspTOP || 0;
     const inspBOT = prow.inspBOT || 0;
     // Same SN+Side = one failed pass; a different side is a separate failure.
@@ -128,11 +137,9 @@ export function calcMetrics(defectRows, prodVolRows, thresholds = {}) {
     });
   });
 
-  // String(...) guards against a legacy/malformed row with a missing week
-  // or model — previously a single such row crashed this .sort() outright
-  // (undefined has no .localeCompare), taking down every view that calls
-  // calcMetrics for ALL customers, not just the one bad row.
-  return result.sort((a, b) => String(a.week || '').localeCompare(String(b.week || '')) || String(a.model || '').localeCompare(String(b.model || '')));
+  // Defensive even after the guard above — belt-and-suspenders against any
+  // future code path that pushes into `result` without going through it.
+  return result.sort((a, b) => (a.week || '').localeCompare(b.week || '') || (a.model || '').localeCompare(b.model || ''));
 }
 
 /**
