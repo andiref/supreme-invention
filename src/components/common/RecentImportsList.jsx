@@ -26,7 +26,7 @@ export default function RecentImportsList({ refreshKey, onUndo, onShowConfirm })
         try {
           await undoImport(imp.importId);
           setImports((prev) => prev.map((x) => (x.importId === imp.importId ? { ...x, undone: true } : x)));
-          onUndo();
+          onUndo(imp.type);
         } catch (err) {
           alert(err.message);
         } finally {

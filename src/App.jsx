@@ -26,7 +26,7 @@ export default function App() {
   const { toastMessage, showToast } = useToast();
   const { confirmState, showConfirm, closeConfirm, confirmYes } = useConfirm();
   const [currentView, setCurrentView] = useState('yield');
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [refreshKeys, setRefreshKeys] = useState({ all: 0, defects: 0, prodVol: 0, capa: 0, equipment: 0 });
   const [lastSyncedAt, setLastSyncedAt] = useState(null);
   // Set by "View in Library" from Quality Assistant findings — which defect
   // type Library should land on and pre-select when it opens. Cleared once
@@ -36,16 +36,31 @@ export default function App() {
   const openLibrary = (defectType) => { setLibraryFocusType(defectType); setCurrentView('library'); };
 
   const ready = firebaseReady && !!user;
-  const { value: defectRows, loading: defectsLoading } = useDefects(ready, refreshKey);
-  const { value: prodVolRows, loading: prodVolLoading } = useProdVol(ready, refreshKey);
-  const { value: capaRecords, loading: capaLoading } = useCapaData(ready, refreshKey);
-  const { value: equipment, loading: equipmentLoading } = useEquipment(ready, refreshKey);
+  const effectiveKeys = {
+    defects: refreshKeys.all + refreshKeys.defects,
+    prodVol: refreshKeys.all + refreshKeys.prodVol,
+    capa: refreshKeys.all + refreshKeys.capa,
+    equipment: refreshKeys.all + refreshKeys.equipment,
+  };
+  const { value: defectRows, error: defectsError, loading: defectsLoading } = useDefects(ready, effectiveKeys.defects);
+  const { value: prodVolRows, error: prodVolError, loading: prodVolLoading } = useProdVol(ready, effectiveKeys.prodVol);
+  const { value: capaRecords, error: capaError, loading: capaLoading } = useCapaData(ready, effectiveKeys.capa);
+  const { value: equipment, error: equipmentError, loading: equipmentLoading } = useEquipment(ready, effectiveKeys.equipment);
   const dataLoading = defectsLoading || prodVolLoading || capaLoading || equipmentLoading;
 
-  const handleRefresh = () => {
+  const handleRefresh = (scope = 'all') => {
     setLastSyncedAt(null);
-    setRefreshKey((key) => key + 1);
+    setRefreshKeys((prev) => {
+      if (scope === 'all') return { ...prev, all: prev.all + 1 };
+      if (scope === 'defects') return { ...prev, defects: prev.defects + 1 };
+      if (scope === 'prodvol') return { ...prev, prodVol: prev.prodVol + 1 };
+      if (scope === 'capa') return { ...prev, capa: prev.capa + 1 };
+      if (scope === 'equipment') return { ...prev, equipment: prev.equipment + 1 };
+      return { ...prev, all: prev.all + 1 };
+    });
   };
+
+  const dataError = defectsError || prodVolError || capaError || equipmentError;
 
   useEffect(() => {
     if (ready && !dataLoading) setLastSyncedAt(new Date());

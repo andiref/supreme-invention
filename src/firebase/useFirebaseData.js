@@ -9,6 +9,17 @@ import { get, ref } from 'firebase/database';
 import { db } from './config.js';
 import { buildDefectRow } from '../brain/defectRow.js';
 
+// Avoid four large Firebase snapshots being decoded/retained concurrently on
+// refresh. This is especially important after a large production-volume import:
+// the old implementation re-read every path in parallel, creating a large
+// temporary memory spike in the browser.
+let readQueue = Promise.resolve();
+function queuedRead(fn) {
+  const run = readQueue.then(fn, fn);
+  readQueue = run.catch(() => {});
+  return run;
+}
+
 /** Reads a path on demand, with a small retry for transient failures. */
 function useFirebaseValue(path, transform, ready, refreshKey = 0) {
   const [value, setValue] = useState(transform(null));
@@ -23,7 +34,7 @@ function useFirebaseValue(path, transform, ready, refreshKey = 0) {
     let lastError = null;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
-        const snap = await get(ref(db, path));
+        const snap = await queuedRead(() => get(ref(db, path)));
         setValue(transform(snap.val()));
         setLoading(false);
         return;
@@ -47,19 +58,31 @@ function useFirebaseValue(path, transform, ready, refreshKey = 0) {
   return { value, error, loading, refresh: load };
 }
 
+const validRecords = (raw) => (raw && typeof raw === 'object'
+  ? Object.values(raw).filter((r) => r && typeof r === 'object')
+  : []);
+
+const toFiniteCount = (value) => {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+};
+
 const transformDefects = (raw) => {
-  if (!raw) return [];
-  return Object.values(raw)
+  return validRecords(raw)
     .map((r) => buildDefectRow(r.dtStr, r.customer, r.model, r.sn, r.side, r.comp, r.defect))
     .filter(Boolean);
 };
 
 const transformProdVol = (raw) => {
-  if (!raw) return [];
-  return Object.values(raw).map((r) => ({
-    week: r.week, customer: r.customer, model: r.model,
-    inspTOP: r.inspTOP || 0, inspBOT: r.inspBOT || 0,
-  }));
+  return validRecords(raw)
+    .map((r) => ({
+      week: String(r.week ?? '').trim(),
+      customer: String(r.customer ?? '').trim(),
+      model: String(r.model ?? '').trim(),
+      inspTOP: toFiniteCount(r.inspTOP),
+      inspBOT: toFiniteCount(r.inspBOT),
+    }))
+    .filter((r) => r.week && r.customer && r.model);
 };
 
 const transformCapa = (raw) => raw || {};

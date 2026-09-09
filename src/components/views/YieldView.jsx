@@ -91,7 +91,7 @@ export default function YieldView({ defectRows, prodVolRows, showToast, showConf
     setShowImport(null);
     setImportsRefreshKey((k) => k + 1);
     showToast(`✓ Imported ${result.count ?? ''} ${type === 'defect' ? 'defect rows' : 'production volume rows'}${result.duplicates ? ` (${result.duplicates} duplicates skipped)` : ''}`);
-    onDataChanged?.();
+    onDataChanged?.(type === 'defect' ? 'defects' : 'prodvol');
   }
 
   return (
@@ -109,7 +109,14 @@ export default function YieldView({ defectRows, prodVolRows, showToast, showConf
 
         <Card title="🕘 RECENT IMPORTS">
           <div style={{ fontSize: 10, color: '#64748b', marginBottom: 8 }}>Imported the wrong file or wrong data by mistake? Undo it here.</div>
-          <RecentImportsList refreshKey={importsRefreshKey} onUndo={() => { setImportsRefreshKey((k) => k + 1); onDataChanged?.(); }} onShowConfirm={showConfirm} />
+          <RecentImportsList
+              refreshKey={importsRefreshKey}
+              onUndo={(undoType) => {
+                setImportsRefreshKey((k) => k + 1);
+                onDataChanged?.(undoType === 'defects' ? 'defects' : 'prodvol');
+              }}
+              onShowConfirm={showConfirm}
+            />
         </Card>
 
         {unmatched.length > 0 && (

@@ -31,8 +31,10 @@ async function importInBatches(action, rows, batchSize, extra, onProgress) {
     onProgress?.(i, rows.length, batchNum, totalBatches);
     try {
       const data = await post('/api/yield', { action, rows: batch, ...extra });
-      totalCount += data.count;
-      totalDuplicates += data.duplicates || 0;
+      totalCount += action === 'importProdVol'
+        ? (Number(data.created) || 0) + (Number(data.updated) || 0)
+        : (Number(data.count) || 0);
+      totalDuplicates += Number(data.duplicates) || 0;
     } catch (err) {
       err.batchNum = batchNum;
       err.totalBatches = totalBatches;
