@@ -130,7 +130,22 @@ export function planProdVolImport(clean, existing, now, newId, importId = null) 
         const match = existingByKey.get(rKey);
         const field = r.side === 'TOP' ? 'inspTOP' : 'inspBOT';
         if (match) {
-            const patch = updates[match._id] || { updated: now };
+            // Seeded with the record's current fields, not just { updated: now }:
+            // this object is written verbatim to smt_prodvol/{id} via a
+            // multi-location PATCH, which replaces the ENTIRE node at that path
+            // rather than merging into it. A patch missing week/customer/model
+            // (or the untouched inspection side) would silently delete them from
+            // the stored record the moment it's written.
+            const patch = updates[match._id] || {
+                week: match.week,
+                customer: match.customer,
+                model: match.model,
+                inspTOP: Number(match.inspTOP) || 0,
+                inspBOT: Number(match.inspBOT) || 0,
+                created: match.created || now,
+                updated: now,
+                ...(match.lastImportId ? { lastImportId: match.lastImportId } : {})
+            };
             const before = Object.prototype.hasOwnProperty.call(patch, field) ? patch[field] : (Number(match[field]) || 0);
             const beforeImportId = Object.prototype.hasOwnProperty.call(patch, 'lastImportId')
                 ? patch.lastImportId
