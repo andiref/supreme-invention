@@ -13,7 +13,7 @@ import {
 } from './_shared.js';
 
 
-export function planProdVolUndo(records, events) {
+export function planProdVolUndo(records, events, targetImportId = null) {
     const all = Object.fromEntries(Object.entries(records || {}).map(([id, rec]) => [id, { ...rec }]));
     const deletes = [];
     const revertMap = {};
@@ -23,6 +23,20 @@ export function planProdVolUndo(records, events) {
         const event = events[i];
         const rec = all[event.recordId];
         if (!rec) { skipped++; continue; }
+
+        // New production-volume imports stamp every touched record with the
+        // import ID that last touched it. This is stronger than comparing only
+        // the field value: a later import can write the exact same value, so
+        // value equality alone cannot tell that the record was touched again.
+        if (event.importId && event.afterImportId) {
+            if (rec.lastImportId !== event.afterImportId) {
+                skipped++;
+                continue;
+            }
+        } else if (targetImportId && rec.lastImportId && rec.lastImportId !== targetImportId) {
+            skipped++;
+            continue;
+        }
 
         if (event.kind === 'update') {
             const current = Number(rec[event.field]) || 0;
@@ -35,6 +49,17 @@ export function planProdVolUndo(records, events) {
             rec[event.field] = before;
             if (!revertMap[event.recordId]) revertMap[event.recordId] = {};
             revertMap[event.recordId][event.field] = before;
+            if (event.beforeImportId !== undefined) {
+                revertMap[event.recordId].lastImportId = event.beforeImportId || null;
+            }
+        } else if (event.kind === 'touch') {
+            // Same-value reimports should be idempotent: undoing this import
+            // does not change the production numbers, but it restores the
+            // previous ownership marker so older undo operations remain sane.
+            if (!revertMap[event.recordId]) revertMap[event.recordId] = {};
+            if (event.beforeImportId !== undefined) {
+                revertMap[event.recordId].lastImportId = event.beforeImportId || null;
+            }
         } else if (event.kind === 'create') {
             const same = ['week', 'customer', 'model', 'inspTOP', 'inspBOT'].every((key) =>
                 String(rec[key] ?? '') === String(event.after[key] ?? '')
@@ -81,7 +106,7 @@ function prodVolKey(week, customer, model) {
  * @param {() => string} newId   ID generator for newly-created records (injectable for tests)
  * @returns {{updates: Object, creates: Array, changes: Object}}
  */
-export function planProdVolImport(clean, existing, now, newId) {
+export function planProdVolImport(clean, existing, now, newId, importId = null) {
     const existingByKey = new Map();
     for (const id of Object.keys(existing || {})) {
         const rec = existing[id];
@@ -93,6 +118,8 @@ export function planProdVolImport(clean, existing, now, newId) {
     const creates = [];
     const changes = {};
     let changeSeq = 0;
+    let updatedCount = 0;
+    let touchedCount = 0;
     const addChange = (change) => {
         const key = `chg_${now}_${changeSeq++}_${Math.random().toString(36).slice(2, 8)}`;
         changes[key] = change;
@@ -105,15 +132,53 @@ export function planProdVolImport(clean, existing, now, newId) {
         if (match) {
             const patch = updates[match._id] || { updated: now };
             const before = Object.prototype.hasOwnProperty.call(patch, field) ? patch[field] : (Number(match[field]) || 0);
+            const beforeImportId = Object.prototype.hasOwnProperty.call(patch, 'lastImportId')
+                ? patch.lastImportId
+                : (match.lastImportId || null);
+            const sameValue = before === r.count;
+
             patch[field] = r.count;
+            if (importId) patch.lastImportId = importId;
             updates[match._id] = patch;
-            addChange({ kind: 'update', recordId: match._id, field, before, after: r.count });
+
+            if (sameValue) {
+                touchedCount++;
+                if (importId) {
+                    addChange({
+                        kind: 'touch',
+                        recordId: match._id,
+                        importId,
+                        beforeImportId,
+                        afterImportId: importId
+                    });
+                }
+            } else {
+                updatedCount++;
+                addChange({
+                    kind: 'update',
+                    recordId: match._id,
+                    field,
+                    before,
+                    after: r.count,
+                    ...(importId ? { importId, beforeImportId, afterImportId: importId } : {})
+                });
+            }
         } else {
             const pending = createsByKey.get(rKey);
             if (pending) {
                 pending[field] = r.count;
             } else {
-                const record = { id: newId(), week: r.week, customer: r.customer, model: r.model, inspTOP: 0, inspBOT: 0, [field]: r.count, created: now };
+                const record = {
+                    id: newId(),
+                    week: r.week,
+                    customer: r.customer,
+                    model: r.model,
+                    inspTOP: 0,
+                    inspBOT: 0,
+                    [field]: r.count,
+                    created: now
+                };
+                if (importId) record.lastImportId = importId;
                 creates.push(record);
                 createsByKey.set(rKey, record);
             }
@@ -124,6 +189,7 @@ export function planProdVolImport(clean, existing, now, newId) {
         addChange({
             kind: 'create',
             recordId: c.id,
+            ...(importId ? { importId, afterImportId: importId } : {}),
             after: {
                 week: c.week,
                 customer: c.customer,
@@ -134,7 +200,7 @@ export function planProdVolImport(clean, existing, now, newId) {
         });
     }
 
-    return { updates, creates, changes };
+    return { updates, creates, changes, updatedCount, touchedCount };
 }
 
 function newFirebaseRecordId(prefix) {
@@ -298,7 +364,7 @@ export default async function handler(req, res) {
             if (!clean.length) return errorResponse(res, 'No valid rows after validation');
 
             const existing = (await fbGet(env, token, 'smt_prodvol')) || {};
-            const { updates, creates, changes } = planProdVolImport(clean, existing, now, () => newFirebaseRecordId('vol'));
+            const { updates, creates, changes, updatedCount } = planProdVolImport(clean, existing, now, () => newFirebaseRecordId('vol'), importId);
 
             let log = null;
             if (changes && Object.keys(changes).length) {
@@ -307,7 +373,7 @@ export default async function handler(req, res) {
                     type: 'prodvol',
                     fileName: fileName || prevLog.fileName || '',
                     createdCount: (prevLog.createdCount || 0) + creates.length,
-                    updatedCount: (prevLog.updatedCount || 0) + Object.keys(updates).length,
+                    updatedCount: (prevLog.updatedCount || 0) + updatedCount,
                     loggedBy: email,
                     created: prevLog.created || now,
                     undone: false,
@@ -389,7 +455,7 @@ export default async function handler(req, res) {
                 if (log.changes && Object.keys(log.changes).length) {
                     const all = (await fbGet(env, token, 'smt_prodvol')) || {};
                     const events = Object.values(log.changes);
-                    const { deletes, reverts, skipped } = planProdVolUndo(all, events);
+                    const { deletes, reverts, skipped } = planProdVolUndo(all, events, targetId);
 
                     await Promise.all([
                         ...deletes.map(id => fbDelete(env, token, `smt_prodvol/${id}`)),
