@@ -15,7 +15,13 @@ const clean = [
 let idSeq = 0;
 const { updates, creates, changes, updatedCount } = planProdVolImport(clean, existing, 1700000000000, () => `vol_new_${idSeq++}`, 'imp_1');
 
-assert.deepEqual(updates, { vol_1: { updated: 1700000000000, inspTOP: 150, lastImportId: 'imp_1' } });
+// The patch written to smt_prodvol/{id} is a full node replacement (Firebase's
+// multi-location PATCH does not merge into an existing object at that path), so
+// it must carry every field forward — not just the ones this import touched —
+// or week/customer/model/the untouched inspection side get silently deleted.
+assert.deepEqual(updates, {
+  vol_1: { week: '2026-W20', customer: 'ACME', model: 'M1', inspTOP: 150, inspBOT: 80, created: 1700000000000, updated: 1700000000000, lastImportId: 'imp_1' }
+});
 assert.equal(creates.length, 1); // the two W21 rows (TOP+BOT) merge into ONE created record
 assert.equal(creates[0].inspTOP, 40);
 assert.equal(creates[0].inspBOT, 30);
@@ -37,7 +43,9 @@ const { updates: caseUpdates, creates: caseCreates } = planProdVolImport(
   () => 'vol_new',
   'imp_2'
 );
-assert.deepEqual(caseUpdates, { vol_1: { updated: 1700000000000, inspBOT: 90, lastImportId: 'imp_2' } });
+assert.deepEqual(caseUpdates, {
+  vol_1: { week: '2026-W20', customer: 'ACME', model: 'M1', inspTOP: 100, inspBOT: 90, created: 1700000000000, updated: 1700000000000, lastImportId: 'imp_2' }
+});
 assert.equal(caseCreates.length, 0);
 
 console.log('prodvol import correctness tests: PASS');
@@ -64,6 +72,12 @@ assert.equal(second.creates.length, 0);
 assert.equal(second.updatedCount, 0);
 assert.equal(second.touchedCount, 1);
 assert.equal(second.updates.vol_same.lastImportId, 'import_B');
+// Regression: a same-file reimport must not drop week/customer/model (or the
+// untouched inspection side) from the record — the patch is written as a full
+// node replacement, so any field missing from it is deleted from Firebase.
+assert.equal(second.updates.vol_same.week, '2026-W22');
+assert.equal(second.updates.vol_same.customer, 'ACME');
+assert.equal(second.updates.vol_same.model, 'M2');
 
 const undoOld = planProdVolUndo(storedAfterFirst, Object.values(first.changes), 'import_A');
 assert.equal(undoOld.deletes.length, 1);
