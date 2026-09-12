@@ -4,8 +4,36 @@
 // raw rows + metrics + a week range, returns plain data. No DOM, no canvas.
 // ============================================
 
-import { REPORT_MAX_WEEKS } from "./constants.js";
+import { REPORT_MAX_WEEKS, YIELD_TARGET, DPPM_LIMIT } from "./constants.js";
 import { weeklySummary } from "./metrics.js";
+
+/**
+ * Overall HEALTHY / WARNING / CRITICAL read on a week's headline KPIs, plus
+ * the one-line summary shown next to the status badge in the weekly digest.
+ * @param {{latestYieldOverall:number, latestDppm:number, latestTotalInsp:number, t3:[string,number][]}} data
+ *   — the object returned by computeCustomerReportData().
+ */
+export function computeQualityStatus(data) {
+  if (!data.latestTotalInsp) {
+    return {
+      status: "NO DATA",
+      yieldOk: false,
+      dppmOk: false,
+      notes: "No inspection data recorded for this week.",
+    };
+  }
+  const yieldOk = data.latestYieldOverall >= YIELD_TARGET;
+  const dppmOk = data.latestDppm <= DPPM_LIMIT;
+  const status =
+    yieldOk && dppmOk ? "HEALTHY" : yieldOk || dppmOk ? "WARNING" : "CRITICAL";
+  const defectCount = data.t3.length;
+  const notes = [
+    `Yield ${yieldOk ? "above" : "below"} target`,
+    `DPPM ${dppmOk ? "below" : "above"} limit`,
+    `${defectCount} priority defect${defectCount === 1 ? "" : "s"}`,
+  ].join(" \u00b7 ");
+  return { status, yieldOk, dppmOk, notes };
+}
 
 /**
  * Clamps a from/to week selection to a valid, ordered pair within
@@ -208,6 +236,29 @@ export function computeCustomerReportData(
     weeklySummary(metricsAllTime).map((w) => [w.week, w]),
   );
 
+  // Previous week (immediately preceding the digest's reference week, for
+  // this customer specifically) — used only to flag whether each of this
+  // week's top-3 defects is trending up or down since last week.
+  const latestIdxForTrend = custWeeksSorted.indexOf(latestWeekInRange);
+  const prevWeekForDefects =
+    latestIdxForTrend > 0 ? custWeeksSorted[latestIdxForTrend - 1] : null;
+  const prevWeekDefectRows = prevWeekForDefects
+    ? rowsAllTime.filter((d) => d.week === prevWeekForDefects)
+    : [];
+  const prevDefectCounts = {};
+  prevWeekDefectRows.forEach((d) => {
+    prevDefectCounts[d.defect] = (prevDefectCounts[d.defect] || 0) + 1;
+  });
+  /** 'rising' | 'falling' | 'flat' | null (null = no prior week to compare) for one of this week's top-3 defects. */
+  function defectTrend(defect) {
+    if (!prevWeekForDefects) return null;
+    const prev = prevDefectCounts[defect] || 0;
+    const curr = defectCounts[defect] || 0;
+    if (curr > prev) return "rising";
+    if (curr < prev) return "falling";
+    return "flat";
+  }
+
   return {
     totalInsp,
     totalFailed,
@@ -226,6 +277,7 @@ export function computeCustomerReportData(
     topOf,
     topContributor,
     countFor,
+    defectTrend,
     lw: latestWeekInRange,
     filtRawCount: rowsInRange.length,
 
