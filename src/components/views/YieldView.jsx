@@ -85,7 +85,7 @@ export default function YieldView({ defectRows, prodVolRows, showToast, showConf
   }, [trendMode, trendWeeks, trendCustomers, trendMetrics]);
 
   const pareto = useMemo(() => paretoByDefectType(filteredDefects).slice(0, 10), [filteredDefects]);
-  const yieldDomain = useMemo(() => computeZoomedDomain(yieldSeries, YIELD_TARGET), [yieldSeries]);
+  const yieldDomain = useMemo(() => computeZoomedDomain(yieldSeries, YIELD_TARGET, { minValue: 0, maxValue: 100 }), [yieldSeries]);
 
   function handleImported(result, type) {
     setShowImport(null);

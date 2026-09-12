@@ -18,7 +18,7 @@
  * then crash on with an opaque "Cannot read properties of undefined
  * (reading 'value')" far from anything in this file.
  */
-export function computeZoomedDomain(series, target, { padFraction = 0.15, minPad = 0.5 } = {}) {
+export function computeZoomedDomain(series, target, { padFraction = 0.15, minPad = 0.5, minValue = null, maxValue = null } = {}) {
   const values = (Array.isArray(series) ? series : [])
     .flatMap((s) => (Array.isArray(s?.values) ? s.values : []))
     .filter((v) => Number.isFinite(v));
@@ -32,7 +32,14 @@ export function computeZoomedDomain(series, target, { padFraction = 0.15, minPad
   }
   const range = max - min;
   const pad = Math.max(range * padFraction, minPad);
-  return [min - pad, max + pad];
+  let domainMin = min - pad;
+  let domainMax = max + pad;
+  // A logical bound (e.g. 100 for a percentage) caps the padded domain, not
+  // just the data — padding a 99.9% max by minPad alone already overshoots
+  // 100, which then shows up as an impossible ">100%" tick label.
+  if (Number.isFinite(maxValue)) domainMax = Math.min(domainMax, maxValue);
+  if (Number.isFinite(minValue)) domainMin = Math.max(domainMin, minValue);
+  return [domainMin, domainMax];
 }
 
 // Compact-formats large tick values (e.g. 140454 -> "140.5K") so wide series

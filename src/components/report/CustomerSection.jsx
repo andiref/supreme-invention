@@ -42,7 +42,7 @@ function DefectBar({ rank, defect, count, model, comp, maxCount }) {
 export default function CustomerSection({ customer, data, color, bordered = true }) {
   const hasCurrentData = data.latestTotalInsp > 0;
   const yieldDomain = useMemo(
-    () => computeZoomedDomain([{ values: data.trendYieldSeries }], YIELD_TARGET),
+    () => computeZoomedDomain([{ values: data.trendYieldSeries }], YIELD_TARGET, { minValue: 0, maxValue: 100 }),
     [data.trendYieldSeries]
   );
 
