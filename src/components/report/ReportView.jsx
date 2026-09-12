@@ -91,10 +91,24 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, showT
     setBusy(true);
     try {
       const html2canvas = (await import('html2canvas')).default;
-      // No forced backgroundColor here — the snapshot element already paints
-      // its own opaque background, so the export just captures whatever's
-      // rendered (the digest always uses its own fixed light/print palette).
-      const canvas = await html2canvas(node, { scale: 2 });
+      // Wait for fonts/charts to finish painting so the PNG is deterministic.
+      if (document.fonts?.ready) await document.fonts.ready;
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+      const width = node.scrollWidth;
+      const height = node.scrollHeight;
+      const canvas = await html2canvas(node, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        useCORS: true,
+        logging: false,
+        width,
+        height,
+        windowWidth: width,
+        windowHeight: height,
+        scrollX: 0,
+        scrollY: 0,
+      });
       const link = document.createElement('a');
       link.download = filename;
       link.href = canvas.toDataURL('image/png');

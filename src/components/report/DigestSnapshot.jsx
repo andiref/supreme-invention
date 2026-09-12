@@ -12,20 +12,45 @@ import { REPORT_MAX_WEEKS, CHART_COLORS } from '../../brain/index.js';
  * @param {{from:string,to:string}} range
  */
 const DigestSnapshot = forwardRef(function DigestSnapshot({ sections, range }, ref) {
-  const generatedAt = new Date().toLocaleString();
+  const generatedAt = new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).format(new Date());
   return (
-    <div ref={ref} style={{ background: '#ffffff', color: '#000000', padding: 24, fontFamily: 'Arial, Helvetica, sans-serif' }}>
-      <div style={{ fontSize: 22, fontWeight: 700 }}>SMT WEEKLY YIELD &amp; DPPM TREND</div>
-      <div style={{ fontSize: 12, fontWeight: 700, color: '#444444', marginTop: 6, paddingBottom: 12, marginBottom: 16, borderBottom: '2px solid #000000' }}>
-        Week: {range.to} &nbsp;·&nbsp; Trend: last {REPORT_MAX_WEEKS} weeks &nbsp;|&nbsp; {sections.length} customer{sections.length === 1 ? '' : 's'}
+    <div ref={ref} style={{
+      width: 1600, minHeight: 900, boxSizing: 'border-box',
+      background: '#ffffff', color: '#172033', padding: 44,
+      fontFamily: 'Inter, "Segoe UI", Arial, Helvetica, sans-serif',
+      overflow: 'hidden',
+    }}
+    >
+      <div style={{
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, paddingBottom: 14, borderBottom: '2px solid #dbe3ef',
+      }}
+      >
+        <div>
+          <div style={{
+            fontSize: 28, lineHeight: 1.1, fontWeight: 800, letterSpacing: '-0.6px', color: '#102a56',
+          }}
+          >
+            SMT WEEKLY QUALITY DIGEST
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#60708a', marginTop: 7 }}>
+            Week {range.to} &nbsp;·&nbsp; Trend: last {REPORT_MAX_WEEKS} weeks &nbsp;·&nbsp; {sections.length} customer{sections.length === 1 ? '' : 's'}
+          </div>
+        </div>
+        <div style={{ textAlign: 'right', fontSize: 12, lineHeight: 1.5, color: '#6b7b94' }}>
+          <div style={{ fontWeight: 800, color: '#102a56' }}>Weekly Quality Report</div>
+          <div>Generated {generatedAt}</div>
+        </div>
       </div>
 
       {sections.map(({ customer, data }, i) => (
         <DigestCard key={customer} customer={customer} data={data} color={CHART_COLORS[i % CHART_COLORS.length]} weekBadge={range.to} first={i === 0} />
       ))}
 
-      <div style={{ borderTop: '1px solid rgba(0,0,0,0.3)', marginTop: 16, paddingTop: 10, textAlign: 'center' }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: '#444444' }}>SMT Command Center &nbsp;·&nbsp; {generatedAt} &nbsp;·&nbsp; Confidential</div>
+      <div style={{ borderTop: '1px solid #dbe3ef', marginTop: 18, paddingTop: 10, textAlign: 'center' }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#70809a' }}>SMT Command Center &nbsp;·&nbsp; Confidential</div>
       </div>
     </div>
   );
