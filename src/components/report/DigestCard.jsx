@@ -21,7 +21,7 @@ function Pill({ text, tone }) {
   const t = PILL_TONES[tone] || PILL_TONES.green;
   return (
     <span style={{
-      display: 'inline-block', fontSize: 10, fontWeight: 800, padding: '2px 9px', borderRadius: 20, background: t.bg, color: t.color, whiteSpace: 'nowrap',
+      display: 'inline-block', fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 20, background: t.bg, color: t.color, whiteSpace: 'nowrap',
     }}
     >
       {text}
@@ -33,14 +33,14 @@ function StatusBadge({ status }) {
   const c = STATUS_COLORS[status] || STATUS_COLORS['NO DATA'];
   return (
     <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 800, color: c.text,
+      display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 14, fontWeight: 800, color: c.text,
     }}
     >
       <span style={{
-        width: 16, height: 16, borderRadius: '50%', background: c.text, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        width: 18, height: 18, borderRadius: '50%', background: c.text, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}
       >
-        <span style={{ color: '#ffffff', fontSize: 10, lineHeight: 1 }}>{status === 'HEALTHY' ? '\u2713' : '!'}</span>
+        <span style={{ color: '#ffffff', fontSize: 11, lineHeight: 1 }}>{status === 'HEALTHY' ? '\u2713' : '!'}</span>
       </span>
       QUALITY STATUS: {status}
     </span>
@@ -53,24 +53,29 @@ function KpiBlock({
   return (
     <div>
       <div style={{
-        fontSize: 10, fontWeight: 800, color: '#8892a6', letterSpacing: 0.3, marginBottom: 6,
+        fontSize: 11, fontWeight: 800, color: '#71819b', letterSpacing: 0.4, marginBottom: 7,
       }}
       >
         {label}
       </div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-        <div style={{ fontSize: 26, fontWeight: 800, color: valueColor }}>{value}</div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{
+          fontSize: 32, lineHeight: 1, fontWeight: 800, letterSpacing: '-0.6px', color: valueColor,
+        }}
+        >
+          {value}
+        </div>
         <Pill text={badgeText} tone={badgeTone} />
       </div>
       {deltaValue != null && (
         <div style={{
-          fontSize: 11, fontWeight: 700, color: deltaGood ? '#16a34a' : '#dc2626', marginTop: 6,
+          fontSize: 12, fontWeight: 700, color: deltaGood ? '#16a34a' : '#dc2626', marginTop: 7,
         }}
         >
           {deltaValue >= 0 ? '\u25b2' : '\u25bc'} {deltaText}
         </div>
       )}
-      <div style={{ fontSize: 10, color: '#8892a6', marginTop: 4 }}>{footerText}</div>
+      <div style={{ fontSize: 11, color: '#71819b', marginTop: 5 }}>{footerText}</div>
     </div>
   );
 }
@@ -81,11 +86,11 @@ function DefectRow({
   const meta = DEFECT_RANK_META[rank - 1] || DEFECT_RANK_META[DEFECT_RANK_META.length - 1];
   return (
     <div style={{
-      display: 'flex', gap: 10, padding: '10px 0', borderTop: rank === 1 ? 'none' : '1px solid rgba(0,0,0,0.08)',
+      display: 'flex', gap: 12, padding: '12px 0', borderTop: rank === 1 ? 'none' : '1px solid #e7edf5',
     }}
     >
       <div style={{
-        width: 20, height: 20, borderRadius: '50%', background: meta.barColor, color: '#ffffff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1,
+        width: 26, height: 26, borderRadius: '50%', background: meta.barColor, color: '#ffffff', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1,
       }}
       >
         {rank}
@@ -95,12 +100,17 @@ function DefectRow({
           display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 6,
         }}
         >
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#000000' }}>{defect}</div>
-          <div style={{ fontSize: 15, fontWeight: 800, color: '#000000' }}>{count}</div>
+          <div style={{
+            fontSize: 15, fontWeight: 800, color: '#102a56', letterSpacing: '-0.1px',
+          }}
+          >
+            {defect}
+          </div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: '#102a56' }}>{count}</div>
         </div>
-        <div style={{ fontSize: 10, color: '#8892a6', marginTop: 5, lineHeight: 1.6 }}>
-          Top Contributing Model<br /><b style={{ color: '#000000', fontSize: 11 }}>{model}</b><br />
-          Top Contributing Component<br /><b style={{ color: '#000000', fontSize: 11 }}>{comp}</b>
+        <div style={{ fontSize: 11, color: '#71819b', marginTop: 6, lineHeight: 1.55 }}>
+          Top Contributing Model<br /><b style={{ color: '#243b63', fontSize: 12 }}>{model}</b><br />
+          Top Contributing Component<br /><b style={{ color: '#243b63', fontSize: 12 }}>{comp}</b>
         </div>
       </div>
       <div style={{
@@ -150,12 +160,12 @@ export default function DigestCard({
 
   return (
     <div style={{
-      marginTop: first ? 0 : 16, border: '1px solid rgba(0,0,0,0.12)', borderRadius: 8, overflow: 'hidden', background: '#ffffff',
+      marginTop: first ? 18 : 18, border: '1px solid #dbe3ef', borderRadius: 12, overflow: 'hidden', background: '#ffffff',
     }}
     >
       <div style={{ display: 'flex' }}>
         <div style={{ width: 5, background: color, flexShrink: 0 }} />
-        <div style={{ flex: 1, padding: '16px 24px' }}>
+        <div style={{ flex: 1, padding: '20px 24px 22px' }}>
 
           {/* header: identity + quality status */}
           <div style={{
@@ -163,8 +173,13 @@ export default function DigestCard({
           }}
           >
             <div>
-              <div style={{ fontSize: 19, fontWeight: 800, color: '#000000' }}>{customer}</div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#8892a6', marginTop: 2 }}>{weekBadge}</div>
+              <div style={{
+                fontSize: 22, lineHeight: 1.1, fontWeight: 800, letterSpacing: '-0.3px', color: '#102a56',
+              }}
+              >
+                {customer}
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#71819b', marginTop: 4 }}>WEEK {weekBadge}</div>
             </div>
             {hasCurrentData ? (
               <div>
@@ -209,9 +224,9 @@ export default function DigestCard({
             </div>
 
             {/* column 2: top 3 defects */}
-            <div style={{ width: 250, flexShrink: 0 }}>
+            <div style={{ width: 300, flexShrink: 0, minWidth: 0 }}>
               <div style={{
-                fontSize: 11, fontWeight: 800, color: '#8892a6', paddingBottom: 8, marginBottom: 4, borderBottom: '1px solid rgba(0,0,0,0.12)',
+                fontSize: 12, fontWeight: 800, color: '#71819b', letterSpacing: '0.04em', paddingBottom: 9, marginBottom: 4, borderBottom: '1px solid #dbe3ef',
               }}
               >
                 TOP 3 DEFECTS
@@ -235,7 +250,7 @@ export default function DigestCard({
 
             {/* column 3: full yield + dppm trend charts */}
             <div style={{
-              flex: 1, minWidth: 320, display: 'flex', flexDirection: 'column', gap: 14,
+              flex: 1, minWidth: 420, display: 'flex', flexDirection: 'column', gap: 16,
             }}
             >
               <DigestMiniChart
