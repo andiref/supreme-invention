@@ -95,7 +95,7 @@ export default function QualityAssistantView({ defectRows, prodVolRows, capaReco
                 target={YIELD_TARGET}
                 valueSuffix="%"
                 height={140}
-                domain={computeZoomedDomain([{ values: analysis.weekly.map((w) => w.yieldPct) }], YIELD_TARGET)}
+                domain={computeZoomedDomain([{ values: analysis.weekly.map((w) => w.yieldPct) }], YIELD_TARGET, { minValue: 0, maxValue: 100 })}
               />
             </div>
             <div className="col">

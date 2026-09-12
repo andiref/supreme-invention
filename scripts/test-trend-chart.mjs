@@ -34,4 +34,12 @@ for (const { series, target } of malformedCases) {
 const [min, max] = computeZoomedDomain([{ values: [99.2, 99.8, 99.5] }], 99.5);
 assert.ok(min < 99.2 && max > 99.8);
 
+// Regression: a yield% series near the 100% ceiling must not compute a
+// domain (or tick labels) above 100 — padding alone can push the raw
+// domain past it even though yield can never actually exceed 100%.
+const [clampedMin, clampedMax] = computeZoomedDomain([{ values: [98.8, 99.9] }], 99.5, { minValue: 0, maxValue: 100 });
+assert.ok(clampedMax <= 100, `clamped domain max should not exceed 100, got ${clampedMax}`);
+const clampedTicks = computeLinearTicks(clampedMin, clampedMax);
+assert.ok(clampedTicks.every((t) => t <= 100), `clamped ticks should not exceed 100, got ${JSON.stringify(clampedTicks)}`);
+
 console.log('trend chart domain/tick regression tests: PASS');
