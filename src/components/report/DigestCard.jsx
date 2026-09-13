@@ -1,14 +1,7 @@
 import DigestMiniChart from './DigestMiniChart.jsx';
 import {
-  YIELD_TARGET, DPPM_LIMIT, fmtInt, computeQualityStatus, DEFECT_RANK_META,
+  YIELD_TARGET, DPPM_LIMIT, fmtInt, DEFECT_RANK_META,
 } from '../../brain/index.js';
-
-const STATUS_COLORS = {
-  HEALTHY: { text: '#16a34a', bg: '#e9f9ef' },
-  WARNING: { text: '#c2650c', bg: '#fdf3e6' },
-  CRITICAL: { text: '#dc2626', bg: '#fde8e8' },
-  'NO DATA': { text: '#666666', bg: '#f2f2f2' },
-};
 
 const PILL_TONES = {
   green: { bg: '#e9f9ef', color: '#16a34a' },
@@ -81,61 +74,6 @@ function Pill({ text, tone, dot }) {
   );
 }
 
-function StatusBadge({ status }) {
-  const c = STATUS_COLORS[status] || STATUS_COLORS['NO DATA'];
-  return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 9, fontSize: 19, fontWeight: 800, color: c.text,
-    }}
-    >
-      <span style={{
-        width: 22, height: 22, borderRadius: '50%', background: c.text, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}
-      >
-        {status === 'HEALTHY' ? <IconCheck size={12} /> : <span style={{ color: '#ffffff', fontSize: 13, fontWeight: 800, lineHeight: 1 }}>!</span>}
-      </span>
-      QUALITY STATUS: {status}
-    </span>
-  );
-}
-
-/** The header's status + report-meta strip — its own bordered card, with a
- * left accent bar colored by this week's quality status (green/amber/red).
- * The customer/week identity now lives at the top of the metrics box
- * instead, so this strip stays slim. */
-function CardHeader({
-  status, notes, generatedAt, hasCurrentData,
-}) {
-  const c = STATUS_COLORS[status] || STATUS_COLORS['NO DATA'];
-  return (
-    <div style={{
-      display: 'flex', border: '1px solid #dbe3ef', borderRadius: 12, overflow: 'hidden', background: '#ffffff',
-    }}
-    >
-      <div style={{ width: 6, background: c.text, flexShrink: 0 }} />
-      <div style={{
-        flex: 1, display: 'flex', alignItems: 'stretch', gap: 24, padding: '16px 28px', flexWrap: 'wrap',
-      }}
-      >
-        <div style={{
-          flex: 1, minWidth: 260, background: c.bg, borderRadius: 10, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '12px 26px',
-        }}
-        >
-          <StatusBadge status={status} />
-          {hasCurrentData && <div style={{ fontSize: 14, color: '#5c6c85', marginTop: 6 }}>{notes}</div>}
-        </div>
-        <div style={{
-          textAlign: 'right', minWidth: 200, display: 'flex', flexDirection: 'column', justifyContent: 'center', fontSize: 14, color: '#71819b',
-        }}
-        >
-          <div style={{ fontWeight: 800, color: '#102a56', fontSize: 15 }}>Weekly Quality Report</div>
-          <div style={{ marginTop: 4 }}>Generated: {generatedAt}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function KpiBlock({
   icon, label, value, valueColor, badgeText, badgeTone, deltaValue, deltaGood, deltaText, footerText,
 }) {
@@ -171,8 +109,8 @@ function KpiBlock({
 }
 
 /** Narrow bordered card holding the customer/week identity plus the YIELD
- * and DPPM headline numbers — the identity moved here from the header
- * strip to keep that strip slim. */
+ * and DPPM headline numbers — this is now the card's only "header", since
+ * the separate status/report-meta strip was removed. */
 function MetricsBox({
   customer, weekBadge, hasCurrentData, latestYieldOverall, yieldAboveTarget, yieldDelta, prevWeekLabel,
   latestDppm, dppmWithinLimit, dppmDelta,
@@ -185,12 +123,12 @@ function MetricsBox({
     }}
     >
       <div style={{
-        fontSize: 20, fontWeight: 800, letterSpacing: '-0.3px', color: '#102a56', lineHeight: 1.2,
+        fontSize: 26, fontWeight: 800, letterSpacing: '-0.4px', color: '#102a56', lineHeight: 1.2,
       }}
       >
         {customer}
       </div>
-      <div style={{ fontSize: 12, color: '#71819b', marginTop: 3 }}>{weekBadge}{weekSuffix}</div>
+      <div style={{ fontSize: 13, color: '#71819b', marginTop: 4 }}>{weekBadge}{weekSuffix}</div>
       <div style={{ borderTop: '1px solid #e7edf5', marginTop: 16, paddingTop: 20 }}>
         <KpiBlock
           icon={<IconBarChart />}
@@ -306,23 +244,21 @@ function DefectsBox({ t3, topOf, defectTrend }) {
 /**
  * One line/customer's card in the printable weekly digest — a fixed
  * light/white "email document" palette (not the app's dark/light theme
- * toggle): a slim header strip (quality status + report meta, left accent
- * colored by status) above three independently-boxed sections (customer
- * identity + headline KPIs, top-3 defects, the two trend charts).
+ * toggle): three independently-boxed sections side by side (customer
+ * identity + headline KPIs, top-3 defects, the two trend charts). No
+ * separate status/report-meta header strip — that was removed as
+ * redundant once the identity moved into the metrics box.
  *
  * @param {string} customer
  * @param {object} data          result of computeCustomerReportData()
  * @param {string} weekBadge     the digest's reference week (range.to) —
  *                               same for every customer in the digest
- * @param {string} generatedAt   pre-formatted export timestamp, shared by
- *                               every card in the digest
  * @param {boolean} [first=false]  first card gets no top margin
  */
 export default function DigestCard({
-  customer, data, weekBadge, generatedAt, first = false,
+  customer, data, weekBadge, first = false,
 }) {
   const hasCurrentData = data.latestTotalInsp > 0;
-  const { status, notes } = computeQualityStatus(data);
 
   const ys = data.trendYieldSeries;
   const prevYield = ys.length > 1 ? ys[ys.length - 2] : null;
@@ -338,14 +274,8 @@ export default function DigestCard({
 
   return (
     <div style={{ marginTop: first ? 0 : 24 }}>
-      <CardHeader
-        status={status}
-        notes={notes}
-        generatedAt={generatedAt}
-        hasCurrentData={hasCurrentData}
-      />
       <div style={{
-        display: 'flex', gap: 20, marginTop: 16, flexWrap: 'wrap',
+        display: 'flex', gap: 20, flexWrap: 'wrap',
       }}
       >
         <MetricsBox
