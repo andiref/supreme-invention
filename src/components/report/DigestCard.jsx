@@ -265,7 +265,6 @@ function DefectRow({
       }}
       >
         {trend === 'rising' && <Pill text="RISING" tone="red" dot="up" />}
-        <Pill text={meta.label} tone={meta.tone} />
       </div>
     </div>
   );
@@ -375,7 +374,6 @@ export default function DigestCard({
             isYield
             metricLabel="Yield"
             targetLegendLabel={`Target (${YIELD_TARGET}%)`}
-            targetStatLabel="TARGET"
           />
           <DigestMiniChart
             title="DPPM Trend"
@@ -386,7 +384,6 @@ export default function DigestCard({
             isYield={false}
             metricLabel="DPPM"
             targetLegendLabel={`Limit (${fmtInt(DPPM_LIMIT)})`}
-            targetStatLabel="LIMIT"
           />
         </div>
       </div>
