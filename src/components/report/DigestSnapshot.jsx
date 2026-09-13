@@ -16,8 +16,8 @@ import DigestCard from './DigestCard.jsx';
 const DigestSnapshot = forwardRef(function DigestSnapshot({ sections, range }, ref) {
   return (
     <div ref={ref} style={{
-      width: 1600, minHeight: 900, boxSizing: 'border-box',
-      background: '#f8fafc', color: '#172033', padding: 44,
+      width: 1600, boxSizing: 'border-box',
+      background: '#f8fafc', color: '#172033', padding: '44px 44px 32px',
       fontFamily: 'Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
     }}
     >
