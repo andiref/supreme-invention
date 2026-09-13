@@ -16,15 +16,36 @@ const PB = 26;
 const PW = VBW - PL - PR;
 const PH = VBH - PT - PB;
 
+function IconTrendingUp({ size = 15, color = '#14304d' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M3 17l6-6 4 4 8-9" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function IconBarChart({ size = 15, color = '#14304d' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M4 20V10M12 20V4M20 20v-7" stroke={color} strokeWidth="2.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function ChartHeader({
-  title, metricLabel, targetColor, targetLegendLabel,
+  title, metricLabel, targetColor, targetLegendLabel, isYield,
 }) {
   return (
     <div style={{
       display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4,
     }}
     >
-      <div style={{ fontSize: 13, fontWeight: 700, color: '#14304d' }}>{title}</div>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 7, fontSize: 15, fontWeight: 800, color: '#102a56',
+      }}
+      >
+        {isYield ? <IconTrendingUp /> : <IconBarChart />}
+        {title}
+      </div>
       <div style={{
         display: 'flex', alignItems: 'center', gap: 14, fontSize: 11, fontWeight: 600, color: '#555555', whiteSpace: 'nowrap',
       }}
@@ -83,7 +104,7 @@ export default function DigestMiniChart({
   if (!have.length) {
     return (
       <div style={boxStyle}>
-        <ChartHeader title={title} metricLabel={metricLabel} targetColor={targetColor} targetLegendLabel={targetLegendLabel} />
+        <ChartHeader title={title} metricLabel={metricLabel} targetColor={targetColor} targetLegendLabel={targetLegendLabel} isYield={isYield} />
         <div style={{
           height: VBH, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#999999',
         }}
@@ -119,7 +140,7 @@ export default function DigestMiniChart({
 
   return (
     <div style={boxStyle}>
-      <ChartHeader title={title} metricLabel={metricLabel} targetColor={targetColor} targetLegendLabel={targetLegendLabel} />
+      <ChartHeader title={title} metricLabel={metricLabel} targetColor={targetColor} targetLegendLabel={targetLegendLabel} isYield={isYield} />
       <svg viewBox={`0 0 ${VBW} ${VBH}`} preserveAspectRatio="none" style={{ width: '100%', height: VBH, display: 'block' }}>
         {gridTicks.map((v) => {
           const gy = yp(v);
