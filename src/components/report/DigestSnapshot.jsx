@@ -35,10 +35,6 @@ const DigestSnapshot = forwardRef(function DigestSnapshot({ sections, range }, r
           first={i === 0}
         />
       ))}
-
-      <div style={{ marginTop: 24, textAlign: 'center' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#70809a' }}>SMT Command Center &nbsp;·&nbsp; Confidential</div>
-      </div>
     </div>
   );
 });

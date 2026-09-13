@@ -99,15 +99,14 @@ function StatusBadge({ status }) {
   );
 }
 
-/** The header's identity + status + report-meta strip — its own bordered
- * card, with a left accent bar colored by this week's quality status
- * (green/amber/red), matching the reference design 1:1. */
+/** The header's status + report-meta strip — its own bordered card, with a
+ * left accent bar colored by this week's quality status (green/amber/red).
+ * The customer/week identity now lives at the top of the metrics box
+ * instead, so this strip stays slim. */
 function CardHeader({
-  customer, weekBadge, status, notes, generatedAt, hasCurrentData,
+  status, notes, generatedAt, hasCurrentData,
 }) {
   const c = STATUS_COLORS[status] || STATUS_COLORS['NO DATA'];
-  const weekNumMatch = String(weekBadge).match(/W(\d+)$/);
-  const weekSuffix = weekNumMatch ? `  (Week ${weekNumMatch[1]})` : '';
   return (
     <div style={{
       display: 'flex', border: '1px solid #dbe3ef', borderRadius: 12, overflow: 'hidden', background: '#ffffff',
@@ -115,21 +114,9 @@ function CardHeader({
     >
       <div style={{ width: 6, background: c.text, flexShrink: 0 }} />
       <div style={{
-        flex: 1, display: 'flex', alignItems: 'stretch', gap: 24, padding: '22px 28px', flexWrap: 'wrap',
+        flex: 1, display: 'flex', alignItems: 'stretch', gap: 24, padding: '16px 28px', flexWrap: 'wrap',
       }}
       >
-        <div style={{
-          display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 210,
-        }}
-        >
-          <div style={{
-            fontSize: 30, fontWeight: 800, letterSpacing: '-0.5px', color: '#102a56', lineHeight: 1.15,
-          }}
-          >
-            {customer}
-          </div>
-          <div style={{ fontSize: 15, color: '#71819b', marginTop: 4 }}>{weekBadge}{weekSuffix}</div>
-        </div>
         <div style={{
           flex: 1, minWidth: 260, background: c.bg, borderRadius: 10, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '12px 26px',
         }}
@@ -183,28 +170,41 @@ function KpiBlock({
   );
 }
 
-/** Narrow bordered card holding the YIELD and DPPM headline numbers. */
+/** Narrow bordered card holding the customer/week identity plus the YIELD
+ * and DPPM headline numbers — the identity moved here from the header
+ * strip to keep that strip slim. */
 function MetricsBox({
-  hasCurrentData, latestYieldOverall, yieldAboveTarget, yieldDelta, prevWeekLabel,
+  customer, weekBadge, hasCurrentData, latestYieldOverall, yieldAboveTarget, yieldDelta, prevWeekLabel,
   latestDppm, dppmWithinLimit, dppmDelta,
 }) {
+  const weekNumMatch = String(weekBadge).match(/W(\d+)$/);
+  const weekSuffix = weekNumMatch ? `  (Week ${weekNumMatch[1]})` : '';
   return (
     <div style={{
-      width: 230, flexShrink: 0, border: '1px solid #dbe3ef', borderRadius: 12, background: '#ffffff', padding: '22px 24px',
+      width: 230, flexShrink: 0, border: '1px solid #dbe3ef', borderRadius: 12, background: '#ffffff', padding: '20px 24px',
     }}
     >
-      <KpiBlock
-        icon={<IconBarChart />}
-        label="YIELD"
-        value={hasCurrentData ? `${latestYieldOverall.toFixed(2)}%` : '\u2014'}
-        valueColor={hasCurrentData ? (yieldAboveTarget ? '#16a34a' : '#dc2626') : '#000000'}
-        badgeText={hasCurrentData ? (yieldAboveTarget ? 'ABOVE TARGET' : 'BELOW TARGET') : '\u2014'}
-        badgeTone={hasCurrentData ? (yieldAboveTarget ? 'green' : 'red') : 'green'}
-        deltaValue={yieldDelta}
-        deltaGood={yieldDelta != null ? yieldDelta >= 0 : true}
-        deltaText={yieldDelta != null ? `${yieldDelta >= 0 ? '+' : ''}${yieldDelta.toFixed(2)} pp vs ${prevWeekLabel}` : ''}
-        footerText={`Target ${YIELD_TARGET}%`}
-      />
+      <div style={{
+        fontSize: 20, fontWeight: 800, letterSpacing: '-0.3px', color: '#102a56', lineHeight: 1.2,
+      }}
+      >
+        {customer}
+      </div>
+      <div style={{ fontSize: 12, color: '#71819b', marginTop: 3 }}>{weekBadge}{weekSuffix}</div>
+      <div style={{ borderTop: '1px solid #e7edf5', marginTop: 16, paddingTop: 20 }}>
+        <KpiBlock
+          icon={<IconBarChart />}
+          label="YIELD"
+          value={hasCurrentData ? `${latestYieldOverall.toFixed(2)}%` : '\u2014'}
+          valueColor={hasCurrentData ? (yieldAboveTarget ? '#16a34a' : '#dc2626') : '#000000'}
+          badgeText={hasCurrentData ? (yieldAboveTarget ? 'ABOVE TARGET' : 'BELOW TARGET') : '\u2014'}
+          badgeTone={hasCurrentData ? (yieldAboveTarget ? 'green' : 'red') : 'green'}
+          deltaValue={yieldDelta}
+          deltaGood={yieldDelta != null ? yieldDelta >= 0 : true}
+          deltaText={yieldDelta != null ? `${yieldDelta >= 0 ? '+' : ''}${yieldDelta.toFixed(2)} pp vs ${prevWeekLabel}` : ''}
+          footerText={`Target ${YIELD_TARGET}%`}
+        />
+      </div>
       <div style={{ borderTop: '1px solid #e7edf5', marginTop: 22, paddingTop: 22 }}>
         <KpiBlock
           icon={<IconDocument />}
@@ -307,10 +307,9 @@ function DefectsBox({ t3, topOf, defectTrend }) {
 /**
  * One line/customer's card in the printable weekly digest — a fixed
  * light/white "email document" palette (not the app's dark/light theme
- * toggle): a bordered header strip (identity + quality status + report
- * meta, left accent colored by status) above three independently-boxed
- * sections (headline KPIs, top-3 defects, the two trend charts). Matches
- * the reference weekly digest layout 1:1.
+ * toggle): a slim header strip (quality status + report meta, left accent
+ * colored by status) above three independently-boxed sections (customer
+ * identity + headline KPIs, top-3 defects, the two trend charts).
  *
  * @param {string} customer
  * @param {object} data          result of computeCustomerReportData()
@@ -339,20 +338,20 @@ export default function DigestCard({
   const dppmWithinLimit = hasCurrentData && data.latestDppm <= DPPM_LIMIT;
 
   return (
-    <div style={{ marginTop: first ? 0 : 28 }}>
+    <div style={{ marginTop: first ? 0 : 24 }}>
       <CardHeader
-        customer={customer}
-        weekBadge={weekBadge}
         status={status}
         notes={notes}
         generatedAt={generatedAt}
         hasCurrentData={hasCurrentData}
       />
       <div style={{
-        display: 'flex', gap: 20, marginTop: 20, flexWrap: 'wrap',
+        display: 'flex', gap: 20, marginTop: 16, flexWrap: 'wrap',
       }}
       >
         <MetricsBox
+          customer={customer}
+          weekBadge={weekBadge}
           hasCurrentData={hasCurrentData}
           latestYieldOverall={data.latestYieldOverall}
           yieldAboveTarget={yieldAboveTarget}
