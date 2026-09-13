@@ -276,22 +276,24 @@ export default function DigestCard({
   return (
     <div style={{ marginTop: first ? 0 : 24 }}>
       <div style={{
-        display: 'flex', gap: 20, flexWrap: 'nowrap',
+        display: 'flex', gap: 20, flexWrap: 'nowrap', alignItems: 'flex-start',
       }}
       >
-        <MetricsBox
-          customer={customer}
-          weekBadge={weekBadge}
-          hasCurrentData={hasCurrentData}
-          latestYieldOverall={data.latestYieldOverall}
-          yieldAboveTarget={yieldAboveTarget}
-          yieldDelta={yieldDelta}
-          prevWeekLabel={prevWeekLabel}
-          latestDppm={data.latestDppm}
-          dppmWithinLimit={dppmWithinLimit}
-          dppmDelta={dppmDelta}
-        />
-        <DefectsBox t3={data.t3} topOf={data.topOf} defectTrend={data.defectTrend} />
+        <div style={{ display: 'flex', gap: 20, flexShrink: 0 }}>
+          <MetricsBox
+            customer={customer}
+            weekBadge={weekBadge}
+            hasCurrentData={hasCurrentData}
+            latestYieldOverall={data.latestYieldOverall}
+            yieldAboveTarget={yieldAboveTarget}
+            yieldDelta={yieldDelta}
+            prevWeekLabel={prevWeekLabel}
+            latestDppm={data.latestDppm}
+            dppmWithinLimit={dppmWithinLimit}
+            dppmDelta={dppmDelta}
+          />
+          <DefectsBox t3={data.t3} topOf={data.topOf} defectTrend={data.defectTrend} />
+        </div>
         <div style={{
           flex: 1, minWidth: 420, display: 'flex', flexDirection: 'column', gap: 16,
         }}
