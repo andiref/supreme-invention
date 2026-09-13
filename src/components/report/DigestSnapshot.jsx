@@ -21,8 +21,8 @@ const DigestSnapshot = forwardRef(function DigestSnapshot({ sections, range }, r
   return (
     <div ref={ref} style={{
       width: 1600, minHeight: 900, boxSizing: 'border-box',
-      background: '#eef1f6', color: '#172033', padding: 32,
-      fontFamily: 'Inter, "Segoe UI", Arial, Helvetica, sans-serif',
+      background: '#f8fafc', color: '#172033', padding: 44,
+      fontFamily: 'Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
     }}
     >
       {sections.map(({ customer, data }, i) => (
