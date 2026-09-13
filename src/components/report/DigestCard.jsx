@@ -218,7 +218,7 @@ function DefectRow({
 function DefectsBox({ t3, topOf, defectTrend }) {
   return (
     <div style={{
-      width: 320, flexShrink: 0, minWidth: 0, border: '1px solid #dbe3ef', borderRadius: 12, background: '#ffffff', padding: '20px 22px',
+      width: 380, flexShrink: 0, minWidth: 0, border: '1px solid #dbe3ef', borderRadius: 12, background: '#ffffff', padding: '20px 22px',
     }}
     >
       <div style={{
