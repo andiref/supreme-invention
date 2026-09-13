@@ -1,10 +1,12 @@
 // Full-size trend chart for the weekly digest — a solid data line, a dashed
 // target/limit reference line, three gridlines (min/mid/max) with axis
-// labels, the line's most recent value called out in bold, and a 4-column
-// stat row underneath (this week / last week / rolling average / target or
-// limit). Kept deliberately separate from the full app's Recharts-based
-// TrendLineChart — this one exists purely to match the printable digest's
-// fixed light "email document" look, independent of the app's own theme.
+// labels, the line's most recent value called out in bold, and a 3-column
+// stat row underneath (this week / last week / rolling average). The
+// target/limit itself isn't repeated in the stat row — it's already shown
+// by the dashed reference line and its legend entry above. Kept
+// deliberately separate from the full app's Recharts-based TrendLineChart
+// — this one exists purely to match the printable digest's fixed light
+// "email document" look, independent of the app's own theme.
 import { fmtInt } from '../../brain/index.js';
 
 const VBW = 640;
@@ -70,7 +72,7 @@ function ChartHeader({
 function StatRow({ stats }) {
   return (
     <div style={{
-      display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', background: '#eef1fb', borderRadius: 8, marginTop: 8, padding: '9px 6px',
+      display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', background: '#eef1fb', borderRadius: 8, marginTop: 8, padding: '9px 6px',
     }}
     >
       {stats.map(({ label, value, good }) => (
@@ -90,10 +92,9 @@ function StatRow({ stats }) {
  * @param {boolean} isYield      yield caps its axis at 100% and floors ~0.3pp below the min
  *                               (or the target, whichever is lower); DPPM floors at 0 and
  *                               tops out at 1.15x the highest value (or the limit)
- * @param {string} targetStatLabel  'TARGET' or 'LIMIT' — the stat-row column label
  */
 export default function DigestMiniChart({
-  title, values, labels, target, targetColor, isYield, metricLabel, targetLegendLabel, targetStatLabel,
+  title, values, labels, target, targetColor, isYield, metricLabel, targetLegendLabel,
 }) {
   const have = values.map((v, i) => ({ v, i })).filter(({ v }) => v != null);
   const boxStyle = {
@@ -129,8 +130,9 @@ export default function DigestMiniChart({
   const targetVisible = target >= minV && target <= maxV;
   const gridTicks = [minV, (minV + maxV) / 2, maxV];
 
-  // 4-column stat row: this week, last week, rolling average of the last
-  // (up to) 4 charted weeks, and the fixed target/limit.
+  // 3-column stat row: this week, last week, and the rolling average of the
+  // last (up to) 4 charted weeks. The target/limit lives in the chart's
+  // dashed line + legend, not repeated here.
   const curr = rawValues[rawValues.length - 1];
   const prev = rawValues.length > 1 ? rawValues[rawValues.length - 2] : null;
   const last4 = rawValues.slice(-4);
@@ -190,7 +192,6 @@ export default function DigestMiniChart({
         { label: currLabel, value: fmtVal(curr), good: true },
         { label: prevLabel, value: prev != null ? fmtVal(prev) : '\u2014', good: false },
         { label: '4-WK AVG', value: fmtVal(avg), good: false },
-        { label: targetStatLabel, value: fmtVal(target), good: false },
       ]}
       />
     </div>

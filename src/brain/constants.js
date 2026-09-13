@@ -13,15 +13,15 @@ export const DPPM_LIMIT = 5000;
 export const REPORT_MAX_WEEKS = 11;
 
 /**
- * Display label + colors for each Top-3 defect rank position (1st/2nd/3rd)
- * in the weekly digest — rank alone sets the severity tag (HIGH/MODERATE/
- * WATCH) and the numbered badge/left-bar color; a separate "RISING" tag is
- * added on top when a defect's count increased vs. the previous week.
+ * Left-bar/rank-badge color for each Top-3 defect position (1st/2nd/3rd)
+ * in the weekly digest — purely a visual ranking cue now (no HIGH/MODERATE/
+ * WATCH text tag; that was rank-order dressed up as severity language and
+ * didn't reflect actual magnitude, so it was dropped).
  */
 export const DEFECT_RANK_META = [
-  { label: 'HIGH', tone: 'red', barColor: '#dc2626' },
-  { label: 'MODERATE', tone: 'orange', barColor: '#f59e0b' },
-  { label: 'WATCH', tone: 'amber', barColor: '#eab308' },
+  { barColor: '#dc2626' },
+  { barColor: '#f59e0b' },
+  { barColor: '#eab308' },
 ];
 
 export const SHIFTS = [
