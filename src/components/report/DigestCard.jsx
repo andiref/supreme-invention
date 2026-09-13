@@ -118,7 +118,7 @@ function MetricsBox({
   return (
     <div style={{
       width: 300, flexShrink: 0, border: '1px solid #dbe3ef', borderRadius: 12, background: '#ffffff', padding: '22px 26px',
-      display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 16,
+      display: 'flex', flexDirection: 'column',
     }}
     >
       <div>
@@ -130,6 +130,11 @@ function MetricsBox({
         </div>
         <div style={{ fontSize: 13, color: '#71819b', marginTop: 5 }}>{weekBadge}</div>
       </div>
+      {/* single flexible spacer absorbs all the leftover height (from
+          stretching to match the defects box) so YIELD and DPPM stay
+          together as one tight block pinned to the bottom, instead of
+          space-between splitting the gap awkwardly around each of them. */}
+      <div style={{ flex: 1, minHeight: 20 }} />
       <div style={{ borderTop: '1px solid #e7edf5', paddingTop: 20 }}>
         <KpiBlock
           icon={<IconBarChart />}
@@ -144,7 +149,7 @@ function MetricsBox({
           footerText={`Target ${YIELD_TARGET}%`}
         />
       </div>
-      <div style={{ borderTop: '1px solid #e7edf5', paddingTop: 20 }}>
+      <div style={{ borderTop: '1px solid #e7edf5', marginTop: 22, paddingTop: 22 }}>
         <KpiBlock
           icon={<IconDocument />}
           label="DPPM"
