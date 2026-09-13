@@ -86,7 +86,7 @@ function KpiBlock({
         {icon}
         {label}
       </div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'nowrap' }}>
         <div style={{
           fontSize: 32, lineHeight: 1, fontWeight: 800, letterSpacing: '-0.6px', color: valueColor,
         }}
@@ -115,21 +115,22 @@ function MetricsBox({
   customer, weekBadge, hasCurrentData, latestYieldOverall, yieldAboveTarget, yieldDelta, prevWeekLabel,
   latestDppm, dppmWithinLimit, dppmDelta,
 }) {
-  const weekNumMatch = String(weekBadge).match(/W(\d+)$/);
-  const weekSuffix = weekNumMatch ? `  (Week ${weekNumMatch[1]})` : '';
   return (
     <div style={{
-      width: 230, flexShrink: 0, border: '1px solid #dbe3ef', borderRadius: 12, background: '#ffffff', padding: '20px 24px',
+      width: 300, flexShrink: 0, border: '1px solid #dbe3ef', borderRadius: 12, background: '#ffffff', padding: '22px 26px',
+      display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 16,
     }}
     >
-      <div style={{
-        fontSize: 26, fontWeight: 800, letterSpacing: '-0.4px', color: '#102a56', lineHeight: 1.2,
-      }}
-      >
-        {customer}
+      <div>
+        <div style={{
+          fontSize: 32, fontWeight: 800, letterSpacing: '-0.5px', color: '#102a56', lineHeight: 1.2,
+        }}
+        >
+          {customer}
+        </div>
+        <div style={{ fontSize: 13, color: '#71819b', marginTop: 5 }}>{weekBadge}</div>
       </div>
-      <div style={{ fontSize: 13, color: '#71819b', marginTop: 4 }}>{weekBadge}{weekSuffix}</div>
-      <div style={{ borderTop: '1px solid #e7edf5', marginTop: 16, paddingTop: 20 }}>
+      <div style={{ borderTop: '1px solid #e7edf5', paddingTop: 20 }}>
         <KpiBlock
           icon={<IconBarChart />}
           label="YIELD"
@@ -143,7 +144,7 @@ function MetricsBox({
           footerText={`Target ${YIELD_TARGET}%`}
         />
       </div>
-      <div style={{ borderTop: '1px solid #e7edf5', marginTop: 22, paddingTop: 22 }}>
+      <div style={{ borderTop: '1px solid #e7edf5', paddingTop: 20 }}>
         <KpiBlock
           icon={<IconDocument />}
           label="DPPM"
@@ -275,7 +276,7 @@ export default function DigestCard({
   return (
     <div style={{ marginTop: first ? 0 : 24 }}>
       <div style={{
-        display: 'flex', gap: 20, flexWrap: 'wrap',
+        display: 'flex', gap: 20, flexWrap: 'nowrap',
       }}
       >
         <MetricsBox
