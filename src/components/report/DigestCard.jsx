@@ -169,7 +169,7 @@ function MetricsBox({
             fontSize: 11, fontWeight: 800, color: '#71819b', letterSpacing: 0.4, marginBottom: 8,
           }}
           >
-            4-WK AVG
+            LAST 4 WEEK AVERAGE
           </div>
           <div style={{ display: 'flex', gap: 24 }}>
             <div>
@@ -312,7 +312,7 @@ export default function DigestCard({
   return (
     <div style={{ marginTop: first ? 0 : 24 }}>
       <div style={{
-        display: 'flex', gap: 20, flexWrap: 'nowrap', alignItems: 'flex-start',
+        display: 'flex', gap: 20, flexWrap: 'nowrap', alignItems: 'stretch',
       }}
       >
         <div style={{ display: 'flex', gap: 20, flexShrink: 0 }}>
