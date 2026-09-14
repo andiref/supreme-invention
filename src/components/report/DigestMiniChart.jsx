@@ -1,12 +1,11 @@
 // Full-size trend chart for the weekly digest — a solid data line, a dashed
 // target/limit reference line, three gridlines (min/mid/max) with axis
-// labels, the line's most recent value called out in bold, and a 3-column
-// stat row underneath (this week / last week / rolling average). The
-// target/limit itself isn't repeated in the stat row — it's already shown
-// by the dashed reference line and its legend entry above. Kept
-// deliberately separate from the full app's Recharts-based TrendLineChart
-// — this one exists purely to match the printable digest's fixed light
-// "email document" look, independent of the app's own theme.
+// labels, and the line's most recent value called out in bold. No stat row
+// underneath — the weekly figures moved to the metrics box, and the
+// target/limit is already shown by the dashed reference line + legend.
+// Kept deliberately separate from the full app's Recharts-based
+// TrendLineChart — this one exists purely to match the printable digest's
+// fixed light "email document" look, independent of the app's own theme.
 import { fmtInt } from '../../brain/index.js';
 
 const VBW = 640;
@@ -69,22 +68,6 @@ function ChartHeader({
   );
 }
 
-function StatRow({ stats }) {
-  return (
-    <div style={{
-      display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', background: '#eef1fb', borderRadius: 8, marginTop: 8, padding: '9px 6px',
-    }}
-    >
-      {stats.map(({ label, value, good }) => (
-        <div key={label} style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 9, fontWeight: 700, color: '#8892a6' }}>{label}</div>
-          <div style={{ fontSize: 13, fontWeight: 800, color: good ? '#16a34a' : '#14304d', marginTop: 2 }}>{value}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 /**
  * @param {number[]} values      one entry per label; null/undefined = no data that week
  * @param {string[]} labels
@@ -129,16 +112,6 @@ export default function DigestMiniChart({
   const showEvery = labels.length > 6 ? 2 : 1;
   const targetVisible = target >= minV && target <= maxV;
   const gridTicks = [minV, (minV + maxV) / 2, maxV];
-
-  // 3-column stat row: this week, last week, and the rolling average of the
-  // last (up to) 4 charted weeks. The target/limit lives in the chart's
-  // dashed line + legend, not repeated here.
-  const curr = rawValues[rawValues.length - 1];
-  const prev = rawValues.length > 1 ? rawValues[rawValues.length - 2] : null;
-  const last4 = rawValues.slice(-4);
-  const avg = last4.reduce((s, v) => s + v, 0) / last4.length;
-  const currLabel = labels[have[have.length - 1].i];
-  const prevLabel = have.length > 1 ? labels[have[have.length - 2].i] : '\u2014';
 
   return (
     <div style={boxStyle}>
@@ -188,12 +161,6 @@ export default function DigestMiniChart({
           return <text key={l} x={xp(i)} y={PT + PH + 18} fontSize={10} fill="#8892a6" textAnchor={anchor}>{l}</text>;
         })}
       </svg>
-      <StatRow stats={[
-        { label: currLabel, value: fmtVal(curr), good: true },
-        { label: prevLabel, value: prev != null ? fmtVal(prev) : '\u2014', good: false },
-        { label: '4-WK AVG', value: fmtVal(avg), good: false },
-      ]}
-      />
     </div>
   );
 }

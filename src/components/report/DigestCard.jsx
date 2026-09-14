@@ -113,7 +113,7 @@ function KpiBlock({
  * the separate status/report-meta strip was removed. */
 function MetricsBox({
   customer, weekBadge, hasCurrentData, latestYieldOverall, yieldAboveTarget, yieldDelta, prevWeekLabel,
-  latestDppm, dppmWithinLimit, dppmDelta,
+  latestDppm, dppmWithinLimit, dppmDelta, yieldAvg4wk, dppmAvg4wk,
 }) {
   return (
     <div style={{
@@ -163,6 +163,30 @@ function MetricsBox({
           footerText={`Limit ${fmtInt(DPPM_LIMIT)}`}
         />
       </div>
+      {(yieldAvg4wk != null || dppmAvg4wk != null) && (
+        <div style={{ borderTop: '1px solid #e7edf5', marginTop: 22, paddingTop: 16 }}>
+          <div style={{
+            fontSize: 11, fontWeight: 800, color: '#71819b', letterSpacing: 0.4, marginBottom: 8,
+          }}
+          >
+            4-WK AVG
+          </div>
+          <div style={{ display: 'flex', gap: 24 }}>
+            <div>
+              <div style={{ fontSize: 11, color: '#71819b' }}>Yield</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: '#102a56', marginTop: 2 }}>
+                {yieldAvg4wk != null ? `${yieldAvg4wk.toFixed(2)}%` : '\u2014'}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: '#71819b' }}>DPPM</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: '#102a56', marginTop: 2 }}>
+                {dppmAvg4wk != null ? fmtInt(dppmAvg4wk) : '\u2014'}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -274,6 +298,13 @@ export default function DigestCard({
   const prevDppm = ds.length > 1 ? ds[ds.length - 2] : null;
   const dppmDelta = hasCurrentData && prevDppm != null ? data.latestDppm - prevDppm : null;
 
+  const avgLast4 = (series) => {
+    const last4 = series.filter((v) => v != null).slice(-4);
+    return last4.length ? last4.reduce((s, v) => s + v, 0) / last4.length : null;
+  };
+  const yieldAvg4wk = avgLast4(ys);
+  const dppmAvg4wk = avgLast4(ds);
+
   const prevWeekLabel = data.trendLabels.length > 1 ? data.trendLabels[data.trendLabels.length - 2] : '';
   const yieldAboveTarget = hasCurrentData && data.latestYieldOverall >= YIELD_TARGET;
   const dppmWithinLimit = hasCurrentData && data.latestDppm <= DPPM_LIMIT;
@@ -296,6 +327,8 @@ export default function DigestCard({
             latestDppm={data.latestDppm}
             dppmWithinLimit={dppmWithinLimit}
             dppmDelta={dppmDelta}
+            yieldAvg4wk={yieldAvg4wk}
+            dppmAvg4wk={dppmAvg4wk}
           />
           <DefectsBox t3={data.t3} topOf={data.topOf} defectTrend={data.defectTrend} />
         </div>
