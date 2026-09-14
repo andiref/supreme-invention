@@ -130,12 +130,7 @@ function MetricsBox({
         </div>
         <div style={{ fontSize: 13, color: '#71819b', marginTop: 5 }}>{weekBadge}</div>
       </div>
-      {/* single flexible spacer absorbs all the leftover height (from
-          stretching to match the defects box) so YIELD and DPPM stay
-          together as one tight block pinned to the bottom, instead of
-          space-between splitting the gap awkwardly around each of them. */}
-      <div style={{ flex: 1, minHeight: 20 }} />
-      <div style={{ borderTop: '1px solid #e7edf5', paddingTop: 20 }}>
+      <div style={{ borderTop: '1px solid #e7edf5', marginTop: 20, paddingTop: 20 }}>
         <KpiBlock
           icon={<IconBarChart />}
           label="YIELD"
@@ -166,27 +161,32 @@ function MetricsBox({
       {(yieldAvg4wk != null || dppmAvg4wk != null) && (
         <div style={{ borderTop: '1px solid #e7edf5', marginTop: 22, paddingTop: 16 }}>
           <div style={{
-            fontSize: 11, fontWeight: 800, color: '#71819b', letterSpacing: 0.4, marginBottom: 8,
+            fontSize: 12, fontWeight: 800, color: '#71819b', letterSpacing: 0.4, marginBottom: 9,
           }}
           >
             LAST 4 WEEK AVERAGE
           </div>
           <div style={{ display: 'flex', gap: 24 }}>
             <div>
-              <div style={{ fontSize: 11, color: '#71819b' }}>Yield</div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: '#102a56', marginTop: 2 }}>
+              <div style={{ fontSize: 12, color: '#71819b' }}>Yield</div>
+              <div style={{ fontSize: 21, fontWeight: 800, color: '#102a56', marginTop: 3 }}>
                 {yieldAvg4wk != null ? `${yieldAvg4wk.toFixed(2)}%` : '\u2014'}
               </div>
             </div>
             <div>
-              <div style={{ fontSize: 11, color: '#71819b' }}>DPPM</div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: '#102a56', marginTop: 2 }}>
+              <div style={{ fontSize: 12, color: '#71819b' }}>DPPM</div>
+              <div style={{ fontSize: 21, fontWeight: 800, color: '#102a56', marginTop: 3 }}>
                 {dppmAvg4wk != null ? fmtInt(dppmAvg4wk) : '\u2014'}
               </div>
             </div>
           </div>
         </div>
       )}
+      {/* single flexible spacer now sits at the very bottom, so any
+          leftover height (from stretching to match the defects box) shows
+          up as breathing room under the content instead of as a gap
+          between the title and YIELD. */}
+      <div style={{ flex: 1, minHeight: 12 }} />
     </div>
   );
 }
