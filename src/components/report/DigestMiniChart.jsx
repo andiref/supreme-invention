@@ -80,8 +80,13 @@ export default function DigestMiniChart({
   title, values, labels, target, targetColor, isYield, metricLabel, targetLegendLabel,
 }) {
   const have = values.map((v, i) => ({ v, i })).filter(({ v }) => v != null);
+  // flex:1 lets the two charts share whatever height the row has (the row
+  // stretches to the taller of the left boxes / charts column), so the
+  // charts column's bottom edge lines up with the boxes beside it instead
+  // of stopping at its own natural height.
   const boxStyle = {
     border: '1px solid rgba(0,0,0,0.1)', borderRadius: 8, background: '#ffffff', padding: '12px 14px 10px',
+    flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0,
   };
   const fmtVal = (v) => (isYield ? `${v.toFixed(2)}%` : fmtInt(v));
 
@@ -116,7 +121,7 @@ export default function DigestMiniChart({
   return (
     <div style={boxStyle}>
       <ChartHeader title={title} metricLabel={metricLabel} targetColor={targetColor} targetLegendLabel={targetLegendLabel} isYield={isYield} />
-      <svg viewBox={`0 0 ${VBW} ${VBH}`} preserveAspectRatio="none" style={{ width: '100%', height: VBH, display: 'block' }}>
+      <svg viewBox={`0 0 ${VBW} ${VBH}`} preserveAspectRatio="none" style={{ width: '100%', flex: 1, minHeight: VBH, display: 'block' }}>
         {gridTicks.map((v) => {
           const gy = yp(v);
           return (
