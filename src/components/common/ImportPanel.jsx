@@ -19,7 +19,8 @@ const COPY = {
 
 export default function ImportPanel({ type, onImported, onClose }) {
   const [file, setFile] = useState(null);
-  const [parsed, setParsed] = useState(null); // { rows, skipped }
+  const [parsed, setParsed] = useState(null); // { rows, skipped, skippedDetails }
+  const [showSkipped, setShowSkipped] = useState(false);
   const [error, setError] = useState('');
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(null);
@@ -31,6 +32,7 @@ export default function ImportPanel({ type, onImported, onClose }) {
     const f = e.target.files[0];
     setFile(f);
     setParsed(null);
+    setShowSkipped(false);
     setError('');
     if (!f) return;
     try {
@@ -58,6 +60,7 @@ export default function ImportPanel({ type, onImported, onClose }) {
       onImported(result, type);
       setFile(null);
       setParsed(null);
+      setShowSkipped(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (err) {
       setError(`${err.message}${err.batchNum ? ` (stopped on batch ${err.batchNum}/${err.totalBatches}, ${err.importedSoFar} rows already imported)` : ''}`);
@@ -81,8 +84,48 @@ export default function ImportPanel({ type, onImported, onClose }) {
       <input ref={fileInputRef} type="file" accept=".csv,.txt,.xlsx,.xls" onChange={handleFileChange} />
       {error && <div className="err">{error}</div>}
       {parsed && !error && (
-        <div style={{ fontSize: 11, color: '#22c55e', marginTop: 6 }}>
-          ✓ {parsed.rows.length} valid row(s) ready{parsed.skipped ? `, ${parsed.skipped} skipped (bad format)` : ''}
+        <div style={{ marginTop: 6 }}>
+          <div style={{ fontSize: 11, color: '#22c55e' }}>
+            ✓ {parsed.rows.length} valid row(s) ready{parsed.skipped ? ` · ${parsed.skipped} skipped` : ''}
+          </div>
+          {parsed.skipped > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowSkipped((v) => !v)}
+              style={{
+                marginTop: 6, padding: '4px 9px', border: '1px solid #334155', borderRadius: 6,
+                background: '#172033', color: '#f8fafc', fontSize: 10, fontWeight: 700, cursor: 'pointer',
+              }}
+            >
+              {showSkipped ? 'HIDE SKIPPED ROWS' : `VIEW ${parsed.skipped} SKIPPED ROW${parsed.skipped === 1 ? '' : 'S'}`}
+            </button>
+          )}
+          {showSkipped && parsed.skipped > 0 && (
+            <div style={{
+              marginTop: 8, maxHeight: 260, overflow: 'auto', border: '1px solid #334155',
+              borderRadius: 8, background: '#0f172a',
+            }}>
+              <div style={{
+                position: 'sticky', top: 0, zIndex: 1, display: 'grid', gridTemplateColumns: '56px 230px minmax(420px, 1fr)',
+                gap: 8, padding: '7px 9px', background: '#172033', color: '#94a3b8', fontSize: 9,
+                fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.4px',
+              }}>
+                <div>Row</div><div>Reason</div><div>Source data</div>
+              </div>
+              {parsed.skippedDetails.map((item) => (
+                <div key={item.sourceRow} style={{
+                  display: 'grid', gridTemplateColumns: '56px 230px minmax(420px, 1fr)', gap: 8,
+                  padding: '8px 9px', borderTop: '1px solid #1e293b', color: '#e2e8f0', fontSize: 10, lineHeight: 1.35,
+                }}>
+                  <div style={{ color: '#fbbf24', fontWeight: 700 }}>#{item.sourceRow}</div>
+                  <div style={{ color: '#fca5a5' }}>{item.reason}</div>
+                  <div style={{ color: '#cbd5e1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.raw.join(' | ')}>
+                    {item.raw.join(' | ') || '—'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
       {progress && (
