@@ -3,6 +3,7 @@ import {
   calcMetrics, findUnmatchedDefectCombos, filterMetrics, filterDefectRows,
   distinctWeeks, distinctCustomers, distinctModels, aggregateKpis,
   paretoByDefectType, CHART_COLORS, YIELD_TARGET, DPPM_LIMIT, fmtInt,
+  monthlySummary, formatMonthLabel,
 } from '../../brain/index.js';
 import { Card, KpiRow } from '../common/Kpi.jsx';
 import FilterField from '../common/FilterField.jsx';
@@ -46,6 +47,15 @@ export default function YieldView({ defectRows, prodVolRows, showToast, showConf
     { label: 'DPPM', value: fmtInt(kpi.dppm), color: kpi.dppm <= DPPM_LIMIT ? '#22c55e' : '#ef4444', sub: `Limit ≤${fmtInt(DPPM_LIMIT)}  ${kpi.dppm <= DPPM_LIMIT ? '✅' : '❌'}` },
     { label: 'DEFECT RECORDS', value: String(kpi.totalDefects), color: '#a78bfa', sub: 'Total defect rows' },
   ] : [];
+
+  // ── Monthly KPI roll-up: always across every week (like the trend charts,
+  // the whole point is summing multiple weeks into a month), respects
+  // customer/model filters ──
+  const monthlyMetrics = useMemo(
+    () => filterMetrics(metrics, { week: 'ALL', customer: filters.customer, model: filters.model }),
+    [metrics, filters.customer, filters.model]
+  );
+  const monthlyRollup = useMemo(() => monthlySummary(monthlyMetrics), [monthlyMetrics]);
 
   // ── Trend charts: always across every week (ignores week filter — that's what makes it a trend), respects model filter ──
   const trendMetrics = useMemo(() => filterMetrics(metrics, { week: 'ALL', customer: 'ALL', model: filters.model }), [metrics, filters.model]);
@@ -146,6 +156,42 @@ export default function YieldView({ defectRows, prodVolRows, showToast, showConf
         </div>
 
         <KpiRow kpis={kpiCards} />
+
+        <Card title="📅 MONTHLY KPI (ROLL-UP)">
+          <div style={{ fontSize: 10, color: '#64748b', marginBottom: 8 }}>
+            Each week counts in full toward whichever month owns the majority of its 7 days — so a week split across two months (e.g. 5 days in July, 2 in August) rolls up entirely into July.
+          </div>
+          {monthlyRollup.length ? (
+            <div className="tbl-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Month</th>
+                    <th>Weeks</th>
+                    <th>Qty Inspected</th>
+                    <th>Qty Pass</th>
+                    <th>Qty Failed</th>
+                    <th>Yield %</th>
+                    <th>DPPM</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthlyRollup.map((m) => (
+                    <tr key={m.month}>
+                      <td>{formatMonthLabel(m.month)}</td>
+                      <td>{m.weeks.map(weekLabel).join(', ')}</td>
+                      <td className="num">{fmtInt(m.totalInsp)}</td>
+                      <td className="num">{fmtInt(m.totalPass)}</td>
+                      <td className="num">{fmtInt(m.totalFailed)}</td>
+                      <td className="num" style={{ color: m.yieldPct >= YIELD_TARGET ? '#22c55e' : '#ef4444' }}>{m.yieldPct.toFixed(3)}%</td>
+                      <td className="num" style={{ color: m.dppm <= DPPM_LIMIT ? '#22c55e' : '#ef4444' }}>{fmtInt(m.dppm)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : <div style={{ fontSize: 11, color: '#64748b' }}>No data yet.</div>}
+        </Card>
 
         <Card title="📈 YIELD % TREND">
           <div className="fw" style={{ marginBottom: 8 }}>

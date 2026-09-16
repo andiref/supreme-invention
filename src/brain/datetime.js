@@ -47,6 +47,61 @@ export function isoWeek(d) {
   return `${dt.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
 }
 
+/** Monday of a given ISO week label ("2026-W30") as a Date, or null if the
+ * label doesn't parse. Monday of ISO week 1 is always the Monday on/before
+ * Jan 4 — every other week's Monday is 7 days further along from there. */
+export function isoWeekStart(weekLabel) {
+  const m = String(weekLabel).match(/^(\d{4})-W(\d{1,2})$/);
+  if (!m) return null;
+  const year = +m[1];
+  const weekNum = +m[2];
+  const jan4 = new Date(year, 0, 4);
+  const week1Monday = new Date(jan4);
+  week1Monday.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
+  const monday = new Date(week1Monday);
+  monday.setDate(week1Monday.getDate() + (weekNum - 1) * 7);
+  return monday;
+}
+
+/**
+ * Maps an ISO week label ("2026-W30") to the calendar month that owns the
+ * majority of that week's 7 days ("YYYY-MM") — for a week that straddles
+ * two months, whichever month has more days in it (4 vs 3; a 7-day week
+ * can never tie) wins the whole week. Equivalent to "the week belongs to
+ * the month containing its Thursday". Used for monthly KPI roll-ups, since
+ * production weeks don't line up with calendar months.
+ */
+export function weekToMonth(weekLabel) {
+  const monday = isoWeekStart(weekLabel);
+  if (!monday) return null;
+  const counts = new Map();
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    const key = `${d.getFullYear()}-${d.getMonth()}`;
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  let bestKey = null;
+  let bestCount = -1;
+  counts.forEach((count, key) => {
+    if (count > bestCount) { bestCount = count; bestKey = key; }
+  });
+  const [y, mo] = bestKey.split('-').map(Number);
+  return `${y}-${String(mo + 1).padStart(2, '0')}`;
+}
+
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+/** "2026-07" -> "July 2026". */
+export function formatMonthLabel(monthKey) {
+  const m = String(monthKey).match(/^(\d{4})-(\d{2})$/);
+  if (!m) return monthKey;
+  return `${MONTH_NAMES[+m[2] - 1]} ${m[1]}`;
+}
+
 /** "MM/DD/YYYY" for display. */
 export function formatDate(d) {
   return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}/${d.getFullYear()}`;
