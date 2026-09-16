@@ -5,6 +5,7 @@
 // Week + Customer + Model to compute per-combo and per-week yield/DPPM.
 // Pure functions: (DefectRow[], ProdVolRow[]) -> metrics[]. No DOM.
 // ============================================
+import { weekToMonth } from './datetime.js';
 
 /**
  * @typedef {Object} ProdVolRow
@@ -162,6 +163,37 @@ export function weeklySummary(metrics) {
       dppm: totalInsp ? (totalFailed / totalInsp) * 1e6 : 0,
       totalInsp,
       totalFailed,
+    };
+  });
+}
+
+/**
+ * Rolls MetricRow[] up into one summary row per calendar month. A week
+ * that straddles two months is assigned in full to whichever month owns
+ * the majority of its 7 days (see weekToMonth) — so a month's totals are
+ * always a clean sum of complete weeks, never a partial week split across
+ * two months.
+ */
+export function monthlySummary(metrics) {
+  const byMonth = new Map();
+  metrics.forEach((m) => {
+    const month = weekToMonth(m.week);
+    if (!month) return;
+    if (!byMonth.has(month)) byMonth.set(month, []);
+    byMonth.get(month).push(m);
+  });
+  return [...byMonth.keys()].sort().map((month) => {
+    const rows = byMonth.get(month);
+    const totalInsp = rows.reduce((s, r) => s + r.totalInsp, 0);
+    const totalFailed = rows.reduce((s, r) => s + r.totalFailed, 0);
+    return {
+      month,
+      weeks: [...new Set(rows.map((r) => r.week))].sort(),
+      totalInsp,
+      totalFailed,
+      totalPass: totalInsp - totalFailed,
+      yieldPct: totalInsp ? ((totalInsp - totalFailed) / totalInsp) * 100 : 0,
+      dppm: totalInsp ? (totalFailed / totalInsp) * 1e6 : 0,
     };
   });
 }
