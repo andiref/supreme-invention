@@ -50,41 +50,115 @@ export function readFileAsRows(file) {
   });
 }
 
+/** Returns true when the first row looks like the documented column header. */
+function isHeaderRow(row, type) {
+  if (!Array.isArray(row)) return false;
+  const values = row.slice(0, type === 'defect' ? 7 : 5).map((value) => String(value ?? '').trim().toLowerCase());
+  if (type === 'defect') {
+    return values.length >= 7 &&
+      values[0] === 'customer' &&
+      (values[1] === 'serialno' || values[1] === 'serial number' || values[1] === 'serialnumber') &&
+      values[2] === 'model' &&
+      (values[3] === 'defecttype' || values[3] === 'defect type') &&
+      (values[4] === 'component' || values[4] === 'comp') &&
+      (values[5] === 'datetime' || values[5] === 'date time' || values[5] === 'date/time') &&
+      values[6] === 'side';
+  }
+  return values.length >= 5 &&
+    values[0] === 'week' &&
+    values[1] === 'model' &&
+    values[2] === 'side' &&
+    values[3] === 'customer' &&
+    (values[4] === 'totalinspected' || values[4] === 'total inspected');
+}
+
+/** Turns one invalid raw row into a human-readable reason without changing validation behavior. */
+function defectSkipReason(p) {
+  if (p.length < 7) return 'Not enough columns (expected 7)';
+  const [, , , , , dtStr] = p;
+  if (!String(p[0] ?? '').trim()) return 'Missing customer';
+  if (!String(p[1] ?? '').trim()) return 'Missing serial number';
+  if (!String(p[2] ?? '').trim()) return 'Missing model';
+  if (!String(p[3] ?? '').trim()) return 'Missing defect type';
+  if (!String(p[4] ?? '').trim()) return 'Missing component';
+  if (!String(p[5] ?? '').trim()) return 'Missing date/time';
+  return `Invalid date/time format: ${String(dtStr ?? '').trim() || '(blank)'}`;
+}
+
+function prodVolSkipReason(p) {
+  if (p.length < 5) return 'Not enough columns (expected 5)';
+  const [week, model, side, , totalInspected] = p;
+  if (!String(week ?? '').trim()) return 'Missing week';
+  if (!String(model ?? '').trim()) return 'Missing model';
+  if (!String(side ?? '').trim()) return 'Missing side';
+  const normSide = String(side).toUpperCase().replace('BOTTOM', 'BOT');
+  if (!['TOP', 'BOT'].includes(normSide)) return `Invalid side: ${String(side).trim()}`;
+  const count = Number(String(totalInspected ?? '').trim());
+  if (!Number.isSafeInteger(count) || count < 0) return `Invalid TotalInspected: ${String(totalInspected ?? '').trim() || '(blank)'}`;
+  return 'Invalid row format';
+}
+
+function skippedDetail(sourceRow, raw, reason) {
+  return { sourceRow, reason, raw: raw.map((value) => String(value ?? '').trim()) };
+}
+
 /**
  * Validates raw rows against the Defect Data format:
  * Customer | SerialNo | Model | DefectType | Component | MM/DD/YYYY HH:MM:SS | Side
- * @returns {{ rows: object[], skipped: number }}
+ * @returns {{ rows: object[], skipped: number, skippedDetails: object[] }}
  */
 export function parseDefectImportRows(rawRows) {
-  const parsed = rawRows.map((p) => {
-    if (p.length < 7) return null;
+  const rows = [];
+  const skippedDetails = [];
+  rawRows.forEach((p, index) => {
+    if (index === 0 && isHeaderRow(p, 'defect')) return;
+    if (p.length < 7) {
+      skippedDetails.push(skippedDetail(index + 1, p, defectSkipReason(p)));
+      return;
+    }
     const [customer, sn, model, defect, comp, dtStr, side] = p;
     const row = buildDefectRow(dtStr, customer, model, sn, side, comp, defect);
-    if (!row) return null;
-    return { dtStr, customer, model, sn, side: row.side, comp, defect };
+    if (!row) {
+      skippedDetails.push(skippedDetail(index + 1, p, defectSkipReason(p)));
+      return;
+    }
+    rows.push({ dtStr, customer, model, sn, side: row.side, comp, defect });
   });
-  const rows = parsed.filter(Boolean);
-  return { rows, skipped: parsed.length - rows.length };
+  return { rows, skipped: skippedDetails.length, skippedDetails };
 }
 
 /**
  * Validates raw rows against the Production Volume format:
  * Week | Model | Side | Customer | TotalInspected
- * @returns {{ rows: object[], skipped: number }}
+ * @returns {{ rows: object[], skipped: number, skippedDetails: object[] }}
  */
 export function parseProdVolImportRows(rawRows) {
-  const parsed = rawRows.map((p) => {
-    if (p.length < 5) return null;
+  const rows = [];
+  const skippedDetails = [];
+  rawRows.forEach((p, index) => {
+    if (index === 0 && isHeaderRow(p, 'prodvol')) return;
+    if (p.length < 5) {
+      skippedDetails.push(skippedDetail(index + 1, p, prodVolSkipReason(p)));
+      return;
+    }
     const [week, model, side, customer, totalInspected] = p;
-    if (!week || !model || !side) return null;
+    if (!week || !model || !side) {
+      skippedDetails.push(skippedDetail(index + 1, p, prodVolSkipReason(p)));
+      return;
+    }
     const normSide = String(side).toUpperCase().replace('BOTTOM', 'BOT');
-    if (!['TOP', 'BOT'].includes(normSide)) return null;
+    if (!['TOP', 'BOT'].includes(normSide)) {
+      skippedDetails.push(skippedDetail(index + 1, p, prodVolSkipReason(p)));
+      return;
+    }
     const count = Number(String(totalInspected ?? '').trim());
-    if (!Number.isSafeInteger(count) || count < 0) return null;
-    return { week, customer, model, side: normSide, count };
+    if (!Number.isSafeInteger(count) || count < 0) {
+      skippedDetails.push(skippedDetail(index + 1, p, prodVolSkipReason(p)));
+      return;
+    }
+    rows.push({ week, customer, model, side: normSide, count });
   });
-  const rows = parsed.filter(Boolean);
-  return { rows, skipped: parsed.length - rows.length };
+  return { rows, skipped: skippedDetails.length, skippedDetails };
 }
 
 /** Client-side batch sizes — kept under the server's hard caps (see api/yield.js). */
