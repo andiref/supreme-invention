@@ -238,7 +238,7 @@ function DefectRow({
         display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'flex-end', flexShrink: 0,
       }}
       >
-        {trendInfo?.trend === 'rising' && <Pill text="RATE ↑" tone="red" dot="up" />}
+        {trendInfo?.trend === 'rising' && <Pill text="RATE ↑" tone="red" />}
         {trendInfo?.trend === 'falling' && <Pill text="RATE ↓" tone="green" />}
         {trendInfo?.trend === 'flat' && <Pill text="RATE →" tone="amber" />}
       </div>
