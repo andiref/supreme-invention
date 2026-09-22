@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { parseDateTime } from '../src/brain/datetime.js';
 import { isValidDateTime, isValidIsoWeek } from '../api/_shared.js';
 import { parseDefectImportRows, parseProdVolImportRows } from '../src/brain/importParsing.js';
+import { computeCustomerReportData } from '../src/brain/reportData.js';
 
 const valid = ['02/29/2024 08:23:15', '4/7/2025 8:23:15'];
 for (const value of valid) {
@@ -46,5 +47,28 @@ assert.equal(prodVolImport.rows.length, 1);
 assert.equal(prodVolImport.skipped, 1);
 assert.equal(prodVolImport.skippedDetails[0].sourceRow, 3);
 assert.match(prodVolImport.skippedDetails[0].reason, /Invalid side/i);
+
+// Defect trend regression — compare occurrence rate, not raw defect count.
+// Prior week: 20 defects / 100 inspected = 20%. Current week: 30 defects /
+// 1000 inspected = 3%, so the normalized rate must be classified as falling
+// even though the raw defect count increased.
+const trendMetrics = [
+  { week: '2026-W29', customer: 'CUST-A', model: 'MODEL-AA1', inspTOP: 100, inspBOT: 0, failedTOP: 20, failedBOT: 0, totalFailed: 20, totalInsp: 100, yieldTOP: 80, yieldBOT: null, yieldOverall: 80, dppm: 200000, totalDefects: 20 },
+  { week: '2026-W30', customer: 'CUST-A', model: 'MODEL-AA1', inspTOP: 1000, inspBOT: 0, failedTOP: 30, failedBOT: 0, totalFailed: 30, totalInsp: 1000, yieldTOP: 97, yieldBOT: null, yieldOverall: 97, dppm: 30000, totalDefects: 30 },
+];
+const trendRows = [
+  ...Array.from({ length: 20 }, (_, i) => ({ week: '2026-W29', customer: 'CUST-A', model: 'MODEL-AA1', defect: 'Solder Bridge', comp: `R${i + 1}`, sn: `SN-P${i + 1}`, side: 'TOP' })),
+  ...Array.from({ length: 30 }, (_, i) => ({ week: '2026-W30', customer: 'CUST-A', model: 'MODEL-AA1', defect: 'Solder Bridge', comp: `R${i + 1}`, sn: `SN-C${i + 1}`, side: 'TOP' })),
+];
+const trendReport = computeCustomerReportData(
+  'CUST-A',
+  { from: '2026-W29', to: '2026-W30', weeks: ['2026-W29', '2026-W30'] },
+  trendMetrics,
+  trendRows,
+);
+assert.equal(trendReport.defectTrend('Solder Bridge'), 'falling');
+assert.equal(trendReport.defectTrendInfo('Solder Bridge').currentRatePct, 3);
+assert.equal(trendReport.defectTrendInfo('Solder Bridge').previousRatePct, 20);
+assert.equal(trendReport.defectTrendInfo('Solder Bridge').deltaPp, -17);
 
 console.log('date validation tests: PASS');
