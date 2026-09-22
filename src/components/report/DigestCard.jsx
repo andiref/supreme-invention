@@ -192,7 +192,7 @@ function MetricsBox({
 }
 
 function DefectRow({
-  rank, defect, count, model, comp, trend,
+  rank, defect, count, model, comp, trendInfo,
 }) {
   const meta = DEFECT_RANK_META[rank - 1] || DEFECT_RANK_META[DEFECT_RANK_META.length - 1];
   return (
@@ -226,20 +226,28 @@ function DefectRow({
         <div style={{ fontSize: 12, color: '#71819b', marginTop: 7, lineHeight: 1.6 }}>
           Top Contributing Model<br /><b style={{ color: '#243b63', fontSize: 13 }}>{model}</b><br />
           Top Contributing Component<br /><b style={{ color: '#243b63', fontSize: 13 }}>{comp}</b>
+          {trendInfo && (
+            <div style={{ marginTop: 7 }}>
+              Occurrence Rate <b style={{ color: '#243b63', fontSize: 13 }}>{trendInfo.currentRatePct.toFixed(2)}%</b>
+              <span style={{ color: '#8a98aa' }}> vs {trendInfo.previousRatePct.toFixed(2)}% prior wk</span>
+            </div>
+          )}
         </div>
       </div>
       <div style={{
         display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'flex-end', flexShrink: 0,
       }}
       >
-        {trend === 'rising' && <Pill text="RISING" tone="red" dot="up" />}
+        {trendInfo?.trend === 'rising' && <Pill text="RATE ↑" tone="red" dot="up" />}
+        {trendInfo?.trend === 'falling' && <Pill text="RATE ↓" tone="green" />}
+        {trendInfo?.trend === 'flat' && <Pill text="RATE →" tone="amber" />}
       </div>
     </div>
   );
 }
 
 /** Bordered card holding the ranked Top-3 defects list. */
-function DefectsBox({ t3, topOf, defectTrend }) {
+function DefectsBox({ t3, topOf, defectTrendInfo }) {
   return (
     <div style={{
       width: 380, flexShrink: 0, minWidth: 0, border: '1px solid #dbe3ef', borderRadius: 12, background: '#ffffff', padding: '20px 22px',
@@ -261,7 +269,7 @@ function DefectsBox({ t3, topOf, defectTrend }) {
             count={count}
             model={topOf(defect, 'model')}
             comp={topOf(defect, 'comp')}
-            trend={defectTrend(defect)}
+            trendInfo={defectTrendInfo(defect)}
           />
         ))
       ) : (
@@ -330,7 +338,7 @@ export default function DigestCard({
             yieldAvg4wk={yieldAvg4wk}
             dppmAvg4wk={dppmAvg4wk}
           />
-          <DefectsBox t3={data.t3} topOf={data.topOf} defectTrend={data.defectTrend} />
+          <DefectsBox t3={data.t3} topOf={data.topOf} defectTrendInfo={data.defectTrendInfo} />
         </div>
         <div style={{
           flex: 1, minWidth: 420, display: 'flex', flexDirection: 'column', gap: 16,
