@@ -249,14 +249,51 @@ export function computeCustomerReportData(
   prevWeekDefectRows.forEach((d) => {
     prevDefectCounts[d.defect] = (prevDefectCounts[d.defect] || 0) + 1;
   });
-  /** 'rising' | 'falling' | 'flat' | null (null = no prior week to compare) for one of this week's top-3 defects. */
+
+  // Defect trend is normalized by inspection volume. Comparing raw occurrence
+  // counts can reverse the quality signal when weekly production volume
+  // changes materially (e.g. 20/100 = 20% vs 30/1000 = 3%).
+  const prevWeekMetrics = prevWeekForDefects
+    ? metricsAllTime.filter((m) => m.week === prevWeekForDefects)
+    : [];
+  const prevWeekTotalInsp = prevWeekMetrics.reduce(
+    (s, r) => s + r.totalInsp,
+    0,
+  );
+
+  function defectRatePct(count, totalInsp) {
+    return totalInsp > 0 ? (count / totalInsp) * 100 : null;
+  }
+
+  /** 'rising' | 'falling' | 'flat' | null based on occurrence rate,
+   * not raw defect count. */
   function defectTrend(defect) {
-    if (!prevWeekForDefects) return null;
+    if (!prevWeekForDefects || latestTotalInsp <= 0 || prevWeekTotalInsp <= 0) return null;
     const prev = prevDefectCounts[defect] || 0;
     const curr = defectCounts[defect] || 0;
-    if (curr > prev) return "rising";
-    if (curr < prev) return "falling";
+
+    // Compare the two fractions directly to avoid floating-point edge cases:
+    // curr / currentInsp vs prev / previousInsp.
+    const lhs = curr * prevWeekTotalInsp;
+    const rhs = prev * latestTotalInsp;
+    if (lhs > rhs) return "rising";
+    if (lhs < rhs) return "falling";
     return "flat";
+  }
+
+  /** Exact rate context for one of this week's top-3 defects. */
+  function defectTrendInfo(defect) {
+    if (!prevWeekForDefects || latestTotalInsp <= 0 || prevWeekTotalInsp <= 0) return null;
+    const prev = prevDefectCounts[defect] || 0;
+    const curr = defectCounts[defect] || 0;
+    const currentRatePct = defectRatePct(curr, latestTotalInsp);
+    const previousRatePct = defectRatePct(prev, prevWeekTotalInsp);
+    return {
+      currentRatePct,
+      previousRatePct,
+      deltaPp: currentRatePct - previousRatePct,
+      trend: defectTrend(defect),
+    };
   }
 
   return {
@@ -278,6 +315,7 @@ export function computeCustomerReportData(
     topContributor,
     countFor,
     defectTrend,
+    defectTrendInfo,
     lw: latestWeekInRange,
     filtRawCount: rowsInRange.length,
 
