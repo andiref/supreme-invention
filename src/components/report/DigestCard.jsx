@@ -235,6 +235,14 @@ function DefectRow({
         {trendInfo?.trend === 'rising' && <Pill text="RATE ↑" tone="red" />}
         {trendInfo?.trend === 'falling' && <Pill text="RATE ↓" tone="green" />}
         {trendInfo?.trend === 'flat' && <Pill text="RATE →" tone="amber" />}
+        {trendInfo && (
+          <div style={{
+            fontSize: 11, color: '#8a98aa', textAlign: 'right', lineHeight: 1.4, maxWidth: 100,
+          }}
+          >
+            <b style={{ color: '#243b63', fontSize: 12 }}>{trendInfo.currentRatePct.toFixed(2)}%</b> vs {trendInfo.previousRatePct.toFixed(2)}% prior wk
+          </div>
+        )}
       </div>
     </div>
   );
