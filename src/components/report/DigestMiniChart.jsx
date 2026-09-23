@@ -114,7 +114,6 @@ export default function DigestMiniChart({
 
   const linePoints = have.map(({ v, i }) => `${xp(i)},${yp(v).toFixed(1)}`).join(' ');
   const lastPoint = have[have.length - 1];
-  const showEvery = labels.length > 6 ? 2 : 1;
   const targetVisible = target >= minV && target <= maxV;
   const gridTicks = [minV, (minV + maxV) / 2, maxV];
 
@@ -161,9 +160,9 @@ export default function DigestMiniChart({
         })()}
 
         {labels.map((l, i) => {
-          if (i % showEvery !== 0 && i !== labels.length - 1) return null;
           const anchor = i === 0 && labels.length > 1 ? 'start' : (i === labels.length - 1 && labels.length > 1 ? 'end' : 'middle');
-          return <text key={l} x={xp(i)} y={PT + PH + 18} fontSize={10} fill="#8892a6" textAnchor={anchor}>{l}</text>;
+          const short = l.replace(/^WW/, 'W');
+          return <text key={l} x={xp(i)} y={PT + PH + 18} fontSize={10} fill="#8892a6" textAnchor={anchor}>{short}</text>;
         })}
       </svg>
     </div>
