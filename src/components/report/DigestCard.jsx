@@ -226,12 +226,6 @@ function DefectRow({
         <div style={{ fontSize: 12, color: '#71819b', marginTop: 7, lineHeight: 1.6 }}>
           Top Contributing Model<br /><b style={{ color: '#243b63', fontSize: 13 }}>{model}</b><br />
           Top Contributing Component<br /><b style={{ color: '#243b63', fontSize: 13 }}>{comp}</b>
-          {trendInfo && (
-            <div style={{ marginTop: 7 }}>
-              Occurrence Rate <b style={{ color: '#243b63', fontSize: 13 }}>{trendInfo.currentRatePct.toFixed(2)}%</b>
-              <span style={{ color: '#8a98aa' }}> vs {trendInfo.previousRatePct.toFixed(2)}% prior wk</span>
-            </div>
-          )}
         </div>
       </div>
       <div style={{
