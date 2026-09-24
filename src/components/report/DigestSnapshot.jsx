@@ -10,6 +10,12 @@ import DigestCard from './DigestCard.jsx';
  * single-customer digest matches the reference design; multiple customers
  * just stack one under the next.
  *
+ * The background set here is for the on-screen preview only — exportNode()
+ * in ReportView temporarily strips it before capturing the PNG, so the
+ * exported image has a transparent page (each card keeps its own white
+ * background) and adapts to whatever background it's pasted onto in an
+ * email, while the preview still shows a consistent light page.
+ *
  * @param {{customer:string, data:object}[]} sections   result of buildDigestData()
  * @param {{from:string,to:string}} range
  */

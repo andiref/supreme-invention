@@ -97,18 +97,28 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, showT
 
       const width = node.scrollWidth;
       const height = node.scrollHeight;
-      const canvas = await html2canvas(node, {
-        scale: 2,
-        backgroundColor: '#ffffff',
-        useCORS: true,
-        logging: false,
-        width,
-        height,
-        windowWidth: width,
-        windowHeight: height,
-        scrollX: 0,
-        scrollY: 0,
-      });
+      // Only the export should lose its page background (so the PNG
+      // adapts to whatever it's pasted onto in an email) — the on-screen
+      // preview keeps its background, so swap it out just for the capture.
+      const prevBackground = node.style.background;
+      node.style.background = 'transparent';
+      let canvas;
+      try {
+        canvas = await html2canvas(node, {
+          scale: 2,
+          backgroundColor: null,
+          useCORS: true,
+          logging: false,
+          width,
+          height,
+          windowWidth: width,
+          windowHeight: height,
+          scrollX: 0,
+          scrollY: 0,
+        });
+      } finally {
+        node.style.background = prevBackground;
+      }
       const link = document.createElement('a');
       link.download = filename;
       link.href = canvas.toDataURL('image/png');
