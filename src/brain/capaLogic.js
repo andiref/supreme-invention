@@ -12,6 +12,7 @@
 // ============================================
 
 import { CAPA_STATUSES } from './constants.js';
+import { computeCustomerReportData } from './reportData.js';
 
 const CAPA_STATUS_COLORS = { Open: '#ef4444', Monitoring: '#f59e0b', Effective: '#14b8a6', Closed: '#22c55e' };
 
@@ -108,6 +109,59 @@ export function capaCardMatchesSearch(customer, card, capaRecords, query) {
 
 
 export { CAPA_STATUSES };
+
+/**
+ * Flattens CAPA chains across one or more customers into export-ready rows
+ * — one row per chain, same set of chains getCustomerCapaCards() would show
+ * on screen for each customer (this period's Top 3, plus previously-tracked
+ * chains that dropped out of Top 3; closed ones only when includeClosed).
+ * Pure data out — the UI layer turns this into an actual .xlsx file.
+ *
+ * @param {string[]} customers
+ * @param {{from:string,to:string}} range
+ * @param {MetricRow[]} allMetrics
+ * @param {DefectRow[]} allDefectRows
+ * @param {Record<string, object>} capaRecords
+ * @param {boolean} includeClosed
+ */
+export function buildCapaExportRows(customers, range, allMetrics, allDefectRows, capaRecords, includeClosed) {
+  const rows = [];
+  customers.forEach((customer) => {
+    const customerReportData = computeCustomerReportData(customer, range, allMetrics, allDefectRows);
+    const cards = getCustomerCapaCards(customerReportData, customer, capaRecords, includeClosed);
+    cards.forEach((card) => {
+      const rec = capaRecords[card.key] || {};
+      const eff = capaEffectiveness(rec, allDefectRows);
+      const whys = rec.whys && rec.whys.length ? rec.whys : ['', '', '', '', ''];
+      const effectiveness = !eff ? '' : eff.insufficientData ? 'Action taken — not enough data yet'
+        : eff.improved ? 'Improved' : eff.worsened ? 'Worsened' : 'Flat';
+      rows.push({
+        customer,
+        status: rec.monitoring || 'Open',
+        rank: card.rank ?? '',
+        defect: card.defect,
+        model: card.model,
+        comp: card.comp,
+        count: card.modelCount ?? card.count ?? 0,
+        weeksTracked: rec.history ? Object.keys(rec.history).length : 0,
+        why1: whys[0] || '',
+        why2: whys[1] || '',
+        why3: whys[2] || '',
+        why4: whys[3] || '',
+        rootCause: whys[4] || rec.rootCause || '',
+        correctiveAction: rec.correctiveAction || '',
+        dueDate: rec.dueDate || '',
+        pic: rec.pic || '',
+        actionWeek: eff ? eff.actionWeek : '',
+        beforeAvg: eff && !eff.insufficientData ? Number(eff.beforeAvg.toFixed(1)) : '',
+        afterAvg: eff && !eff.insufficientData ? Number(eff.afterAvg.toFixed(1)) : '',
+        deltaPct: eff && !eff.insufficientData ? Number(eff.deltaPct.toFixed(0)) : '',
+        effectiveness,
+      });
+    });
+  });
+  return rows;
+}
 
 /**
  * Before/after occurrence-count comparison for a CAPA chain, anchored on

@@ -2,7 +2,7 @@ import {
   useEffect, useMemo, useRef, useState,
 } from 'react';
 import {
-  calcMetrics, distinctWeeks, distinctCustomers, resolveWeekRange, resolveReportWeekRange, computeCustomerReportData, buildDigestData,
+  calcMetrics, distinctWeeks, distinctCustomers, resolveWeekRange, resolveReportWeekRange, computeCustomerReportData, buildDigestData, buildCapaExportRows,
 } from '../../brain/index.js';
 import { Card } from '../common/Kpi.jsx';
 import FilterField from '../common/FilterField.jsx';
@@ -58,6 +58,38 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, showT
   }
   const selectAllCustomers = () => setSelectedCustomers(new Set(customers));
   const selectNoCustomers = () => setSelectedCustomers(new Set());
+
+  // Same "new customer defaults to checked" pattern as the digest's
+  // selection, but tracked independently — the two exports often go to
+  // different audiences, so selecting for one shouldn't affect the other.
+  const knownCapaCustomersRef = useRef(new Set());
+  const [selectedCapaCustomers, setSelectedCapaCustomers] = useState(new Set());
+  useEffect(() => {
+    setSelectedCapaCustomers((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      customers.forEach((c) => {
+        if (!knownCapaCustomersRef.current.has(c)) {
+          knownCapaCustomersRef.current.add(c);
+          next.add(c);
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [customers]);
+
+  function toggleCapaCustomer(c) {
+    setSelectedCapaCustomers((prev) => {
+      const next = new Set(prev);
+      if (next.has(c)) next.delete(c); else next.add(c);
+      return next;
+    });
+  }
+  const selectAllCapaCustomers = () => setSelectedCapaCustomers(new Set(customers));
+  const selectNoCapaCustomers = () => setSelectedCapaCustomers(new Set());
+  const [capaIncludeClosed, setCapaIncludeClosed] = useState(false);
+  const [capaExporting, setCapaExporting] = useState(false);
 
   const defaultRange = useMemo(() => resolveReportWeekRange(allWeeks), [allWeeks]);
   const range = useMemo(() => {
@@ -132,6 +164,48 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, showT
   }
 
   const handleExportDigestPng = () => exportNode(digestRef.current, `SMT_Digest_${range.to}.png`, setDigestExporting);
+
+  const capaExportCustomers = useMemo(
+    () => customers.filter((c) => selectedCapaCustomers.has(c)),
+    [customers, selectedCapaCustomers],
+  );
+
+  const CAPA_EXPORT_HEADERS = [
+    'Customer', 'Status', 'Rank (this wk)', 'Defect', 'Model', 'Component',
+    'Count (this wk)', 'Weeks Tracked',
+    'Why 1', 'Why 2', 'Why 3', 'Why 4', 'Why 5 / Root Cause',
+    'Corrective Action', 'Due Date', 'Owner (PIC)',
+    'Action Week', 'Before Avg/wk', 'After Avg/wk', 'Trend % Change', 'Effectiveness',
+  ];
+  const CAPA_EXPORT_COL_WIDTHS = [11, 12, 8, 16, 14, 10, 10, 9, 22, 22, 24, 24, 24, 30, 11, 12, 10, 11, 11, 10, 26];
+
+  async function handleExportCapaXlsx() {
+    if (!capaExportCustomers.length || !range) return;
+    setCapaExporting(true);
+    try {
+      const rows = buildCapaExportRows(capaExportCustomers, range, metrics, defectRows, capaRecords, capaIncludeClosed);
+      if (!rows.length) {
+        showToast('No CAPA chains to export for the selected customers.');
+        return;
+      }
+      const XLSX = await import('xlsx');
+      const aoa = [CAPA_EXPORT_HEADERS, ...rows.map((r) => [
+        r.customer, r.status, r.rank, r.defect, r.model, r.comp, r.count, r.weeksTracked,
+        r.why1, r.why2, r.why3, r.why4, r.rootCause, r.correctiveAction, r.dueDate, r.pic,
+        r.actionWeek, r.beforeAvg, r.afterAvg, r.deltaPct, r.effectiveness,
+      ])];
+      const sheet = XLSX.utils.aoa_to_sheet(aoa);
+      sheet['!cols'] = CAPA_EXPORT_COL_WIDTHS.map((wch) => ({ wch }));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, sheet, 'CAPA Export');
+      XLSX.writeFile(wb, `CAPA_Export_${range.to}.xlsx`);
+      showToast('✓ CAPA Excel downloaded');
+    } catch (err) {
+      showToast(`Export failed: ${err.message}`);
+    } finally {
+      setCapaExporting(false);
+    }
+  }
 
   if (!allWeeks.length) {
     return (
@@ -214,6 +288,43 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, showT
             <div style={{ fontSize: 11, color: 'var(--yc-muted)', marginTop: 10 }}>No selected customers have matched data in this week range.</div>
           )
         )}
+      </Card>
+
+      <Card>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+          <div>
+            <div className="ct" style={{ marginBottom: 2 }}>🛠 CAPA EXPORT</div>
+            <div style={{ fontSize: 10, color: 'var(--yc-muted)' }}>One spreadsheet, one row per CAPA chain, for every selected customer.</div>
+          </div>
+          <button className="btn bb" onClick={handleExportCapaXlsx} disabled={capaExporting || !capaExportCustomers.length}>
+            {capaExporting ? 'EXPORTING…' : `EXPORT CAPA XLSX (${capaExportCustomers.length})`}
+          </button>
+        </div>
+
+        <div style={{ marginTop: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <div className="fl-lbl">CUSTOMERS TO INCLUDE ({capaExportCustomers.length}/{customers.length})</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button className="btn bb" style={{ padding: '3px 9px', fontSize: 10 }} onClick={selectAllCapaCustomers}>ALL</button>
+              <button className="btn bb" style={{ padding: '3px 9px', fontSize: 10 }} onClick={selectNoCapaCustomers}>NONE</button>
+            </div>
+          </div>
+          <div style={{
+            display: 'flex', flexWrap: 'wrap', gap: '6px 16px', maxHeight: 130, overflowY: 'auto', padding: 10, border: '1px solid var(--yc-border)', borderRadius: 6,
+          }}
+          >
+            {customers.length ? customers.map((c) => (
+              <label key={c} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, whiteSpace: 'nowrap', cursor: 'pointer' }}>
+                <input type="checkbox" checked={selectedCapaCustomers.has(c)} onChange={() => toggleCapaCustomer(c)} />
+                {c}
+              </label>
+            )) : <div style={{ fontSize: 11, color: 'var(--yc-muted)' }}>No customers yet — import defect data first.</div>}
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'var(--yc-muted2)', marginTop: 8 }}>
+            <input type="checkbox" checked={capaIncludeClosed} onChange={(e) => setCapaIncludeClosed(e.target.checked)} />
+            Include closed chains
+          </label>
+        </div>
       </Card>
 
       {reportData && customer !== 'ALL' && (
