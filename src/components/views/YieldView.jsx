@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   calcMetrics, findUnmatchedDefectCombos, filterMetrics, filterDefectRows,
   distinctWeeks, distinctCustomers, distinctModels, aggregateKpis,
   paretoByDefectType, CHART_COLORS, YIELD_TARGET, DPPM_LIMIT, fmtInt,
-  monthlySummary, formatMonthLabel,
+  monthlySummary, formatMonthLabel, topDefectsByMonth,
 } from '../../brain/index.js';
 import { Card, KpiRow } from '../common/Kpi.jsx';
 import FilterField from '../common/FilterField.jsx';
@@ -48,14 +48,80 @@ export default function YieldView({ defectRows, prodVolRows, showToast, showConf
     { label: 'DEFECT RECORDS', value: String(kpi.totalDefects), color: '#a78bfa', sub: 'Total defect rows' },
   ] : [];
 
-  // ── Monthly KPI roll-up: always across every week (like the trend charts,
-  // the whole point is summing multiple weeks into a month), respects
-  // customer/model filters ──
+  // ── Monthly KPI roll-up: its own multi-customer + multi-week picker,
+  // independent of the page's single-select filter bar above (still
+  // respects the MODEL filter from that bar). New customers/weeks default
+  // to selected, same "auto-check new items" pattern used for the Digest
+  // and CAPA export customer pickers. ──
+  const knownMonthlyCustomersRef = useRef(new Set());
+  const [selectedMonthlyCustomers, setSelectedMonthlyCustomers] = useState(new Set());
+  useEffect(() => {
+    setSelectedMonthlyCustomers((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      customers.forEach((c) => {
+        if (!knownMonthlyCustomersRef.current.has(c)) {
+          knownMonthlyCustomersRef.current.add(c);
+          next.add(c);
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [customers]);
+  function toggleMonthlyCustomer(c) {
+    setSelectedMonthlyCustomers((prev) => {
+      const next = new Set(prev);
+      if (next.has(c)) next.delete(c); else next.add(c);
+      return next;
+    });
+  }
+  const selectAllMonthlyCustomers = () => setSelectedMonthlyCustomers(new Set(customers));
+  const selectNoMonthlyCustomers = () => setSelectedMonthlyCustomers(new Set());
+  const monthlyCustomersList = useMemo(
+    () => customers.filter((c) => selectedMonthlyCustomers.has(c)),
+    [customers, selectedMonthlyCustomers]
+  );
+
+  const knownMonthlyWeeksRef = useRef(new Set());
+  const [selectedMonthlyWeeks, setSelectedMonthlyWeeks] = useState(new Set());
+  useEffect(() => {
+    setSelectedMonthlyWeeks((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      weeks.forEach((w) => {
+        if (!knownMonthlyWeeksRef.current.has(w)) {
+          knownMonthlyWeeksRef.current.add(w);
+          next.add(w);
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [weeks]);
+  function toggleMonthlyWeek(w) {
+    setSelectedMonthlyWeeks((prev) => {
+      const next = new Set(prev);
+      if (next.has(w)) next.delete(w); else next.add(w);
+      return next;
+    });
+  }
+  const selectAllMonthlyWeeks = () => setSelectedMonthlyWeeks(new Set(weeks));
+  const selectNoMonthlyWeeks = () => setSelectedMonthlyWeeks(new Set());
+
   const monthlyMetrics = useMemo(
-    () => filterMetrics(metrics, { week: 'ALL', customer: filters.customer, model: filters.model }),
-    [metrics, filters.customer, filters.model]
+    () => metrics.filter((m) => (
+      selectedMonthlyCustomers.has(m.customer)
+      && selectedMonthlyWeeks.has(m.week)
+      && (filters.model === 'ALL' || m.model === filters.model)
+    )),
+    [metrics, selectedMonthlyCustomers, selectedMonthlyWeeks, filters.model]
   );
   const monthlyRollup = useMemo(() => monthlySummary(monthlyMetrics), [monthlyMetrics]);
+  const monthlyDefectSummary = useMemo(
+    () => topDefectsByMonth(monthlyRollup, defectRows, monthlyCustomersList),
+    [monthlyRollup, defectRows, monthlyCustomersList]
+  );
 
   // ── Trend charts: always across every week (ignores week filter — that's what makes it a trend), respects model filter ──
   const trendMetrics = useMemo(() => filterMetrics(metrics, { week: 'ALL', customer: 'ALL', model: filters.model }), [metrics, filters.model]);
@@ -159,8 +225,53 @@ export default function YieldView({ defectRows, prodVolRows, showToast, showConf
 
         <Card title="📅 MONTHLY KPI (ROLL-UP)">
           <div style={{ fontSize: 10, color: '#64748b', marginBottom: 8 }}>
-            Each week counts in full toward whichever month owns the majority of its 7 days — so a week split across two months (e.g. 5 days in July, 2 in August) rolls up entirely into July.
+            Each week counts in full toward whichever month owns the majority of its 7 days — so a week split across two months (e.g. 5 days in July, 2 in August) rolls up entirely into July. Uses its own customer/week picker below (the MODEL filter above still applies).
           </div>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginBottom: 12 }}>
+            <div style={{ flex: '1 1 220px', minWidth: 200 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <div className="fl-lbl">CUSTOMERS ({monthlyCustomersList.length}/{customers.length})</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button className="btn bb" style={{ padding: '3px 9px', fontSize: 10 }} onClick={selectAllMonthlyCustomers}>ALL</button>
+                  <button className="btn bb" style={{ padding: '3px 9px', fontSize: 10 }} onClick={selectNoMonthlyCustomers}>NONE</button>
+                </div>
+              </div>
+              <div style={{
+                display: 'flex', flexWrap: 'wrap', gap: '6px 14px', maxHeight: 110, overflowY: 'auto', padding: 10, border: '1px solid var(--yc-border)', borderRadius: 6,
+              }}
+              >
+                {customers.length ? customers.map((c) => (
+                  <label key={c} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, whiteSpace: 'nowrap', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={selectedMonthlyCustomers.has(c)} onChange={() => toggleMonthlyCustomer(c)} />
+                    {c}
+                  </label>
+                )) : <div style={{ fontSize: 11, color: 'var(--yc-muted)' }}>No customers yet.</div>}
+              </div>
+            </div>
+
+            <div style={{ flex: '1 1 220px', minWidth: 200 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <div className="fl-lbl">WEEKS ({[...selectedMonthlyWeeks].filter((w) => weeks.includes(w)).length}/{weeks.length})</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button className="btn bb" style={{ padding: '3px 9px', fontSize: 10 }} onClick={selectAllMonthlyWeeks}>ALL</button>
+                  <button className="btn bb" style={{ padding: '3px 9px', fontSize: 10 }} onClick={selectNoMonthlyWeeks}>NONE</button>
+                </div>
+              </div>
+              <div style={{
+                display: 'flex', flexWrap: 'wrap', gap: '6px 14px', maxHeight: 110, overflowY: 'auto', padding: 10, border: '1px solid var(--yc-border)', borderRadius: 6,
+              }}
+              >
+                {weeks.length ? weeks.map((w) => (
+                  <label key={w} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, whiteSpace: 'nowrap', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={selectedMonthlyWeeks.has(w)} onChange={() => toggleMonthlyWeek(w)} />
+                    {weekLabel(w)}
+                  </label>
+                )) : <div style={{ fontSize: 11, color: 'var(--yc-muted)' }}>No weeks yet.</div>}
+              </div>
+            </div>
+          </div>
+
           {monthlyRollup.length ? (
             <div className="tbl-wrap">
               <table>
@@ -173,24 +284,33 @@ export default function YieldView({ defectRows, prodVolRows, showToast, showConf
                     <th>Qty Failed</th>
                     <th>Yield %</th>
                     <th>DPPM</th>
+                    <th>Top Defects</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {monthlyRollup.map((m) => (
-                    <tr key={m.month}>
-                      <td>{formatMonthLabel(m.month)}</td>
-                      <td>{m.weeks.map(weekLabel).join(', ')}</td>
-                      <td className="num">{fmtInt(m.totalInsp)}</td>
-                      <td className="num">{fmtInt(m.totalPass)}</td>
-                      <td className="num">{fmtInt(m.totalFailed)}</td>
-                      <td className="num" style={{ color: m.yieldPct >= YIELD_TARGET ? '#22c55e' : '#ef4444' }}>{m.yieldPct.toFixed(3)}%</td>
-                      <td className="num" style={{ color: m.dppm <= DPPM_LIMIT ? '#22c55e' : '#ef4444' }}>{fmtInt(m.dppm)}</td>
-                    </tr>
-                  ))}
+                  {monthlyRollup.map((m, i) => {
+                    const defSummary = monthlyDefectSummary[i];
+                    return (
+                      <tr key={m.month}>
+                        <td>{formatMonthLabel(m.month)}</td>
+                        <td>{m.weeks.map(weekLabel).join(', ')}</td>
+                        <td className="num">{fmtInt(m.totalInsp)}</td>
+                        <td className="num">{fmtInt(m.totalPass)}</td>
+                        <td className="num">{fmtInt(m.totalFailed)}</td>
+                        <td className="num" style={{ color: m.yieldPct >= YIELD_TARGET ? '#22c55e' : '#ef4444' }}>{m.yieldPct.toFixed(3)}%</td>
+                        <td className="num" style={{ color: m.dppm <= DPPM_LIMIT ? '#22c55e' : '#ef4444' }}>{fmtInt(m.dppm)}</td>
+                        <td style={{ fontSize: 10.5 }}>
+                          {defSummary && defSummary.top.length
+                            ? defSummary.top.map(([name, count]) => `${name} (${count})`).join(', ')
+                            : '—'}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
-          ) : <div style={{ fontSize: 11, color: '#64748b' }}>No data yet.</div>}
+          ) : <div style={{ fontSize: 11, color: '#64748b' }}>No data for the selected customers/weeks.</div>}
         </Card>
 
         <Card title="📈 YIELD % TREND">
