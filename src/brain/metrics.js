@@ -198,6 +198,29 @@ export function monthlySummary(metrics) {
   });
 }
 
+/**
+ * For each row of monthlySummary()'s output, finds the top defect types
+ * (by raw defect-row count) among `defectRows` restricted to that month's
+ * weeks and to `customers`. Pure data in, pure data out — caller decides
+ * how to render it.
+ *
+ * @param {{month:string, weeks:string[]}[]} monthlyRows  output of monthlySummary()
+ * @param {DefectRow[]} defectRows
+ * @param {string[]} customers  customers to include (empty = none)
+ * @param {number} topN
+ */
+export function topDefectsByMonth(monthlyRows, defectRows, customers, topN = 3) {
+  const customerSet = new Set(customers);
+  return monthlyRows.map((m) => {
+    const weekSet = new Set(m.weeks);
+    const rows = defectRows.filter((d) => weekSet.has(d.week) && customerSet.has(d.customer));
+    const counts = new Map();
+    rows.forEach((d) => counts.set(d.defect, (counts.get(d.defect) || 0) + 1));
+    const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, topN);
+    return { month: m.month, totalDefectRecords: rows.length, top };
+  });
+}
+
 /** Sums KPI totals across a set of MetricRows (already filtered by caller). */
 export function aggregateKpis(metrics) {
   const totalInsp = metrics.reduce((s, r) => s + r.totalInsp, 0);

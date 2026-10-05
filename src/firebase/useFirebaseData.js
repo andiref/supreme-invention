@@ -67,9 +67,18 @@ const toFiniteCount = (value) => {
   return Number.isFinite(n) && n >= 0 ? n : 0;
 };
 
+// Customer names are free-typed at import time, so the same customer can
+// land in Firebase under different casing ('CARLING' one week, 'Carling'
+// the next) depending on who typed the source file. Everything downstream
+// — filters, dropdowns, digest, CAPA, monthly KPI — keys off this string,
+// so normalizing once here (trim + uppercase) merges those into a single
+// customer everywhere, including data that was already imported, with no
+// need to touch the stored records themselves.
+const normCustomer = (c) => String(c ?? '').trim().toUpperCase();
+
 const transformDefects = (raw) => {
   return validRecords(raw)
-    .map((r) => buildDefectRow(r.dtStr, r.customer, r.model, r.sn, r.side, r.comp, r.defect))
+    .map((r) => buildDefectRow(r.dtStr, normCustomer(r.customer), r.model, r.sn, r.side, r.comp, r.defect))
     .filter(Boolean);
 };
 
@@ -77,7 +86,7 @@ const transformProdVol = (raw) => {
   return validRecords(raw)
     .map((r) => ({
       week: String(r.week ?? '').trim(),
-      customer: String(r.customer ?? '').trim(),
+      customer: normCustomer(r.customer),
       model: String(r.model ?? '').trim(),
       inspTOP: toFiniteCount(r.inspTOP),
       inspBOT: toFiniteCount(r.inspBOT),
