@@ -114,6 +114,7 @@ function KpiBlock({
 function MetricsBox({
   customer, weekBadge, hasCurrentData, latestYieldOverall, yieldAboveTarget, yieldDelta, prevWeekLabel,
   latestDppm, dppmWithinLimit, dppmDelta, yieldAvg4wk, dppmAvg4wk,
+  rollup, totalInsp, totalFailed, rollupWeekCount,
 }) {
   return (
     <div style={{
@@ -158,7 +159,27 @@ function MetricsBox({
           footerText={`Limit ${fmtInt(DPPM_LIMIT)}`}
         />
       </div>
-      {(yieldAvg4wk != null || dppmAvg4wk != null) && (
+      {rollup && (
+        <div style={{ borderTop: '1px solid #e7edf5', marginTop: 22, paddingTop: 16 }}>
+          <div style={{
+            fontSize: 12, fontWeight: 800, color: '#71819b', letterSpacing: 0.4, marginBottom: 9,
+          }}
+          >
+            {`ROLL-UP · ${rollupWeekCount} WEEK${rollupWeekCount === 1 ? '' : 'S'}`}
+          </div>
+          <div style={{ display: 'flex', gap: 24 }}>
+            <div>
+              <div style={{ fontSize: 12, color: '#71819b' }}>Inspected</div>
+              <div style={{ fontSize: 21, fontWeight: 800, color: '#102a56', marginTop: 3 }}>{fmtInt(totalInsp)}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 12, color: '#71819b' }}>Failed</div>
+              <div style={{ fontSize: 21, fontWeight: 800, color: '#102a56', marginTop: 3 }}>{fmtInt(totalFailed)}</div>
+            </div>
+          </div>
+        </div>
+      )}
+      {!rollup && (yieldAvg4wk != null || dppmAvg4wk != null) && (
         <div style={{ borderTop: '1px solid #e7edf5', marginTop: 22, paddingTop: 16 }}>
           <div style={{
             fontSize: 12, fontWeight: 800, color: '#71819b', letterSpacing: 0.4, marginBottom: 9,
@@ -300,22 +321,14 @@ export default function DigestCard({
 }) {
   const hasCurrentData = data.latestTotalInsp > 0;
 
-  const ys = data.trendYieldSeries;
-  const prevYield = ys.length > 1 ? ys[ys.length - 2] : null;
-  const yieldDelta = hasCurrentData && prevYield != null ? data.latestYieldOverall - prevYield : null;
-
-  const ds = data.trendDppmSeries;
-  const prevDppm = ds.length > 1 ? ds[ds.length - 2] : null;
-  const dppmDelta = hasCurrentData && prevDppm != null ? data.latestDppm - prevDppm : null;
-
-  const avgLast4 = (series) => {
-    const last4 = series.filter((v) => v != null).slice(-4);
-    return last4.length ? last4.reduce((s, v) => s + v, 0) / last4.length : null;
-  };
-  const yieldAvg4wk = avgLast4(ys);
-  const dppmAvg4wk = avgLast4(ds);
-
-  const prevWeekLabel = data.trendLabels.length > 1 ? data.trendLabels[data.trendLabels.length - 2] : '';
+  // Roll-up mode (several selected weeks accumulated) has no single "previous
+  // week" to compare against, so the delta lines are hidden there.
+  const { rollup } = data;
+  const yieldDelta = !rollup && hasCurrentData && data.prevYield != null ? data.latestYieldOverall - data.prevYield : null;
+  const dppmDelta = !rollup && hasCurrentData && data.prevDppm != null ? data.latestDppm - data.prevDppm : null;
+  const yieldAvg4wk = data.avg4Yield;
+  const dppmAvg4wk = data.avg4Dppm;
+  const prevWeekLabel = data.prevWeekLabel;
   const yieldAboveTarget = hasCurrentData && data.latestYieldOverall >= YIELD_TARGET;
   const dppmWithinLimit = hasCurrentData && data.latestDppm <= DPPM_LIMIT;
 
@@ -339,6 +352,10 @@ export default function DigestCard({
             dppmDelta={dppmDelta}
             yieldAvg4wk={yieldAvg4wk}
             dppmAvg4wk={dppmAvg4wk}
+            rollup={rollup}
+            totalInsp={data.totalInsp}
+            totalFailed={data.totalFailed}
+            rollupWeekCount={data.rollupWeekCount}
           />
           <DefectsBox t3={data.t3} topOf={data.topOf} defectTrendInfo={data.defectTrendInfo} />
         </div>

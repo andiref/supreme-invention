@@ -20,6 +20,12 @@ import DigestCard from './DigestCard.jsx';
  * @param {{from:string,to:string}} range
  */
 const DigestSnapshot = forwardRef(function DigestSnapshot({ sections, range }, ref) {
+  // Roll-up digests cover several weeks, so the badge shows the span
+  // (raw week strings, like the single-week badge); otherwise just the
+  // reference week.
+  const weekBadge = range.rollup && range.weeks && range.weeks.length > 1
+    ? `${range.from} \u2013 ${range.to} \u00b7 ${range.weeks.length} weeks`
+    : range.to;
   return (
     <div ref={ref} style={{
       width: 1600, boxSizing: 'border-box',
@@ -32,7 +38,7 @@ const DigestSnapshot = forwardRef(function DigestSnapshot({ sections, range }, r
           key={customer}
           customer={customer}
           data={data}
-          weekBadge={range.to}
+          weekBadge={weekBadge}
           first={i === 0}
         />
       ))}

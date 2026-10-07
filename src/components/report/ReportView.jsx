@@ -2,7 +2,7 @@ import {
   useEffect, useMemo, useRef, useState,
 } from 'react';
 import {
-  calcMetrics, distinctWeeks, distinctCustomers, buildReportRange, computeCustomerReportData, buildDigestData, buildCapaExportRows, REPORT_MAX_WEEKS,
+  calcMetrics, distinctWeeks, distinctCustomers, buildWeekSelectionRange, defaultReportWeeks, monthlySummary, formatMonthLabel, computeCustomerReportData, buildDigestData, buildCapaExportRows, REPORT_MAX_WEEKS,
 } from '../../brain/index.js';
 import { Card } from '../common/Kpi.jsx';
 import FilterField from '../common/FilterField.jsx';
@@ -15,20 +15,22 @@ function weekLabel(w) {
   return m ? `WW${m[1]}` : w;
 }
 
-// Trend lengths offered in the digest. REPORT_MAX_WEEKS (11) is the default.
-const TREND_LENGTH_OPTIONS = [...new Set([4, 6, 8, REPORT_MAX_WEEKS, 13, 26, 52])]
-  .sort((a, b) => a - b)
-  .map((n) => ({ value: String(n), label: n === REPORT_MAX_WEEKS ? `${n} weeks (default)` : `${n} weeks` }));
+const SCOPE_OPTIONS = [
+  { value: 'latest', label: 'Last selected week' },
+  { value: 'rollup', label: 'All selected weeks (roll-up)' },
+];
 
 export default function ReportView({ defectRows, prodVolRows, capaRecords, showToast, showConfirm, onDataChanged }) {
   const metrics = useMemo(() => calcMetrics(defectRows, prodVolRows), [defectRows, prodVolRows]);
   const allWeeks = useMemo(() => distinctWeeks(defectRows), [defectRows]);
   const customers = useMemo(() => distinctCustomers(defectRows), [defectRows]);
 
-  // Digest week controls: the report week ('' = latest week in the data)
-  // and how many weeks of trend to show (default REPORT_MAX_WEEKS = 11).
-  const [reportWeek, setReportWeek] = useState('');
-  const [trendLength, setTrendLength] = useState(REPORT_MAX_WEEKS);
+  // Digest weeks: any weeks the user ticks (null = untouched, which means
+  // "the latest 11 weeks" and keeps following new imports). `scope` decides
+  // whether the headline KPIs + Top 3 defects describe the last selected week
+  // or accumulate over every selected week (monthly-KPI-style roll-up).
+  const [weekPick, setWeekPick] = useState(null);
+  const [scope, setScope] = useState('latest');
   // Customer for the CAPA tracker below ('' = first customer).
   const [trackerCustomerPick, setTrackerCustomerPick] = useState('');
   const [digestExporting, setDigestExporting] = useState(false);
@@ -78,21 +80,39 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, showT
   const [capaIncludeClosed, setCapaIncludeClosed] = useState(false);
   const [capaExporting, setCapaExporting] = useState(false);
 
+  const selectedWeeks = useMemo(() => {
+    const picked = weekPick ? allWeeks.filter((w) => weekPick.has(w)) : [];
+    return new Set(picked.length ? picked : defaultReportWeeks(allWeeks));
+  }, [allWeeks, weekPick]);
   const range = useMemo(
-    () => buildReportRange(allWeeks, reportWeek, trendLength),
-    [allWeeks, reportWeek, trendLength],
+    () => buildWeekSelectionRange(allWeeks, selectedWeeks, { rollup: scope === 'rollup' }),
+    [allWeeks, selectedWeeks, scope],
   );
-  // Newest week first in the picker — the latest is what you want 99% of the time.
-  const weekOptions = useMemo(
-    () => [...allWeeks].reverse().map((w) => ({ value: w, label: weekLabel(w) })),
-    [allWeeks],
+  // CAPA chains are always judged on a single week (the last selected one),
+  // never on a multi-week roll-up.
+  const capaRange = useMemo(() => (range ? { ...range, rollup: false } : null), [range]);
+
+  // Newest week first in the picker — recent weeks are what you usually want.
+  const weeksNewestFirst = useMemo(() => [...allWeeks].reverse(), [allWeeks]);
+
+  // Months present in the data, for the "pick a month" shortcut. Uses the
+  // same week→month rule as the Yield tab's monthly KPI roll-up.
+  const monthOptions = useMemo(
+    () => monthlySummary(metrics).map((m) => ({ value: m.month, label: formatMonthLabel(m.month), weeks: m.weeks })),
+    [metrics],
   );
+  function handlePickMonth(monthKey) {
+    const m = monthOptions.find((o) => o.value === monthKey);
+    if (!m) return;
+    setWeekPick(new Set(m.weeks));
+    setScope('rollup');
+  }
 
   const trackerCustomer = customers.includes(trackerCustomerPick) ? trackerCustomerPick : (customers[0] || '');
   const reportData = useMemo(() => {
-    if (!range || !trackerCustomer) return null;
-    return computeCustomerReportData(trackerCustomer, range, metrics, defectRows);
-  }, [trackerCustomer, range, metrics, defectRows]);
+    if (!capaRange || !trackerCustomer) return null;
+    return computeCustomerReportData(trackerCustomer, capaRange, metrics, defectRows);
+  }, [trackerCustomer, capaRange, metrics, defectRows]);
 
   const digestCustomers = useMemo(
     () => customers.filter((c) => selectedCustomers.has(c)),
@@ -148,7 +168,7 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, showT
     }
   }
 
-  const handleExportDigestPng = () => exportNode(digestRef.current, `SMT_Digest_${range.to}.png`, setDigestExporting);
+  const handleExportDigestPng = () => exportNode(digestRef.current, range.rollup && range.weeks.length > 1 ? `SMT_Digest_${range.from}_to_${range.to}.png` : `SMT_Digest_${range.to}.png`, setDigestExporting);
 
   const capaExportCustomers = useMemo(
     () => customers.filter((c) => selectedCapaCustomers.has(c)),
@@ -165,10 +185,10 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, showT
   const CAPA_EXPORT_COL_WIDTHS = [11, 12, 8, 16, 14, 10, 10, 9, 22, 22, 24, 24, 24, 30, 11, 12, 10, 11, 11, 10, 26];
 
   async function handleExportCapaXlsx() {
-    if (!capaExportCustomers.length || !range) return;
+    if (!capaExportCustomers.length || !capaRange) return;
     setCapaExporting(true);
     try {
-      const rows = buildCapaExportRows(capaExportCustomers, range, metrics, defectRows, capaRecords, capaIncludeClosed);
+      const rows = buildCapaExportRows(capaExportCustomers, capaRange, metrics, defectRows, capaRecords, capaIncludeClosed);
       if (!rows.length) {
         showToast('No CAPA chains to export for the selected customers.');
         return;
@@ -183,7 +203,7 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, showT
       sheet['!cols'] = CAPA_EXPORT_COL_WIDTHS.map((wch) => ({ wch }));
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, sheet, 'CAPA Export');
-      XLSX.writeFile(wb, `CAPA_Export_${range.to}.xlsx`);
+      XLSX.writeFile(wb, `CAPA_Export_${capaRange.to}.xlsx`);
       showToast('✓ CAPA Excel downloaded');
     } catch (err) {
       showToast(`Export failed: ${err.message}`);
@@ -206,7 +226,12 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, showT
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
           <div>
             <div className="ct" style={{ marginBottom: 2 }}>🗂 WEEKLY DIGEST</div>
-            <div style={{ fontSize: 10, color: 'var(--yc-muted)' }}>Export as one image to attach to the weekly email — every selected customer's KPI + trend for week {weekLabel(range.to)}.</div>
+            <div style={{ fontSize: 10, color: 'var(--yc-muted)' }}>
+              Export as one image to attach to the weekly email — every selected customer's KPI + trend.
+              {' '}{range.rollup && range.weeks.length > 1
+                ? `Roll-up of ${range.weeks.length} selected weeks (${weekLabel(range.from)} – ${weekLabel(range.to)}).`
+                : `Week ${weekLabel(range.to)}.`}
+            </div>
           </div>
           <button className="btn bg" onClick={handleExportDigestPng} disabled={digestExporting || !digestSections.length}>
             {digestExporting ? 'EXPORTING…' : '🖼 EXPORT DIGEST PNG'}
@@ -214,8 +239,18 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, showT
         </div>
 
         <div className="fw" style={{ marginTop: 12 }}>
-          <FilterField label="REPORT WEEK" value={range.to} onChange={setReportWeek} width={140} options={weekOptions} />
-          <FilterField label="TREND LENGTH" value={String(range.trendLength)} onChange={(v) => setTrendLength(Number(v))} width={150} options={TREND_LENGTH_OPTIONS} />
+          <ExcelFilterDropdown label="WEEKS" items={weeksNewestFirst} selected={selectedWeeks} onApply={setWeekPick} itemLabel={weekLabel} />
+          <div className="fl" style={{ flex: 'none', width: 150 }}>
+            <div className="fl-lbl">QUICK PICK MONTH</div>
+            <select value="" onChange={(e) => handlePickMonth(e.target.value)}>
+              <option value="">Month…</option>
+              {[...monthOptions].reverse().map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+          <button className="btn bb" style={{ fontSize: 10, padding: '6px 11px' }} onClick={() => setWeekPick(null)}>
+            LAST {REPORT_MAX_WEEKS} WEEKS
+          </button>
+          <FilterField label="KPI & TOP DEFECTS FROM" value={scope} onChange={setScope} width={210} options={SCOPE_OPTIONS} />
           {customers.length ? (
             <ExcelFilterDropdown label="CUSTOMERS" items={customers} selected={selectedCustomers} onApply={setSelectedCustomers} />
           ) : <div style={{ fontSize: 11, color: 'var(--yc-muted)' }}>No customers yet — import defect data first.</div>}
@@ -257,7 +292,7 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, showT
           <FilterField label="CAPA TRACKER CUSTOMER" value={trackerCustomer} onChange={setTrackerCustomerPick} width={220}
             options={customers} />
         </div>
-        <div style={{ fontSize: 10, color: 'var(--yc-muted)', marginTop: 6 }}>Follows the report week above ({weekLabel(range.to)}).</div>
+        <div style={{ fontSize: 10, color: 'var(--yc-muted)', marginTop: 6 }}>Uses the last selected week above ({weekLabel(capaRange.to)}), never a roll-up.</div>
       </Card>
 
       {reportData ? (

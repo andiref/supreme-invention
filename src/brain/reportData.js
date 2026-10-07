@@ -87,30 +87,34 @@ export function resolveReportWeekRange(
   );
 }
 
+/** The default digest selection: the latest `count` weeks (REPORT_MAX_WEEKS = 11). */
+export function defaultReportWeeks(allWeeksSorted, count = REPORT_MAX_WEEKS) {
+  return allWeeksSorted.slice(Math.max(0, allWeeksSorted.length - count));
+}
+
 /**
- * Builds the digest's week range from the two things the user actually
- * picks: the report week (the week the headline KPIs + Top 3 defects refer
- * to) and how many weeks of trend to show. Unlike resolveWeekRange() this
- * has no hard cap — REPORT_MAX_WEEKS is only the default length.
+ * Builds the digest's range from an explicit, free selection of weeks (any
+ * weeks, contiguous or not — e.g. WW32-WW35 for an August roll-up).
+ *  - from/to are the first/last selected week; `to` is the digest's
+ *    reference week.
+ *  - rollup=false: headline KPIs + Top 3 defects describe the reference week
+ *    only; the selected weeks drive the trend charts.
+ *  - rollup=true: headline KPIs + Top 3 defects accumulate over every
+ *    selected week (same rule as the Yield tab's monthly KPI roll-up).
+ * An empty/unknown selection falls back to defaultReportWeeks().
  *
  * @param {string[]} allWeeksSorted
- * @param {string} [reportWeek]   falls back to the latest week if empty/unknown
- * @param {number} [trendLength]  falls back to REPORT_MAX_WEEKS
- * @returns {{from:string,to:string,weeks:string[],trendLength:number}|null}
+ * @param {Iterable<string>} selectedWeeks
+ * @param {{rollup?:boolean}} [opts]
+ * @returns {{from:string,to:string,weeks:string[],rollup:boolean}|null}
  */
-export function buildReportRange(allWeeksSorted, reportWeek, trendLength) {
-  if (!allWeeksSorted.length) return null;
-  const len = Number.isFinite(trendLength) && trendLength > 0
-    ? Math.floor(trendLength)
-    : REPORT_MAX_WEEKS;
-  let i1 = allWeeksSorted.indexOf(reportWeek);
-  if (i1 === -1) i1 = allWeeksSorted.length - 1;
-  const i0 = Math.max(0, i1 - len + 1);
+export function buildWeekSelectionRange(allWeeksSorted, selectedWeeks, { rollup = false } = {}) {
+  const sel = new Set(selectedWeeks || []);
+  let weeks = allWeeksSorted.filter((w) => sel.has(w));
+  if (!weeks.length) weeks = defaultReportWeeks(allWeeksSorted);
+  if (!weeks.length) return null;
   return {
-    from: allWeeksSorted[i0],
-    to: allWeeksSorted[i1],
-    weeks: allWeeksSorted.slice(i0, i1 + 1),
-    trendLength: len,
+    from: weeks[0], to: weeks[weeks.length - 1], weeks, rollup: !!rollup,
   };
 }
 
@@ -143,12 +147,13 @@ export function computeCustomerReportData(
     customer === "ALL"
       ? allDefectRows
       : allDefectRows.filter((d) => d.customer === customer);
-  const metricsInRange = metricsAllTime.filter(
-    (m) => m.week >= range.from && m.week <= range.to,
-  );
-  const rowsInRange = rowsAllTime.filter(
-    (d) => d.week >= range.from && d.week <= range.to,
-  );
+  // An explicit week list (any weeks, not necessarily contiguous) wins over
+  // the from/to bounds; legacy callers that only pass from/to still work.
+  const weekSet = range.weeks && range.weeks.length ? new Set(range.weeks) : null;
+  const inRange = (w) => (weekSet ? weekSet.has(w) : w >= range.from && w <= range.to);
+  const rollup = !!range.rollup;
+  const metricsInRange = metricsAllTime.filter((m) => inRange(m.week));
+  const rowsInRange = rowsAllTime.filter((d) => inRange(d.week));
 
   const weeklyInRange = weeklySummary(metricsInRange);
   if (!weeklyInRange.length) return null;
@@ -172,8 +177,11 @@ export function computeCustomerReportData(
   const latestWeekRows = rowsInRange.filter(
     (d) => d.week === latestWeekInRange,
   );
+  // Roll-up mode counts defects across every selected week; otherwise only
+  // the reference week.
+  const scopeRows = rollup ? rowsInRange : latestWeekRows;
   const defectCounts = {};
-  latestWeekRows.forEach((d) => {
+  scopeRows.forEach((d) => {
     defectCounts[d.defect] = (defectCounts[d.defect] || 0) + 1;
   });
   const top3 = Object.entries(defectCounts)
@@ -187,7 +195,7 @@ export function computeCustomerReportData(
    *  against a pathologically long value breaking the layout. */
   function topOf(defect, key, maxLen = 40) {
     const counts = {};
-    latestWeekRows
+    scopeRows
       .filter((d) => d.defect === defect)
       .forEach((d) => {
         counts[d[key]] = (counts[d[key]] || 0) + 1;
@@ -200,7 +208,7 @@ export function computeCustomerReportData(
   /** Same ranking as topOf() but the raw value only — for CAPA chain identity, not display. */
   function topContributor(defect, key) {
     const counts = {};
-    latestWeekRows
+    scopeRows
       .filter((d) => d.defect === defect)
       .forEach((d) => {
         counts[d[key]] = (counts[d[key]] || 0) + 1;
@@ -211,18 +219,19 @@ export function computeCustomerReportData(
 
   /** Actual occurrence count for one exact chain this week, independent of Top-3 rank. */
   function countFor(defect, model, comp) {
-    return latestWeekRows.filter(
+    return scopeRows.filter(
       (d) => d.defect === defect && d.model === model && d.comp === comp,
     ).length;
   }
 
-  // ---- Digest-only figures: decoupled from the from/to range picker ----
-  // 1) headline yield/DPPM for the single latest week (a snapshot, not an average)
-  // 2) a trend series spanning the last `range.trendLength` weeks (default
-  //    REPORT_MAX_WEEKS) ending at that week.
-  const latestWeekMetrics = metricsAllTime.filter(
-    (m) => m.week === latestWeekInRange,
-  );
+  // ---- Digest-only figures ----
+  // 1) headline yield/DPPM for the reference week (or the roll-up of all selected weeks)
+  // 2) a trend series over the selected weeks.
+  // Headline figures: the reference week alone, or (roll-up) the sum of all
+  // selected weeks.
+  const latestWeekMetrics = rollup
+    ? metricsInRange
+    : metricsAllTime.filter((m) => m.week === latestWeekInRange);
   const latestTotalInsp = latestWeekMetrics.reduce(
     (s, r) => s + r.totalInsp,
     0,
@@ -242,24 +251,16 @@ export function computeCustomerReportData(
   const latestInspTOP = latestWeekMetrics.reduce((s, r) => s + r.inspTOP, 0);
   const latestInspBOT = latestWeekMetrics.reduce((s, r) => s + r.inspBOT, 0);
 
-  // Trend window is the last `trendLength` weeks THIS CUSTOMER actually
-  // has data for ("builds"), not a calendar-wide window shared across every
-  // customer. A customer with fewer than `trendLength` builds on record
-  // just gets a shorter/narrower chart instead of being padded with empty
-  // slots to line up with everyone else's calendar.
+  // Trend = the selected weeks THIS CUSTOMER actually has data for
+  // ("builds"). A customer with data in only some of the selected weeks
+  // gets a shorter chart instead of being padded with empty slots; every
+  // plotted point keeps its real week label.
   const custWeeksSorted = [
     ...new Set(metricsAllTime.map((m) => m.week)),
   ].sort();
   let toIdx = custWeeksSorted.indexOf(latestWeekInRange);
   if (toIdx === -1) toIdx = custWeeksSorted.length - 1;
-  const trendLength = range.trendLength > 0 ? range.trendLength : REPORT_MAX_WEEKS;
-  const trendWeeks =
-    toIdx === -1
-      ? []
-      : custWeeksSorted.slice(
-          Math.max(0, toIdx - trendLength + 1),
-          toIdx + 1,
-        );
+  const trendWeeks = custWeeksSorted.filter(inRange);
   const trendByWeek = new Map(
     weeklySummary(metricsAllTime).map((w) => [w.week, w]),
   );
@@ -277,6 +278,22 @@ export function computeCustomerReportData(
   prevWeekDefectRows.forEach((d) => {
     prevDefectCounts[d.defect] = (prevDefectCounts[d.defect] || 0) + 1;
   });
+
+  // Prior-week and last-4-week figures are always relative to the reference
+  // week over this customer's whole history, independent of which weeks are
+  // selected for the trend (so picking a single week still shows a delta).
+  const prevWeekSummary = prevWeekForDefects ? trendByWeek.get(prevWeekForDefects) : null;
+  const shortWeek = (w) => {
+    const m = String(w).match(/W(\d+)$/);
+    return m ? `WW${m[1]}` : w;
+  };
+  const last4Weeks = latestIdxForTrend >= 0
+    ? custWeeksSorted.slice(Math.max(0, latestIdxForTrend - 3), latestIdxForTrend + 1)
+    : [];
+  const avgOf = (key) => {
+    const vals = last4Weeks.map((w) => trendByWeek.get(w)?.[key]).filter((v) => v != null);
+    return vals.length ? vals.reduce((a, v) => a + v, 0) / vals.length : null;
+  };
 
   // Defect trend is normalized by inspection volume. Comparing raw occurrence
   // counts can reverse the quality signal when weekly production volume
@@ -296,7 +313,7 @@ export function computeCustomerReportData(
   /** 'rising' | 'falling' | 'flat' | null based on occurrence rate,
    * not raw defect count. */
   function defectTrend(defect) {
-    if (!prevWeekForDefects || latestTotalInsp <= 0 || prevWeekTotalInsp <= 0) return null;
+    if (rollup || !prevWeekForDefects || latestTotalInsp <= 0 || prevWeekTotalInsp <= 0) return null;
     const prev = prevDefectCounts[defect] || 0;
     const curr = defectCounts[defect] || 0;
 
@@ -311,7 +328,7 @@ export function computeCustomerReportData(
 
   /** Exact rate context for one of this week's top-3 defects. */
   function defectTrendInfo(defect) {
-    if (!prevWeekForDefects || latestTotalInsp <= 0 || prevWeekTotalInsp <= 0) return null;
+    if (rollup || !prevWeekForDefects || latestTotalInsp <= 0 || prevWeekTotalInsp <= 0) return null;
     const prev = prevDefectCounts[defect] || 0;
     const curr = defectCounts[defect] || 0;
     const currentRatePct = defectRatePct(curr, latestTotalInsp);
@@ -348,6 +365,13 @@ export function computeCustomerReportData(
     filtRawCount: rowsInRange.length,
 
     // digest-only
+    rollup,
+    rollupWeekCount: weeklyInRange.length,
+    prevYield: prevWeekSummary ? prevWeekSummary.yieldPct : null,
+    prevDppm: prevWeekSummary ? prevWeekSummary.dppm : null,
+    prevWeekLabel: prevWeekForDefects ? shortWeek(prevWeekForDefects) : '',
+    avg4Yield: avgOf('yieldPct'),
+    avg4Dppm: avgOf('dppm'),
     latestYieldOverall: latestTotalInsp
       ? ((latestTotalInsp - latestTotalFailed) / latestTotalInsp) * 100
       : 0,
