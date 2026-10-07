@@ -87,6 +87,33 @@ export function resolveReportWeekRange(
   );
 }
 
+/**
+ * Builds the digest's week range from the two things the user actually
+ * picks: the report week (the week the headline KPIs + Top 3 defects refer
+ * to) and how many weeks of trend to show. Unlike resolveWeekRange() this
+ * has no hard cap — REPORT_MAX_WEEKS is only the default length.
+ *
+ * @param {string[]} allWeeksSorted
+ * @param {string} [reportWeek]   falls back to the latest week if empty/unknown
+ * @param {number} [trendLength]  falls back to REPORT_MAX_WEEKS
+ * @returns {{from:string,to:string,weeks:string[],trendLength:number}|null}
+ */
+export function buildReportRange(allWeeksSorted, reportWeek, trendLength) {
+  if (!allWeeksSorted.length) return null;
+  const len = Number.isFinite(trendLength) && trendLength > 0
+    ? Math.floor(trendLength)
+    : REPORT_MAX_WEEKS;
+  let i1 = allWeeksSorted.indexOf(reportWeek);
+  if (i1 === -1) i1 = allWeeksSorted.length - 1;
+  const i0 = Math.max(0, i1 - len + 1);
+  return {
+    from: allWeeksSorted[i0],
+    to: allWeeksSorted[i1],
+    weeks: allWeeksSorted.slice(i0, i1 + 1),
+    trendLength: len,
+  };
+}
+
 /** Truncates text to at most maxLen chars, adding an ellipsis. */
 function truncateText(name, maxLen) {
   return name.length > maxLen ? `${name.slice(0, maxLen - 1)}…` : name;
@@ -191,8 +218,8 @@ export function computeCustomerReportData(
 
   // ---- Digest-only figures: decoupled from the from/to range picker ----
   // 1) headline yield/DPPM for the single latest week (a snapshot, not an average)
-  // 2) a trend series spanning the last REPORT_MAX_WEEKS weeks ending at that week,
-  //    regardless of how narrow/wide the selected range is.
+  // 2) a trend series spanning the last `range.trendLength` weeks (default
+  //    REPORT_MAX_WEEKS) ending at that week.
   const latestWeekMetrics = metricsAllTime.filter(
     (m) => m.week === latestWeekInRange,
   );
@@ -215,9 +242,9 @@ export function computeCustomerReportData(
   const latestInspTOP = latestWeekMetrics.reduce((s, r) => s + r.inspTOP, 0);
   const latestInspBOT = latestWeekMetrics.reduce((s, r) => s + r.inspBOT, 0);
 
-  // Trend window is the last REPORT_MAX_WEEKS weeks THIS CUSTOMER actually
+  // Trend window is the last `trendLength` weeks THIS CUSTOMER actually
   // has data for ("builds"), not a calendar-wide window shared across every
-  // customer. A customer with fewer than REPORT_MAX_WEEKS builds on record
+  // customer. A customer with fewer than `trendLength` builds on record
   // just gets a shorter/narrower chart instead of being padded with empty
   // slots to line up with everyone else's calendar.
   const custWeeksSorted = [
@@ -225,11 +252,12 @@ export function computeCustomerReportData(
   ].sort();
   let toIdx = custWeeksSorted.indexOf(latestWeekInRange);
   if (toIdx === -1) toIdx = custWeeksSorted.length - 1;
+  const trendLength = range.trendLength > 0 ? range.trendLength : REPORT_MAX_WEEKS;
   const trendWeeks =
     toIdx === -1
       ? []
       : custWeeksSorted.slice(
-          Math.max(0, toIdx - REPORT_MAX_WEEKS + 1),
+          Math.max(0, toIdx - trendLength + 1),
           toIdx + 1,
         );
   const trendByWeek = new Map(

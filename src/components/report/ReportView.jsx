@@ -2,12 +2,11 @@ import {
   useEffect, useMemo, useRef, useState,
 } from 'react';
 import {
-  calcMetrics, distinctWeeks, distinctCustomers, resolveWeekRange, resolveReportWeekRange, computeCustomerReportData, buildDigestData, buildCapaExportRows,
+  calcMetrics, distinctWeeks, distinctCustomers, buildReportRange, computeCustomerReportData, buildDigestData, buildCapaExportRows, REPORT_MAX_WEEKS,
 } from '../../brain/index.js';
 import { Card } from '../common/Kpi.jsx';
 import FilterField from '../common/FilterField.jsx';
 import ExcelFilterDropdown from '../common/ExcelFilterDropdown.jsx';
-import ReportSnapshot from '../report/ReportSnapshot.jsx';
 import DigestSnapshot from '../report/DigestSnapshot.jsx';
 import CapaTracker from '../capa/CapaTracker.jsx';
 
@@ -16,16 +15,22 @@ function weekLabel(w) {
   return m ? `WW${m[1]}` : w;
 }
 
+// Trend lengths offered in the digest. REPORT_MAX_WEEKS (11) is the default.
+const TREND_LENGTH_OPTIONS = [...new Set([4, 6, 8, REPORT_MAX_WEEKS, 13, 26, 52])]
+  .sort((a, b) => a - b)
+  .map((n) => ({ value: String(n), label: n === REPORT_MAX_WEEKS ? `${n} weeks (default)` : `${n} weeks` }));
+
 export default function ReportView({ defectRows, prodVolRows, capaRecords, showToast, showConfirm, onDataChanged }) {
   const metrics = useMemo(() => calcMetrics(defectRows, prodVolRows), [defectRows, prodVolRows]);
   const allWeeks = useMemo(() => distinctWeeks(defectRows), [defectRows]);
   const customers = useMemo(() => distinctCustomers(defectRows), [defectRows]);
 
-  const [author, setAuthor] = useState('');
-  const [customer, setCustomer] = useState('ALL');
-  const [fromWeek, setFromWeek] = useState('');
-  const [toWeek, setToWeek] = useState('');
-  const [showDigest, setShowDigest] = useState(false);
+  // Digest week controls: the report week ('' = latest week in the data)
+  // and how many weeks of trend to show (default REPORT_MAX_WEEKS = 11).
+  const [reportWeek, setReportWeek] = useState('');
+  const [trendLength, setTrendLength] = useState(REPORT_MAX_WEEKS);
+  // Customer for the CAPA tracker below ('' = first customer).
+  const [trackerCustomerPick, setTrackerCustomerPick] = useState('');
   const [digestExporting, setDigestExporting] = useState(false);
   const digestRef = useRef(null);
 
@@ -73,23 +78,21 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, showT
   const [capaIncludeClosed, setCapaIncludeClosed] = useState(false);
   const [capaExporting, setCapaExporting] = useState(false);
 
-  const defaultRange = useMemo(() => resolveReportWeekRange(allWeeks), [allWeeks]);
-  const range = useMemo(() => {
-    if (!allWeeks.length) return null;
-    return resolveWeekRange(allWeeks, fromWeek || defaultRange?.from, toWeek || defaultRange?.to, toWeek ? 'to' : 'from');
-  }, [allWeeks, fromWeek, toWeek, defaultRange]);
+  const range = useMemo(
+    () => buildReportRange(allWeeks, reportWeek, trendLength),
+    [allWeeks, reportWeek, trendLength],
+  );
+  // Newest week first in the picker — the latest is what you want 99% of the time.
+  const weekOptions = useMemo(
+    () => [...allWeeks].reverse().map((w) => ({ value: w, label: weekLabel(w) })),
+    [allWeeks],
+  );
 
-  function handleFromChange(v) {
-    setFromWeek(v);
-  }
-  function handleToChange(v) {
-    setToWeek(v);
-  }
-
+  const trackerCustomer = customers.includes(trackerCustomerPick) ? trackerCustomerPick : (customers[0] || '');
   const reportData = useMemo(() => {
-    if (!range) return null;
-    return computeCustomerReportData(customer, range, metrics, defectRows);
-  }, [customer, range, metrics, defectRows]);
+    if (!range || !trackerCustomer) return null;
+    return computeCustomerReportData(trackerCustomer, range, metrics, defectRows);
+  }, [trackerCustomer, range, metrics, defectRows]);
 
   const digestCustomers = useMemo(
     () => customers.filter((c) => selectedCustomers.has(c)),
@@ -199,61 +202,31 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, showT
 
   return (
     <div id="yc-root">
-      <Card title="📧 CUSTOMER REPORT">
-        <div className="fw" style={{ marginBottom: 10 }}>
-          <FilterField label="FROM WEEK" value={range?.from || ''} onChange={handleFromChange} width={140}
-            options={allWeeks.map((w) => ({ value: w, label: weekLabel(w) }))} />
-          <FilterField label="TO WEEK" value={range?.to || ''} onChange={handleToChange} width={140}
-            options={allWeeks.map((w) => ({ value: w, label: weekLabel(w) }))} />
-          <FilterField label="CUSTOMER" value={customer} onChange={setCustomer} width={160}
-            options={[{ value: 'ALL', label: 'All Customers' }, ...customers]} />
-          <div className="fl" style={{ margin: 0 }}>
-            <div className="fl-lbl">PREPARED BY</div>
-            <input value={author} onChange={(e) => setAuthor(e.target.value)} placeholder="Your name" style={{ width: 150 }} />
-          </div>
-        </div>
-
-        {reportData ? (
-          <>
-            <ReportSnapshot customer={customer} range={range} data={reportData} author={author} />
-          </>
-        ) : (
-          <div style={{ fontSize: 11, color: 'var(--yc-muted)' }}>No matched Yield data for {customer === 'ALL' ? 'any customer' : customer} in this week range.</div>
-        )}
-      </Card>
-
       <Card>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
           <div>
             <div className="ct" style={{ marginBottom: 2 }}>🗂 WEEKLY DIGEST</div>
-            <div style={{ fontSize: 10, color: 'var(--yc-muted)' }}>One stacked image, every selected customer's KPI + trend for week {weekLabel(range.to)}.</div>
+            <div style={{ fontSize: 10, color: 'var(--yc-muted)' }}>Export as one image to attach to the weekly email — every selected customer's KPI + trend for week {weekLabel(range.to)}.</div>
           </div>
-          <button className="btn bb" onClick={() => setShowDigest((v) => !v)}>
-            {showDigest ? 'HIDE DIGEST' : `GENERATE DIGEST (${digestCustomers.length})`}
+          <button className="btn bg" onClick={handleExportDigestPng} disabled={digestExporting || !digestSections.length}>
+            {digestExporting ? 'EXPORTING…' : '🖼 EXPORT DIGEST PNG'}
           </button>
         </div>
 
-        <div style={{ marginTop: 12 }}>
+        <div className="fw" style={{ marginTop: 12 }}>
+          <FilterField label="REPORT WEEK" value={range.to} onChange={setReportWeek} width={140} options={weekOptions} />
+          <FilterField label="TREND LENGTH" value={String(range.trendLength)} onChange={(v) => setTrendLength(Number(v))} width={150} options={TREND_LENGTH_OPTIONS} />
           {customers.length ? (
             <ExcelFilterDropdown label="CUSTOMERS" items={customers} selected={selectedCustomers} onApply={setSelectedCustomers} />
           ) : <div style={{ fontSize: 11, color: 'var(--yc-muted)' }}>No customers yet — import defect data first.</div>}
         </div>
 
-        {showDigest && (
-          digestSections.length ? (
-            <>
-              <div style={{ marginTop: 12, maxHeight: 600, overflowY: 'auto', border: '1px solid var(--yc-border)', borderRadius: 8 }}>
-                <DigestSnapshot ref={digestRef} sections={digestSections} range={range} />
-              </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                <button className="btn bg" onClick={handleExportDigestPng} disabled={digestExporting}>
-                  {digestExporting ? 'EXPORTING…' : '🖼 EXPORT DIGEST PNG'}
-                </button>
-              </div>
-            </>
-          ) : (
-            <div style={{ fontSize: 11, color: 'var(--yc-muted)', marginTop: 10 }}>No selected customers have matched data in this week range.</div>
-          )
+        {digestSections.length ? (
+          <div style={{ marginTop: 12, maxHeight: 600, overflowY: 'auto', border: '1px solid var(--yc-border)', borderRadius: 8 }}>
+            <DigestSnapshot ref={digestRef} sections={digestSections} range={range} />
+          </div>
+        ) : (
+          <div style={{ fontSize: 11, color: 'var(--yc-muted)', marginTop: 10 }}>No selected customers have matched data for this week.</div>
         )}
       </Card>
 
@@ -279,9 +252,17 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, showT
         </div>
       </Card>
 
-      {reportData && customer !== 'ALL' && (
+      <Card>
+        <div className="fw">
+          <FilterField label="CAPA TRACKER CUSTOMER" value={trackerCustomer} onChange={setTrackerCustomerPick} width={220}
+            options={customers} />
+        </div>
+        <div style={{ fontSize: 10, color: 'var(--yc-muted)', marginTop: 6 }}>Follows the report week above ({weekLabel(range.to)}).</div>
+      </Card>
+
+      {reportData ? (
         <CapaTracker
-          customer={customer}
+          customer={trackerCustomer}
           customerReportData={reportData}
           capaRecords={capaRecords}
           defectRows={defectRows}
@@ -290,9 +271,8 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, showT
           showConfirm={showConfirm}
           onDataChanged={onDataChanged}
         />
-      )}
-      {customer === 'ALL' && (
-        <Card><div style={{ fontSize: 11, color: 'var(--yc-muted)' }}>Pick a specific customer above to open its CAPA tracker.</div></Card>
+      ) : (
+        <Card><div style={{ fontSize: 11, color: 'var(--yc-muted)' }}>No matched Yield data for {trackerCustomer || 'this customer'} in the selected week.</div></Card>
       )}
     </div>
   );
