@@ -8,7 +8,7 @@ import {
   paretoByDefectType, topFailingComponents, shiftBreakdown, dayOfWeekBreakdown,
   hourlyBreakdown, topDefectPerShift, dailyFailedTrend,
   capaKey, buildWeeklyTop3Map, chronicWeekCount, getCustomerCapaCards,
-  computeCustomerReportData, resolveReportWeekRange, resolveWeekRange, buildReportRange,
+  computeCustomerReportData, resolveReportWeekRange, resolveWeekRange, buildWeekSelectionRange, defaultReportWeeks,
   DEFECT_LIBRARY, findLibraryEntry, searchLibrary,
   sortEquipment, equipmentStatusColor, buildDataHealth, capaHealth, chronicDefectCount,
   buildDigestData, analyzeQualityData,
@@ -123,13 +123,13 @@ console.log('✓ getCustomerCapaCards:', cards.length, 'card(s) for CUST-A');
 const clamped = resolveWeekRange(['W1', 'W2', 'W3'], 'W1', 'W3', 'to');
 assert.deepEqual(clamped.weeks, ['W1', 'W2', 'W3']);
 
-// Digest week picker: default = latest week + 11-week trend; both adjustable.
+// Digest week picker: free week selection, default = latest 11 weeks.
 const manyWeeks = Array.from({ length: 20 }, (_, i) => `2026-W${String(i + 10).padStart(2, '0')}`);
-const defRange = buildReportRange(manyWeeks);
-assert.equal(defRange.to, '2026-W29');
-assert.equal(defRange.weeks.length, 11);
-assert.deepEqual(buildReportRange(manyWeeks, '2026-W20', 4).weeks, ['2026-W17', '2026-W18', '2026-W19', '2026-W20']);
-assert.equal(buildReportRange(manyWeeks, undefined, 26).weeks.length, 20, 'no 11-week cap when a longer trend is chosen');
+assert.equal(defaultReportWeeks(manyWeeks).length, 11);
+const augRange = buildWeekSelectionRange(manyWeeks, ['2026-W13', '2026-W11', '2026-W12'], { rollup: true });
+assert.deepEqual(augRange.weeks, ['2026-W11', '2026-W12', '2026-W13'], 'selection is sorted and need not match the default window');
+assert.equal(augRange.to, '2026-W13');
+assert.equal(buildWeekSelectionRange(manyWeeks, []).weeks.length, 11, 'empty selection falls back to the default');
 
 // ---- equipment ----
 const eq = [
