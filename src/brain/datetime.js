@@ -35,7 +35,9 @@ export function parseDateTime(str) {
   return dt;
 }
 
-/** ISO 8601 week label, e.g. "2026-W17". */
+/** ISO 8601 week label, e.g. "2026-W17" — treats the day as starting at
+ * midnight. Pure calendar math; use workWeek() for defect timestamps,
+ * which follows the factory's 7AM shift changeover instead. */
 export function isoWeek(d) {
   const dt = new Date(d);
   dt.setHours(0, 0, 0, 0);
@@ -45,6 +47,27 @@ export function isoWeek(d) {
     ((dt - week1) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7
   );
   return `${dt.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+}
+
+/** The hour the working day turns over — also the start of the Morning
+ * shift in shiftForHour() below. A timestamp before this hour still
+ * belongs to the previous working day (and so the previous working week,
+ * when it crosses a Sunday night -> Monday boundary). */
+export const SHIFT_DAY_START_HOUR = 7;
+
+/**
+ * ISO week label for a defect timestamp, but on the factory's working
+ * week: Monday 7:00 AM through the following Monday 6:59:59 AM, not
+ * calendar midnight-to-midnight. A defect logged at 3:00 AM Monday is
+ * still on Sunday night's shift, so it counts toward the previous week;
+ * one logged at 7:00 AM Monday starts the new week. Implemented by
+ * rewinding the clock by SHIFT_DAY_START_HOUR before running the normal
+ * calendar-based isoWeek() math above.
+ */
+export function workWeek(d) {
+  const shifted = new Date(d);
+  shifted.setHours(shifted.getHours() - SHIFT_DAY_START_HOUR);
+  return isoWeek(shifted);
 }
 
 /** Monday of a given ISO week label ("2026-W30") as a Date, or null if the
@@ -109,7 +132,7 @@ export function formatDate(d) {
 
 /** Maps an hour-of-day (0-23) to a shift name. */
 export function shiftForHour(hour) {
-  if (hour >= 7 && hour < 15) return 'Morning';
+  if (hour >= SHIFT_DAY_START_HOUR && hour < 15) return 'Morning';
   if (hour >= 15 && hour < 23) return 'Afternoon';
   return 'Night';
 }

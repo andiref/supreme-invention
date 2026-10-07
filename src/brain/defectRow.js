@@ -3,7 +3,7 @@
 // other brain module (metrics, time analysis, CAPA, reports) expects.
 // ============================================
 
-import { parseDateTime, isoWeek, formatDate, shiftForHour } from './datetime.js';
+import { parseDateTime, workWeek, formatDate, shiftForHour } from './datetime.js';
 
 /**
  * @typedef {Object} DefectRow
@@ -33,7 +33,7 @@ export function buildDefectRow(dtStr, customer, model, sn, side, comp, defect) {
   return {
     datetime: dt,
     dtStr,
-    week: isoWeek(dt),
+    week: workWeek(dt),
     dateStr: formatDate(dt),
     hour: dt.getHours(),
     shift: shiftForHour(dt.getHours()),
