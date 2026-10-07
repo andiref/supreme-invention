@@ -6,6 +6,7 @@ import {
 } from '../../brain/index.js';
 import { Card } from '../common/Kpi.jsx';
 import FilterField from '../common/FilterField.jsx';
+import ExcelFilterDropdown from '../common/ExcelFilterDropdown.jsx';
 import ReportSnapshot from '../report/ReportSnapshot.jsx';
 import DigestSnapshot from '../report/DigestSnapshot.jsx';
 import CapaTracker from '../capa/CapaTracker.jsx';
@@ -49,16 +50,6 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, showT
     });
   }, [customers]);
 
-  function toggleCustomer(c) {
-    setSelectedCustomers((prev) => {
-      const next = new Set(prev);
-      if (next.has(c)) next.delete(c); else next.add(c);
-      return next;
-    });
-  }
-  const selectAllCustomers = () => setSelectedCustomers(new Set(customers));
-  const selectNoCustomers = () => setSelectedCustomers(new Set());
-
   // Same "new customer defaults to checked" pattern as the digest's
   // selection, but tracked independently — the two exports often go to
   // different audiences, so selecting for one shouldn't affect the other.
@@ -79,15 +70,6 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, showT
     });
   }, [customers]);
 
-  function toggleCapaCustomer(c) {
-    setSelectedCapaCustomers((prev) => {
-      const next = new Set(prev);
-      if (next.has(c)) next.delete(c); else next.add(c);
-      return next;
-    });
-  }
-  const selectAllCapaCustomers = () => setSelectedCapaCustomers(new Set(customers));
-  const selectNoCapaCustomers = () => setSelectedCapaCustomers(new Set());
   const [capaIncludeClosed, setCapaIncludeClosed] = useState(false);
   const [capaExporting, setCapaExporting] = useState(false);
 
@@ -252,24 +234,9 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, showT
         </div>
 
         <div style={{ marginTop: 12 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-            <div className="fl-lbl">CUSTOMERS TO INCLUDE ({digestCustomers.length}/{customers.length})</div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button className="btn bb" style={{ padding: '3px 9px', fontSize: 10 }} onClick={selectAllCustomers}>ALL</button>
-              <button className="btn bb" style={{ padding: '3px 9px', fontSize: 10 }} onClick={selectNoCustomers}>NONE</button>
-            </div>
-          </div>
-          <div style={{
-            display: 'flex', flexWrap: 'wrap', gap: '6px 16px', maxHeight: 130, overflowY: 'auto', padding: 10, border: '1px solid var(--yc-border)', borderRadius: 6,
-          }}
-          >
-            {customers.length ? customers.map((c) => (
-              <label key={c} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, whiteSpace: 'nowrap', cursor: 'pointer' }}>
-                <input type="checkbox" checked={selectedCustomers.has(c)} onChange={() => toggleCustomer(c)} />
-                {c}
-              </label>
-            )) : <div style={{ fontSize: 11, color: 'var(--yc-muted)' }}>No customers yet — import defect data first.</div>}
-          </div>
+          {customers.length ? (
+            <ExcelFilterDropdown label="CUSTOMERS" items={customers} selected={selectedCustomers} onApply={setSelectedCustomers} />
+          ) : <div style={{ fontSize: 11, color: 'var(--yc-muted)' }}>No customers yet — import defect data first.</div>}
         </div>
 
         {showDigest && (
@@ -302,25 +269,10 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, showT
         </div>
 
         <div style={{ marginTop: 12 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-            <div className="fl-lbl">CUSTOMERS TO INCLUDE ({capaExportCustomers.length}/{customers.length})</div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button className="btn bb" style={{ padding: '3px 9px', fontSize: 10 }} onClick={selectAllCapaCustomers}>ALL</button>
-              <button className="btn bb" style={{ padding: '3px 9px', fontSize: 10 }} onClick={selectNoCapaCustomers}>NONE</button>
-            </div>
-          </div>
-          <div style={{
-            display: 'flex', flexWrap: 'wrap', gap: '6px 16px', maxHeight: 130, overflowY: 'auto', padding: 10, border: '1px solid var(--yc-border)', borderRadius: 6,
-          }}
-          >
-            {customers.length ? customers.map((c) => (
-              <label key={c} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, whiteSpace: 'nowrap', cursor: 'pointer' }}>
-                <input type="checkbox" checked={selectedCapaCustomers.has(c)} onChange={() => toggleCapaCustomer(c)} />
-                {c}
-              </label>
-            )) : <div style={{ fontSize: 11, color: 'var(--yc-muted)' }}>No customers yet — import defect data first.</div>}
-          </div>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'var(--yc-muted2)', marginTop: 8 }}>
+          {customers.length ? (
+            <ExcelFilterDropdown label="CUSTOMERS" items={customers} selected={selectedCapaCustomers} onApply={setSelectedCapaCustomers} />
+          ) : <div style={{ fontSize: 11, color: 'var(--yc-muted)' }}>No customers yet — import defect data first.</div>}
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'var(--yc-muted2)', marginTop: 10 }}>
             <input type="checkbox" checked={capaIncludeClosed} onChange={(e) => setCapaIncludeClosed(e.target.checked)} />
             Include closed chains
           </label>
