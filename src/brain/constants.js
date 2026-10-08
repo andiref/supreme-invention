@@ -13,6 +13,17 @@ export const DPPM_LIMIT = 5000;
 export const REPORT_MAX_WEEKS = 11;
 
 /**
+ * Customers that are really one customer split across several names (e.g.
+ * CASCO-1 / CASCO-2). They stay separate in the weekly report/digest but are
+ * combined under `name` in the monthly KPI roll-up (Yield tab) and in
+ * roll-up digests. `match` is tested (case-insensitively) against the
+ * customer name as imported; add an entry here for any other split customer.
+ */
+export const CUSTOMER_GROUPS = [
+  { name: 'CASCO', match: /^casco[\s_-]*\d*$/i },
+];
+
+/**
  * Left-bar/rank-badge color for each Top-3 defect position (1st/2nd/3rd)
  * in the weekly digest — purely a visual ranking cue now (no HIGH/MODERATE/
  * WATCH text tag; that was rank-order dressed up as severity language and

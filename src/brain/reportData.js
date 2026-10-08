@@ -6,6 +6,7 @@
 
 import { REPORT_MAX_WEEKS, YIELD_TARGET, DPPM_LIMIT } from "./constants.js";
 import { weeklySummary } from "./metrics.js";
+import { groupCustomers } from "./customerGroups.js";
 
 /**
  * Overall HEALTHY / WARNING / CRITICAL read on a week's headline KPIs, plus
@@ -128,7 +129,7 @@ function truncateText(name, maxLen) {
  * section for a resolved week range. Returns null if that customer has no
  * data in range. `customer === 'ALL'` aggregates every customer together.
  *
- * @param {string} customer
+ * @param {string|string[]} customer   one name, 'ALL', or several names to combine
  * @param {{from:string,to:string,weeks:string[]}} range
  * @param {MetricRow[]} allMetrics
  * @param {DefectRow[]} allDefectRows
@@ -139,14 +140,15 @@ export function computeCustomerReportData(
   allMetrics,
   allDefectRows,
 ) {
+  // `customer` is a single name, 'ALL', or an array of names combined into
+  // one report (used for grouped customers such as CASCO-1 + CASCO-2).
+  const members = Array.isArray(customer) ? new Set(customer) : null;
+  const matchesCustomer = (c) =>
+    customer === "ALL" || (members ? members.has(c) : c === customer);
   const metricsAllTime =
-    customer === "ALL"
-      ? allMetrics
-      : allMetrics.filter((m) => m.customer === customer);
+    customer === "ALL" ? allMetrics : allMetrics.filter((m) => matchesCustomer(m.customer));
   const rowsAllTime =
-    customer === "ALL"
-      ? allDefectRows
-      : allDefectRows.filter((d) => d.customer === customer);
+    customer === "ALL" ? allDefectRows : allDefectRows.filter((d) => matchesCustomer(d.customer));
   // An explicit week list (any weeks, not necessarily contiguous) wins over
   // the from/to bounds; legacy callers that only pass from/to still work.
   const weekSet = range.weeks && range.weeks.length ? new Set(range.weeks) : null;
@@ -403,15 +405,20 @@ export function computeCustomerReportData(
  * @param {DefectRow[]} allDefectRows
  */
 export function buildDigestData(customers, range, allMetrics, allDefectRows) {
-  return customers
-    .map((customer) => ({
-      customer,
-      data: computeCustomerReportData(
-        customer,
-        range,
-        allMetrics,
-        allDefectRows,
-      ),
+  // A weekly digest keeps grouped customers (CASCO-1, CASCO-2) as separate
+  // cards. A roll-up (monthly) digest merges the selected members of each
+  // group into one combined card named after the group.
+  const entries = range.rollup
+    ? groupCustomers(customers).map(({ name, members }) => (
+        members.length > 1
+          ? { name, who: members }
+          : { name: members[0], who: members[0] }
+      ))
+    : customers.map((c) => ({ name: c, who: c }));
+  return entries
+    .map(({ name, who }) => ({
+      customer: name,
+      data: computeCustomerReportData(who, range, allMetrics, allDefectRows),
     }))
     .filter((x) => x.data);
 }

@@ -2,7 +2,7 @@ import {
   useEffect, useMemo, useRef, useState,
 } from 'react';
 import {
-  calcMetrics, distinctWeeks, distinctCustomers, buildWeekSelectionRange, defaultReportWeeks, monthlySummary, formatMonthLabel, computeCustomerReportData, buildDigestData, buildCapaExportRows, REPORT_MAX_WEEKS,
+  calcMetrics, distinctWeeks, distinctCustomers, buildWeekSelectionRange, defaultReportWeeks, combinedCustomerGroups, monthlySummary, formatMonthLabel, computeCustomerReportData, buildDigestData, buildCapaExportRows, REPORT_MAX_WEEKS,
 } from '../../brain/index.js';
 import { Card } from '../common/Kpi.jsx';
 import FilterField from '../common/FilterField.jsx';
@@ -231,6 +231,7 @@ export default function ReportView({ defectRows, prodVolRows, capaRecords, showT
               {' '}{range.rollup && range.weeks.length > 1
                 ? `Roll-up of ${range.weeks.length} selected weeks (${weekLabel(range.from)} – ${weekLabel(range.to)}).`
                 : `Week ${weekLabel(range.to)}.`}
+              {range.rollup && combinedCustomerGroups(digestCustomers).map((g) => ` ${g.name} = ${g.members.join(' + ')} combined.`).join('')}
             </div>
           </div>
           <button className="btn bg" onClick={handleExportDigestPng} disabled={digestExporting || !digestSections.length}>

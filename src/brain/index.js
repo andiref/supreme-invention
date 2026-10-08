@@ -14,6 +14,7 @@ export * from './datetime.js';
 export * from './defectRow.js';
 export * from './metrics.js';
 export * from './filters.js';
+export * from './customerGroups.js';
 export * from './paretoAndComponents.js';
 export * from './timeAnalysis.js';
 export * from './defectLibrary.js';
