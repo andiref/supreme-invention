@@ -4,6 +4,7 @@ import {
   distinctWeeks, distinctCustomers, distinctModels, aggregateKpis,
   paretoByDefectType, CHART_COLORS, YIELD_TARGET, DPPM_LIMIT, fmtInt,
   monthlySummary, formatMonthLabel, topDefectsByMonth,
+  customerGroupOf, distinctCustomerGroups, combinedCustomerGroups,
 } from '../../brain/index.js';
 import { Card, KpiRow } from '../common/Kpi.jsx';
 import FilterField from '../common/FilterField.jsx';
@@ -54,13 +55,17 @@ export default function YieldView({ defectRows, prodVolRows, showToast, showConf
   // respects the MODEL filter from that bar). New customers/weeks default
   // to selected, same "auto-check new items" pattern used for the Digest
   // and CAPA export customer pickers. ──
+  // Customers that are really one (CASCO-1 / CASCO-2 -> CASCO, see
+  // CUSTOMER_GROUPS) appear as a single combined entry here.
+  const monthlyCustomerItems = useMemo(() => distinctCustomerGroups(customers), [customers]);
+  const combinedGroups = useMemo(() => combinedCustomerGroups(customers), [customers]);
   const knownMonthlyCustomersRef = useRef(new Set());
   const [selectedMonthlyCustomers, setSelectedMonthlyCustomers] = useState(new Set());
   useEffect(() => {
     setSelectedMonthlyCustomers((prev) => {
       let changed = false;
       const next = new Set(prev);
-      customers.forEach((c) => {
+      monthlyCustomerItems.forEach((c) => {
         if (!knownMonthlyCustomersRef.current.has(c)) {
           knownMonthlyCustomersRef.current.add(c);
           next.add(c);
@@ -69,9 +74,10 @@ export default function YieldView({ defectRows, prodVolRows, showToast, showConf
       });
       return changed ? next : prev;
     });
-  }, [customers]);
+  }, [monthlyCustomerItems]);
+  // Real customer names behind the selected entries (for the defect lookup).
   const monthlyCustomersList = useMemo(
-    () => customers.filter((c) => selectedMonthlyCustomers.has(c)),
+    () => customers.filter((c) => selectedMonthlyCustomers.has(customerGroupOf(c))),
     [customers, selectedMonthlyCustomers]
   );
 
@@ -93,7 +99,7 @@ export default function YieldView({ defectRows, prodVolRows, showToast, showConf
   }, [weeks]);
   const monthlyMetrics = useMemo(
     () => metrics.filter((m) => (
-      selectedMonthlyCustomers.has(m.customer)
+      selectedMonthlyCustomers.has(customerGroupOf(m.customer))
       && selectedMonthlyWeeks.has(m.week)
       && (filters.model === 'ALL' || m.model === filters.model)
     )),
@@ -208,11 +214,12 @@ export default function YieldView({ defectRows, prodVolRows, showToast, showConf
         <Card title="📅 MONTHLY KPI (ROLL-UP)">
           <div style={{ fontSize: 10, color: '#64748b', marginBottom: 8 }}>
             Each week counts in full toward whichever month owns the majority of its 7 days — so a week split across two months (e.g. 5 days in July, 2 in August) rolls up entirely into July. Uses its own customer/week picker below (the MODEL filter above still applies).
+            {combinedGroups.map((g) => ` ${g.name} combines ${g.members.join(' + ')}.`).join('')}
           </div>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
             {customers.length ? (
-              <ExcelFilterDropdown label="CUSTOMERS" items={customers} selected={selectedMonthlyCustomers} onApply={setSelectedMonthlyCustomers} />
+              <ExcelFilterDropdown label="CUSTOMERS" items={monthlyCustomerItems} selected={selectedMonthlyCustomers} onApply={setSelectedMonthlyCustomers} />
             ) : <div style={{ fontSize: 11, color: 'var(--yc-muted)' }}>No customers yet.</div>}
             {weeks.length ? (
               <ExcelFilterDropdown label="WEEKS" items={weeks} selected={selectedMonthlyWeeks} onApply={setSelectedMonthlyWeeks} itemLabel={weekLabel} />

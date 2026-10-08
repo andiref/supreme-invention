@@ -8,7 +8,7 @@ import {
   paretoByDefectType, topFailingComponents, shiftBreakdown, dayOfWeekBreakdown,
   hourlyBreakdown, topDefectPerShift, dailyFailedTrend,
   capaKey, buildWeeklyTop3Map, chronicWeekCount, getCustomerCapaCards,
-  computeCustomerReportData, resolveReportWeekRange, resolveWeekRange, buildWeekSelectionRange, defaultReportWeeks,
+  computeCustomerReportData, resolveReportWeekRange, resolveWeekRange, buildWeekSelectionRange, defaultReportWeeks, customerGroupOf, distinctCustomerGroups,
   DEFECT_LIBRARY, findLibraryEntry, searchLibrary,
   sortEquipment, equipmentStatusColor, buildDataHealth, capaHealth, chronicDefectCount,
   buildDigestData, analyzeQualityData,
@@ -130,6 +130,12 @@ const augRange = buildWeekSelectionRange(manyWeeks, ['2026-W13', '2026-W11', '20
 assert.deepEqual(augRange.weeks, ['2026-W11', '2026-W12', '2026-W13'], 'selection is sorted and need not match the default window');
 assert.equal(augRange.to, '2026-W13');
 assert.equal(buildWeekSelectionRange(manyWeeks, []).weeks.length, 11, 'empty selection falls back to the default');
+
+// Split customers (CASCO-1/CASCO-2) combine under one name for monthly/roll-up views.
+assert.equal(customerGroupOf('CASCO-1'), 'CASCO');
+assert.equal(customerGroupOf('casco 2'), 'CASCO');
+assert.equal(customerGroupOf('ACME'), 'ACME');
+assert.deepEqual(distinctCustomerGroups(['ACME', 'CASCO-1', 'CASCO-2']), ['ACME', 'CASCO']);
 
 // ---- equipment ----
 const eq = [
